@@ -1,4 +1,5 @@
-import { type AnchorHTMLAttributes, type ButtonHTMLAttributes } from "react";
+import { type ButtonHTMLAttributes } from "react";
+import Link from "next/link";
 
 type Variant = "primary" | "secondary";
 
@@ -7,8 +8,11 @@ type BaseProps = {
   children: React.ReactNode;
 };
 
-type AsLink = BaseProps &
-  AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
+type AsLink = BaseProps & {
+  href: string;
+  onClick?: () => void;
+};
+
 type AsButton = BaseProps &
   ButtonHTMLAttributes<HTMLButtonElement> & { href?: never };
 
@@ -29,20 +33,23 @@ export default function Button({
   children,
   ...props
 }: ButtonProps) {
-  const className = `${base} ${styles[variant]} ${(props as Record<string, unknown>).className ?? ""}`;
+  const cls = `${base} ${styles[variant]}`;
 
   if ("href" in props && props.href) {
-    const { ...rest } = props as AsLink;
     return (
-      <a {...rest} className={className}>
+      <Link
+        href={props.href}
+        onClick={props.onClick}
+        className={cls}
+      >
         {children}
-      </a>
+      </Link>
     );
   }
 
-  const { ...rest } = props as AsButton;
+  const buttonProps = props as AsButton;
   return (
-    <button {...rest} className={className}>
+    <button {...buttonProps} className={cls}>
       {children}
     </button>
   );

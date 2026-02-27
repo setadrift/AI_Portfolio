@@ -15,8 +15,8 @@ export default function Hero() {
           Just solutions that save real hours every week.
         </p>
         <div className="flex flex-col gap-4 sm:flex-row">
-          <Button href="#contact">Let&apos;s Talk</Button>
-          <Button href="#projects" variant="secondary">
+          <Button href="/#contact">Let&apos;s Talk</Button>
+          <Button href="/#projects" variant="secondary">
             See My Work
           </Button>
         </div>

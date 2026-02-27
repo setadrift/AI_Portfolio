@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { SITE, NAV_LINKS } from "@/lib/constants";
 import Button from "@/components/ui/Button";
 
@@ -18,21 +19,21 @@ export default function Header() {
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-warm-200/60 bg-warm-50/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
-        <a href="#" className="text-lg font-semibold text-slate-900">
+        <Link href="/" className="text-lg font-semibold text-slate-900">
           {SITE.name}
-        </a>
+        </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((link) => (
-            <a
+            <Link
               key={link.href}
               href={link.href}
               className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
-          <Button href="#contact">Get in Touch</Button>
+          <Button href="/#contact">Get in Touch</Button>
         </nav>
 
         {/* Mobile menu button */}
@@ -78,16 +79,16 @@ export default function Header() {
         <nav className="border-t border-warm-200/60 bg-warm-50 px-6 pb-6 pt-4 md:hidden">
           <div className="flex flex-col gap-4">
             {NAV_LINKS.map((link) => (
-              <a
+              <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
                 className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
-            <Button href="#contact" onClick={() => setMenuOpen(false)}>
+            <Button href="/#contact" onClick={() => setMenuOpen(false)}>
               Get in Touch
             </Button>
           </div>
