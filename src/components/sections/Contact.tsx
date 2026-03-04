@@ -7,7 +7,12 @@ import Button from "@/components/ui/Button";
 type Status = "idle" | "loading" | "success" | "error";
 
 export default function Contact() {
-  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    message: "",
+    company: "",
+  });
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -29,7 +34,7 @@ export default function Contact() {
       }
 
       setStatus("success");
-      setForm({ name: "", email: "", message: "" });
+      setForm({ name: "", email: "", message: "", company: "" });
     } catch (err) {
       setStatus("error");
       setErrorMsg(
@@ -74,6 +79,18 @@ export default function Contact() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Honeypot field — hidden from real users, catches bots */}
+            <div className="absolute -left-[9999px]" aria-hidden="true">
+              <label htmlFor="company">Company</label>
+              <input
+                id="company"
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+                value={form.company}
+                onChange={(e) => setForm({ ...form, company: e.target.value })}
+              />
+            </div>
             <div>
               <label
                 htmlFor="name"
