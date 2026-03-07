@@ -17,9 +17,9 @@ export default function Header() {
   }, []);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-warm-200/60 bg-warm-50/80 backdrop-blur-md">
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
-        <Link href="/" className="text-lg font-semibold text-slate-900">
+        <Link href="/" className="font-display text-lg text-cream">
           {SITE.name}
         </Link>
 
@@ -28,7 +28,7 @@ export default function Header() {
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+              className="text-sm font-medium text-cream-muted transition-colors hover:text-cream"
             >
               {link.label}
             </Link>
@@ -38,7 +38,7 @@ export default function Header() {
 
         {/* Mobile menu button */}
         <button
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 hover:bg-warm-100 md:hidden"
+          className="flex h-10 w-10 items-center justify-center text-cream-muted hover:text-cream md:hidden"
           aria-label={menuOpen ? "Close menu" : "Open menu"}
           onClick={() => setMenuOpen(!menuOpen)}
         >
@@ -76,14 +76,14 @@ export default function Header() {
 
       {/* Mobile menu drawer */}
       {menuOpen && (
-        <nav className="border-t border-warm-200/60 bg-warm-50 px-6 pb-6 pt-4 md:hidden">
+        <nav className="border-t border-border/60 bg-background px-6 pb-6 pt-4 md:hidden">
           <div className="flex flex-col gap-4">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
-                className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+                className="text-sm font-medium text-cream-muted transition-colors hover:text-cream"
               >
                 {link.label}
               </Link>

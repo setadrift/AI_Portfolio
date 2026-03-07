@@ -3,32 +3,32 @@ import { SITE } from "@/lib/constants";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-warm-200/60 bg-warm-50 px-6 py-16">
+    <footer className="border-t border-border/60 bg-background px-6 py-20">
       <div className="mx-auto max-w-5xl">
-        <div className="mb-10 text-center">
-          <h2 className="mb-3 text-2xl font-bold text-slate-900">
+        <div className="mb-12 text-center">
+          <h2 className="mb-4 font-display text-2xl text-cream md:text-3xl">
             Ready to save your team real time?
           </h2>
-          <p className="mb-6 text-slate-600">
+          <p className="mb-8 text-cream-muted">
             Let&apos;s have a straightforward conversation about what AI can do
             for your business.
           </p>
           <Link
             href="/#contact"
-            className="inline-flex items-center justify-center rounded-lg bg-amber-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+            className="inline-flex items-center justify-center bg-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-background transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
           >
             Get in Touch
           </Link>
         </div>
 
-        <div className="flex flex-col items-center gap-4 border-t border-warm-200/60 pt-8 sm:flex-row sm:justify-between">
-          <p className="text-sm text-slate-600">
+        <div className="flex flex-col items-center gap-4 border-t border-border/60 pt-10 sm:flex-row sm:justify-between">
+          <p className="text-sm text-cream-dim">
             &copy; {new Date().getFullYear()} {SITE.name}. {SITE.tagline}
           </p>
           <div className="flex items-center gap-6">
             <a
               href="mailto:duncan@duncananderson.ca"
-              className="text-sm text-slate-600 transition-colors hover:text-slate-900"
+              className="text-sm text-cream-dim transition-colors hover:text-cream"
             >
               duncan@duncananderson.ca
             </a>
@@ -36,7 +36,7 @@ export default function Footer() {
               href="https://www.linkedin.com/in/duncan-kg-anderson/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-slate-600 transition-colors hover:text-slate-900"
+              className="text-cream-dim transition-colors hover:text-cream"
               aria-label="LinkedIn"
             >
               <svg
