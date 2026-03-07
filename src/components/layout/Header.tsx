@@ -52,7 +52,7 @@ export default function Header() {
           <button
             onClick={switchLocale}
             className="border border-border px-2.5 py-1 font-mono text-xs font-semibold text-cream-dim transition-colors hover:border-accent hover:text-accent"
-            aria-label={locale === "en" ? "Passer au francais" : "Switch to English"}
+            aria-label={locale === "en" ? "Passer au français" : "Switch to English"}
           >
             {locale === "en" ? "FR" : "EN"}
           </button>
@@ -64,7 +64,7 @@ export default function Header() {
           <button
             onClick={switchLocale}
             className="border border-border px-2.5 py-1 font-mono text-xs font-semibold text-cream-dim transition-colors hover:border-accent hover:text-accent"
-            aria-label={locale === "en" ? "Passer au francais" : "Switch to English"}
+            aria-label={locale === "en" ? "Passer au français" : "Switch to English"}
           >
             {locale === "en" ? "FR" : "EN"}
           </button>
