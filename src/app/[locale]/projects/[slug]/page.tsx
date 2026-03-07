@@ -1,22 +1,35 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { PROJECTS, SITE } from "@/lib/constants";
+import { routing } from "@/i18n/routing";
+
+const SLUG_TO_KEY: Record<string, string> = {
+  "dispute-defender": "disputeDefender",
+  "deal-engine": "dealEngine",
+  "the-lineup": "theLineup",
+};
 
 export function generateStaticParams() {
-  return PROJECTS.map((project) => ({ slug: project.slug }));
+  return routing.locales.flatMap((locale) =>
+    PROJECTS.map((project) => ({ locale, slug: project.slug })),
+  );
 }
 
-export function generateMetadata({
+export async function generateMetadata({
   params,
 }: {
-  params: { slug: string };
-}): Metadata {
-  const project = PROJECTS.find((p) => p.slug === params.slug);
-  if (!project) return {};
+  params: Promise<{ locale: string; slug: string }>;
+}): Promise<Metadata> {
+  const { locale, slug } = await params;
+  const key = SLUG_TO_KEY[slug];
+  if (!key) return {};
 
-  const title = `${project.title} — ${SITE.name}`;
-  const description = project.challenge;
+  const t = await getTranslations({ locale, namespace: `projects.${key}` });
+
+  const title = `${t("title")} — ${SITE.name}`;
+  const description = t("challenge");
 
   return {
     title,
@@ -24,7 +37,7 @@ export function generateMetadata({
     openGraph: {
       title,
       description,
-      url: `${SITE.url}/projects/${project.slug}`,
+      url: `${SITE.url}/projects/${slug}`,
       siteName: SITE.name,
       type: "article",
     },
@@ -39,23 +52,28 @@ export function generateMetadata({
 export default async function ProjectPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ locale: string; slug: string }>;
 }) {
-  const { slug } = await params;
-  const project = PROJECTS.find((p) => p.slug === slug);
+  const { locale, slug } = await params;
+  setRequestLocale(locale);
 
+  const project = PROJECTS.find((p) => p.slug === slug);
   if (!project) notFound();
+
+  const key = SLUG_TO_KEY[slug];
+  const t = await getTranslations({ locale, namespace: "projects" });
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CreativeWork",
-    name: project.title,
-    description: project.challenge,
+    name: t(`${key}.title`),
+    description: t(`${key}.challenge`),
     author: { "@type": "Person", name: SITE.name },
     url: `${SITE.url}/projects/${project.slug}`,
   };
 
-  const solutionParagraphs = project.solution.split("\n\n");
+  const solutionText = t(`${key}.solution`);
+  const solutionParagraphs = solutionText.split("\n\n");
 
   return (
     <>
@@ -84,16 +102,16 @@ export default async function ProjectPage({
                 d="M15 19l-7-7 7-7"
               />
             </svg>
-            Back to Projects
+            {t("backToProjects")}
           </Link>
           <p className="mb-4 font-mono text-xs uppercase tracking-[0.2em] text-accent">
-            {project.clientType}
+            {t(`${key}.clientType`)}
           </p>
           <h1 className="mb-5 font-display text-3xl leading-tight text-cream md:text-5xl">
-            {project.title}
+            {t(`${key}.title`)}
           </h1>
           <p className="text-lg leading-relaxed text-cream-muted">
-            {project.challenge}
+            {t(`${key}.challenge`)}
           </p>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-light to-transparent" />
@@ -106,10 +124,10 @@ export default async function ProjectPage({
             01
           </p>
           <h2 className="mb-5 font-display text-2xl text-cream">
-            The Problem
+            {t("theProblem")}
           </h2>
           <p className="text-base leading-relaxed text-cream-muted">
-            {project.problem}
+            {t(`${key}.problem`)}
           </p>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-light to-transparent" />
@@ -122,7 +140,7 @@ export default async function ProjectPage({
             02
           </p>
           <h2 className="mb-5 font-display text-2xl text-cream">
-            What I Built
+            {t("whatIBuilt")}
           </h2>
           <div className="space-y-4 text-base leading-relaxed text-cream-muted">
             {solutionParagraphs.map((paragraph, i) => {
@@ -152,10 +170,10 @@ export default async function ProjectPage({
             03
           </p>
           <h2 className="mb-5 font-display text-2xl text-cream">
-            The Outcome
+            {t("theOutcome")}
           </h2>
           <p className="text-base leading-relaxed text-cream-muted">
-            {project.outcome}
+            {t(`${key}.outcome`)}
           </p>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-light to-transparent" />
@@ -165,31 +183,31 @@ export default async function ProjectPage({
       <section className="bg-background px-6 py-16 md:py-20">
         <div className="mx-auto max-w-3xl">
           <p className="mb-2 font-mono text-xs uppercase tracking-[0.2em] text-accent">
-            Stack
+            {t("stackLabel")}
           </p>
           <h2 className="mb-5 font-display text-2xl text-cream">
-            Tech Used
+            {t("techUsed")}
           </h2>
           <div className="mb-14 flex flex-wrap gap-3">
-            {project.tech.map((t) => (
+            {project.tech.map((tech) => (
               <span
-                key={t}
+                key={tech}
                 className="border border-border px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-cream-dim"
               >
-                {t}
+                {tech}
               </span>
             ))}
           </div>
 
           <div className="border border-border bg-surface p-10 text-center">
             <p className="mb-5 font-display text-lg text-cream">
-              Interested in something like this for your business?
+              {t("interestedCta")}
             </p>
             <Link
               href="/#contact"
               className="inline-flex items-center justify-center bg-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-background transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
             >
-              Let&apos;s Talk
+              {t("letsTalk")}
             </Link>
           </div>
         </div>

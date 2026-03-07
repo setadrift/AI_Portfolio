@@ -1,23 +1,25 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { SITE } from "@/lib/constants";
 
 export default function Footer() {
+  const t = useTranslations("footer");
+
   return (
     <footer className="border-t border-border/60 bg-background px-6 py-20">
       <div className="mx-auto max-w-5xl">
         <div className="mb-12 text-center">
           <h2 className="mb-4 font-display text-2xl text-cream md:text-3xl">
-            Ready to save your team real time?
+            {t("heading")}
           </h2>
           <p className="mb-8 text-cream-muted">
-            Let&apos;s have a straightforward conversation about what AI can do
-            for your business.
+            {t("description")}
           </p>
           <Link
             href="/#contact"
             className="inline-flex items-center justify-center bg-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-background transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
           >
-            Get in Touch
+            {t("getInTouch")}
           </Link>
         </div>
 
