@@ -1,97 +1,97 @@
 {
   "nav": {
     "projects": "Projets",
-    "about": "A propos",
+    "about": "À propos",
     "contact": "Contact",
     "getInTouch": "Me contacter",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer le menu"
   },
   "hero": {
-    "subtitle": "Consultation et ingenierie en IA",
+    "subtitle": "Consultation et ingénierie en IA",
     "heading": "Votre entreprise repose sur votre temps.",
-    "headingLine2": "Je vous aide a en recuperer.",
-    "description": "Je concois des systemes d'IA qui prennent en charge le travail que votre equipe ne devrait plus faire a la main — de l'automatisation des taches repetitives a la transformation de donnees complexes en decisions claires. Pas de jargon, pas de projets qui n'aboutissent jamais. Juste des solutions qui vous font gagner des heures chaque semaine.",
+    "headingLine2": "Je vous aide à en récupérer.",
+    "description": "Je conçois des systèmes d'IA qui prennent en charge le travail que votre équipe ne devrait plus faire à la main — de l'automatisation des tâches répétitives à la transformation de données complexes en décisions claires. Pas de jargon, pas de projets qui n'aboutissent jamais. Juste des solutions qui vous font gagner des heures chaque semaine.",
     "cta": "Discutons",
-    "ctaSecondary": "Voir mes realisations"
+    "ctaSecondary": "Voir mes réalisations"
   },
   "projects": {
     "label": "Portfolio",
     "heading": "Projets en vedette",
-    "description": "Des resultats concrets pour de vraies entreprises. Voici quelques exemples de la facon dont j'ai aide des equipes a travailler plus intelligemment grace a l'IA.",
-    "readCaseStudy": "Voir l'etude de cas",
+    "description": "Des résultats concrets pour de vraies entreprises. Voici quelques exemples de la façon dont j'ai aidé des équipes à travailler plus intelligemment grâce à l'IA.",
+    "readCaseStudy": "Voir l'étude de cas",
     "backToProjects": "Retour aux projets",
-    "theProblem": "Le probleme",
+    "theProblem": "Le problème",
     "whatIBuilt": "Ce que j'ai construit",
-    "theOutcome": "Le resultat",
-    "techUsed": "Technologies utilisees",
+    "theOutcome": "Le résultat",
+    "techUsed": "Technologies utilisées",
     "stackLabel": "Stack",
-    "interestedCta": "Un projet similaire vous interesse pour votre entreprise?",
+    "interestedCta": "Un projet similaire vous intéresse pour votre entreprise?",
     "letsTalk": "Discutons",
     "disputeDefender": {
       "clientType": "Agence de voyages en ligne",
       "title": "Dispute Defender",
-      "challenge": "Une grande entreprise de voyages perdait de l'argent en contestations de paiement — chacune exigeait des heures de travail pour enqueter, rassembler les preuves et repondre. Des milliers s'accumulaient chaque mois.",
-      "result": "J'ai construit un pipeline d'IA qui rassemble automatiquement les bonnes preuves et gere les contestations de bout en bout — recuperant des revenus autrefois consideres comme perdus.",
-      "problem": "Chaque fois qu'un client contestait un paiement, quelqu'un dans l'equipe devait fouiller manuellement les dossiers de reservation, rassembler les preuves, comprendre la raison de la contestation et rediger une reponse. Avec des milliers de contestations chaque mois, l'equipe croulait sous la charge. La plupart recevaient une reponse generique — ou aucune reponse du tout — faute de temps. Les revenus filaient entre les doigts.",
-      "solution": "J'ai concu un pipeline automatise qui gere l'ensemble du processus de contestation du debut a la fin. Le systeme recupere la retro-facturation, rassemble toutes les donnees de reservation et de transaction pertinentes, identifie la cause et prepare un dossier de preuves sur mesure — le tout sans intervention humaine. Ce qui etait un processus lent et manuel est devenu un systeme qui fonctionne en arriere-plan et qui fait le travail correctement du premier coup.",
-      "outcome": "L'equipe a recupere des heures chaque semaine qu'elle passait auparavant sur des taches repetitives. Les taux de victoire se sont ameliores parce que chaque contestation recoit maintenant une reponse bien documentee et specifique, plutot qu'une reponse baclee. Les revenus autrefois consideres comme perdus ont commence a etre recuperes de facon constante."
+      "challenge": "Une grande entreprise de voyages perdait de l'argent en contestations de paiement — chacune exigeait des heures de travail pour enquêter, rassembler les preuves et répondre. Des milliers s'accumulaient chaque mois.",
+      "result": "J'ai construit un pipeline d'IA qui rassemble automatiquement les bonnes preuves et gère les contestations de bout en bout — récupérant des revenus autrefois considérés comme perdus.",
+      "problem": "Chaque fois qu'un client contestait un paiement, quelqu'un dans l'équipe devait fouiller manuellement les dossiers de réservation, rassembler les preuves, comprendre la raison de la contestation et rédiger une réponse. Avec des milliers de contestations chaque mois, l'équipe croulait sous la charge. La plupart recevaient une réponse générique — ou aucune réponse du tout — faute de temps. Les revenus filaient entre les doigts.",
+      "solution": "J'ai conçu un pipeline automatisé qui gère l'ensemble du processus de contestation du début à la fin. Le système récupère la rétro-facturation, rassemble toutes les données de réservation et de transaction pertinentes, identifie la cause et prépare un dossier de preuves sur mesure — le tout sans intervention humaine. Ce qui était un processus lent et manuel est devenu un système qui fonctionne en arrière-plan et qui fait le travail correctement du premier coup.",
+      "outcome": "L'équipe a récupéré des heures chaque semaine qu'elle passait auparavant sur des tâches répétitives. Les taux de victoire se sont améliorés parce que chaque contestation reçoit maintenant une réponse bien documentée et spécifique, plutôt qu'une réponse bâclée. Les revenus autrefois considérés comme perdus ont commencé à être récupérés de façon constante."
     },
     "dealEngine": {
       "clientType": "Agence de voyages en ligne",
       "title": "Deal Engine",
-      "challenge": "Les clients parcouraient des milliers de vols sans pouvoir reperer facilement les meilleures offres. Les bons prix etaient noyes dans la masse, et les conversions en souffraient.",
-      "result": "J'ai construit un moteur de detection d'aubaines en temps reel qui met en avant les vols les plus avantageux a tout moment — presentant la bonne offre a la bonne personne.",
-      "problem": "L'inventaire de FlightHub comptait des milliers de vols a tout moment, mais les meilleures offres etaient enfouies dans le bruit. Les clients naviguaient, se sentaient submerges et partaient. L'equipe de vente savait que de bons prix existaient, mais n'avait aucun moyen systematique de les mettre en valeur. Pendant ce temps, la concurrence s'ameliorait pour montrer aux utilisateurs exactement ce qu'ils voulaient voir.",
-      "solution": "J'ai developpe un systeme qui analyse en continu l'inventaire complet de vols et identifie les offres reellement avantageuses — pas seulement les moins cheres, mais celles offrant le meilleur rapport qualite-prix selon la route, le moment et l'historique des tarifs. Le moteur note et classe les offres en temps reel pour que les meilleures soient presentees aux utilisateurs au moment ou ils naviguent. Un catalogue passif est devenu un systeme de recommandation actif.",
-      "outcome": "Les taux de conversion ont augmente parce que les utilisateurs voyaient des offres qui correspondaient reellement a ce qu'ils cherchaient, au bon moment. Le systeme fonctionnait en continu sans curation manuelle, ce qui permettait a l'equipe de merchandising de se concentrer sur la strategie plutot que de selectionner des offres a la main chaque jour."
+      "challenge": "Les clients parcouraient des milliers de vols sans pouvoir repérer facilement les meilleures offres. Les bons prix étaient noyés dans la masse, et les conversions en souffraient.",
+      "result": "J'ai construit un moteur de détection d'aubaines en temps réel qui met en avant les vols les plus avantageux à tout moment — présentant la bonne offre à la bonne personne.",
+      "problem": "L'inventaire de FlightHub comptait des milliers de vols à tout moment, mais les meilleures offres étaient enfouies dans le bruit. Les clients naviguaient, se sentaient submergés et partaient. L'équipe de vente savait que de bons prix existaient, mais n'avait aucun moyen systématique de les mettre en valeur. Pendant ce temps, la concurrence s'améliorait pour montrer aux utilisateurs exactement ce qu'ils voulaient voir.",
+      "solution": "J'ai développé un système qui analyse en continu l'inventaire complet de vols et identifie les offres réellement avantageuses — pas seulement les moins chères, mais celles offrant le meilleur rapport qualité-prix selon la route, le moment et l'historique des tarifs. Le moteur note et classe les offres en temps réel pour que les meilleures soient présentées aux utilisateurs au moment où ils naviguent. Un catalogue passif est devenu un système de recommandation actif.",
+      "outcome": "Les taux de conversion ont augmenté parce que les utilisateurs voyaient des offres qui correspondaient réellement à ce qu'ils cherchaient, au bon moment. Le système fonctionnait en continu sans curation manuelle, ce qui permettait à l'équipe de merchandising de se concentrer sur la stratégie plutôt que de sélectionner des offres à la main chaque jour."
     },
     "theLineup": {
       "clientType": "Plateforme d'analytique sportive",
       "title": "The Lineup",
-      "challenge": "Plateforme d'analytique sportive complete avec projections ML, comparaison de cotes en temps reel et analyses automatisees de paris.",
-      "result": "Lancee aupres de 200+ abonnes payants generant des revenus recurrents, avec un systeme de suivi de precision public devenu un signal de confiance cle et un moteur de croissance.",
-      "problem": "Les parieurs sportifs n'avaient aucune plateforme unique pour obtenir des projections fiables de joueurs, comparer les cotes entre les sites de paris et identifier les lignes mal evaluees. Les outils existants etaient soit trop chers, soit trop superficiels, soit fragmentes sur des dizaines de sites — forcant les utilisateurs a se fier a leur intuition plutot qu'aux donnees.",
-      "solution": "J'ai concu, developpe et j'opere The Lineup de bout en bout en tant que fondateur solo. La plateforme couvre la NBA, la NFL, la NHL et le basketball universitaire.\n\nPipeline ML — Modeles LightGBM entraines sur 198 caracteristiques incluant des moyennes mobiles ponderees exponentiellement, des ajustements de matchup defense-par-position, des facteurs de rythme et des deltas d'utilisation. Les modeles utilisent un reglage de perte de Huber par statistique pour gerer les performances aberrantes. Le pipeline traite les projections chaque soir sur l'ensemble des matchs avec une MAE de ~4.9 points, ~2.0 rebonds et ~1.5 passes decisives.\n\nMoteur de cotes en temps reel — Ingere et normalise les cotes de plusieurs sites de paris, met en evidence les ecarts de lignes, les calculs de valeur attendue et les opportunites d'arbitrage. Inclut un reglement automatise qui note chaque selection par rapport aux resultats reels.\n\nPlateforme full-stack — Backend FastAPI (Python 3.13) avec cache Redis, frontend Next.js 15 en TypeScript, PostgreSQL sur Supabase, deploye sur Railway. Abonnements integres via Stripe, campagnes courriel via Postmark, et application iOS native via Capacitor.",
-      "outcome": "Lancee aupres de 200+ abonnes payants generant des revenus recurrents. Le systeme de suivi de precision — qui evalue publiquement chaque projection par rapport aux resultats — est devenu un signal de confiance cle et un moteur de croissance. J'ai concu, livre et continue d'operer chaque couche : entrainement ML, pipelines de donnees, backend, frontend, facturation et croissance."
+      "challenge": "Plateforme d'analytique sportive complète avec projections ML, comparaison de cotes en temps réel et analyses automatisées de paris.",
+      "result": "Lancée auprès de 200+ abonnés payants générant des revenus récurrents, avec un système de suivi de précision public devenu un signal de confiance clé et un moteur de croissance.",
+      "problem": "Les parieurs sportifs n'avaient aucune plateforme unique pour obtenir des projections fiables de joueurs, comparer les cotes entre les sites de paris et identifier les lignes mal évaluées. Les outils existants étaient soit trop chers, soit trop superficiels, soit fragmentés sur des dizaines de sites — forçant les utilisateurs à se fier à leur intuition plutôt qu'aux données.",
+      "solution": "J'ai conçu, développé et j'opère The Lineup de bout en bout en tant que fondateur solo. La plateforme couvre la NBA, la NFL, la NHL et le basketball universitaire.\n\nPipeline ML — Modèles LightGBM entraînés sur 198 caractéristiques incluant des moyennes mobiles pondérées exponentiellement, des ajustements de matchup défense-par-position, des facteurs de rythme et des deltas d'utilisation. Les modèles utilisent un réglage de perte de Huber par statistique pour gérer les performances aberrantes. Le pipeline traite les projections chaque soir sur l'ensemble des matchs avec une MAE de ~4.9 points, ~2.0 rebonds et ~1.5 passes décisives.\n\nMoteur de cotes en temps réel — Ingère et normalise les cotes de plusieurs sites de paris, met en évidence les écarts de lignes, les calculs de valeur attendue et les opportunités d'arbitrage. Inclut un règlement automatisé qui note chaque sélection par rapport aux résultats réels.\n\nPlateforme full-stack — Backend FastAPI (Python 3.13) avec cache Redis, frontend Next.js 15 en TypeScript, PostgreSQL sur Supabase, déployé sur Railway. Abonnements intégrés via Stripe, campagnes courriel via Postmark, et application iOS native via Capacitor.",
+      "outcome": "Lancée auprès de 200+ abonnés payants générant des revenus récurrents. Le système de suivi de précision — qui évalue publiquement chaque projection par rapport aux résultats — est devenu un signal de confiance clé et un moteur de croissance. J'ai conçu, livré et continue d'opérer chaque couche : entraînement ML, pipelines de données, backend, frontend, facturation et croissance."
     }
   },
   "about": {
-    "label": "A propos",
-    "heading": "A propos",
-    "imageAlt": "Duncan Anderson — scientifique des donnees et ingenieur en IA",
-    "p1": "Je suis Duncan — un scientifique des donnees et ingenieur en IA qui aide les entreprises a arreter de perdre du temps sur du travail que les machines devraient faire.",
-    "p2": "J'ai passe des annees a batir des systemes d'IA dans une grande entreprise de voyages — automatisant la resolution de contestations, mettant en avant des offres en temps reel et transformant des donnees brutes en decisions qui ont permis d'economiser de l'argent concret. J'ai aussi concu et je gere une plateforme d'analytique sportive utilisee par des centaines d'abonnes.",
-    "p3": "Maintenant, j'apporte cette meme approche aux petites et moyennes entreprises. J'examine comment votre operation fonctionne reellement, je repere les goulots d'etranglement et je construis des solutions que votre equipe utilisera des le premier jour. Pas de projets pilotes qui ne menent nulle part — juste des outils qui fonctionnent."
+    "label": "À propos",
+    "heading": "À propos",
+    "imageAlt": "Duncan Anderson — scientifique des données et ingénieur en IA",
+    "p1": "Je suis Duncan — un scientifique des données et ingénieur en IA qui aide les entreprises à arrêter de perdre du temps sur du travail que les machines devraient faire.",
+    "p2": "J'ai passé des années à bâtir des systèmes d'IA dans une grande entreprise de voyages — automatisant la résolution de contestations, mettant en avant des offres en temps réel et transformant des données brutes en décisions qui ont permis d'économiser de l'argent concret. J'ai aussi conçu et je gère une plateforme d'analytique sportive utilisée par des centaines d'abonnés.",
+    "p3": "Maintenant, j'apporte cette même approche aux petites et moyennes entreprises. J'examine comment votre opération fonctionne réellement, je repère les goulots d'étranglement et je construis des solutions que votre équipe utilisera dès le premier jour. Pas de projets pilotes qui ne mènent nulle part — juste des outils qui fonctionnent."
   },
   "contact": {
     "label": "Contact",
     "heading": "Trouvons la solution ensemble",
-    "description": "Dites-moi ce qui gruge le temps de votre equipe ou ce qui passe entre les mailles du filet. Je vais y jeter un coup d'oeil et vous dire s'il y a une facon concrete de regler ca avec l'IA — et etre honnete si ce n'est pas le cas.",
+    "description": "Dites-moi ce qui gruge le temps de votre équipe ou ce qui passe entre les mailles du filet. Je vais y jeter un coup d'œil et vous dire s'il y a une façon concrète de régler ça avec l'IA — et être honnête si ce n'est pas le cas.",
     "noPitch": "Pas de pitch de vente. Juste une conversation franche sur ce qui est possible.",
     "nameLabel": "Nom",
     "emailLabel": "Courriel",
     "messageLabel": "Message",
     "sending": "Envoi en cours...",
     "sendMessage": "Envoyer le message",
-    "successHeading": "Message envoye.",
-    "successMessage": "Merci de m'avoir ecrit. Je vous reviens sous peu.",
+    "successHeading": "Message envoyé.",
+    "successMessage": "Merci de m'avoir écrit. Je vous reviens sous peu.",
     "sendAnother": "Envoyer un autre message",
     "genericError": "Une erreur est survenue."
   },
   "footer": {
-    "heading": "Pret a faire gagner du temps a votre equipe?",
+    "heading": "Prêt à faire gagner du temps à votre équipe?",
     "description": "Parlons franchement de ce que l'IA peut faire pour votre entreprise.",
     "getInTouch": "Me contacter"
   },
   "notFound": {
     "code": "404",
     "heading": "Page introuvable",
-    "description": "La page que vous cherchez n'existe pas ou a ete deplacee.",
-    "backHome": "Retour a l'accueil"
+    "description": "La page que vous cherchez n'existe pas ou a été déplacée.",
+    "backHome": "Retour à l'accueil"
   },
   "metadata": {
     "title": "Duncan Anderson — Consultation en IA pour petites entreprises",
-    "description": "J'aide les petites entreprises a gagner du temps et a croitre grace a des solutions d'IA pratiques. Pas de jargon, juste des resultats."
+    "description": "J'aide les petites entreprises à gagner du temps et à croître grâce à des solutions d'IA pratiques. Pas de jargon, juste des résultats."
   }
 }
