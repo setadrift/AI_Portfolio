@@ -4,7 +4,7 @@ export const SITE = {
   description:
     "I help small businesses save time and grow with practical AI solutions. No jargon, just results.",
   tagline: "Practical AI for small business.",
-  url: "https://duncananderson.ai",
+  url: "https://duncananderson.ca",
 };
 
 export const NAV_LINKS = [

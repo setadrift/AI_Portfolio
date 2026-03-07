@@ -27,13 +27,13 @@ export default function Footer() {
           </p>
           <div className="flex items-center gap-6">
             <a
-              href="mailto:duncan@duncananderson.ai"
+              href="mailto:duncan@duncananderson.ca"
               className="text-sm text-slate-600 transition-colors hover:text-slate-900"
             >
-              duncan@duncananderson.ai
+              duncan@duncananderson.ca
             </a>
             <a
-              href="https://www.linkedin.com/in/duncan-anderson"
+              href="https://www.linkedin.com/in/duncan-kg-anderson/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-600 transition-colors hover:text-slate-900"

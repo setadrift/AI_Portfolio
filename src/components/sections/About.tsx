@@ -1,12 +1,19 @@
+import Image from "next/image";
 import SectionWrapper from "@/components/ui/SectionWrapper";
 
 export default function About() {
   return (
     <SectionWrapper id="about">
       <div className="grid gap-12 md:grid-cols-2 md:items-center">
-        {/* Photo placeholder */}
-        <div className="flex aspect-square items-center justify-center rounded-2xl bg-warm-200 text-slate-600">
-          <span className="text-sm">Photo coming soon</span>
+        <div className="flex justify-center">
+          <Image
+            src="/duncan.jpeg"
+            alt="Duncan Anderson — data scientist and AI engineer"
+            width={400}
+            height={400}
+            className="h-72 w-72 rounded-full object-cover md:h-96 md:w-96"
+            priority
+          />
         </div>
 
         <div>
