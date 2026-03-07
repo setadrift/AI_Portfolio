@@ -1,0 +1,97 @@
+{
+  "nav": {
+    "projects": "Projects",
+    "about": "About",
+    "contact": "Contact",
+    "getInTouch": "Get in Touch",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
+  },
+  "hero": {
+    "subtitle": "AI Consulting & Engineering",
+    "heading": "Your business runs on your time.",
+    "headingLine2": "I'll help you get more of it back.",
+    "description": "I build AI systems that handle the work your team shouldn't be doing manually — from automating repetitive processes to turning messy data into clear decisions. No jargon, no science projects. Just solutions that save real hours every week.",
+    "cta": "Let's Talk",
+    "ctaSecondary": "See My Work"
+  },
+  "projects": {
+    "label": "Portfolio",
+    "heading": "Featured Projects",
+    "description": "Real results for real businesses. Here are a few examples of how I've helped small teams work smarter with AI.",
+    "readCaseStudy": "Read case study",
+    "backToProjects": "Back to Projects",
+    "theProblem": "The Problem",
+    "whatIBuilt": "What I Built",
+    "theOutcome": "The Outcome",
+    "techUsed": "Tech Used",
+    "stackLabel": "Stack",
+    "interestedCta": "Interested in something like this for your business?",
+    "letsTalk": "Let's Talk",
+    "disputeDefender": {
+      "clientType": "Online Travel Agency",
+      "title": "Dispute Defender",
+      "challenge": "A major travel company was losing money on chargebacks — each one took staff hours to investigate, gather evidence, and respond. Thousands piled up every month.",
+      "result": "Built an AI pipeline that automatically gathers the right evidence and fights disputes end-to-end — recovering revenue that was previously written off.",
+      "problem": "Every time a customer disputed a charge, someone on the team had to manually dig through booking records, pull together evidence, figure out why the dispute happened, and write a response. With thousands of disputes hitting every month, the team was buried. Most disputes got a generic response — or no response at all — because there simply wasn't enough time. Revenue was walking out the door.",
+      "solution": "I built an automated pipeline that handles the entire dispute process from start to finish. The system pulls in the chargeback, gathers all the relevant booking and transaction data, classifies the root cause, and assembles a tailored evidence package — all without anyone touching it. It replaced what used to be a slow, manual process with something that runs in the background and gets it right the first time.",
+      "outcome": "The team got hours back every week that they'd been spending on repetitive dispute work. Win rates improved because every dispute now gets a well-researched, specific response instead of a rushed one. Revenue that was previously written off started getting recovered consistently."
+    },
+    "dealEngine": {
+      "clientType": "Online Travel Agency",
+      "title": "Deal Engine",
+      "challenge": "Customers were browsing thousands of flights but had no easy way to find the best deals. Great prices were buried in the noise, and conversions suffered.",
+      "result": "Built a real-time deal surfacing engine that highlights the hottest flights at any given moment — putting the right deals in front of the right people.",
+      "problem": "FlightHub's inventory had thousands of flights at any given time, but the best deals were hidden in the noise. Customers would browse, get overwhelmed, and leave. The sales team knew great prices existed but had no systematic way to surface them. Meanwhile, competitors were getting better at showing users exactly what they wanted to see.",
+      "solution": "I built a system that continuously analyzes the full flight inventory and identifies which deals are genuinely good — not just cheap, but good value relative to the route, timing, and historical pricing. The engine scores and ranks deals in real time so the best ones can be surfaced to users right when they're browsing. It turned a passive catalog into an active recommendation system.",
+      "outcome": "Conversion rates went up because users started seeing deals that actually matched what they were looking for, right when it mattered. The system ran continuously without manual curation, which meant the merchandising team could focus on strategy instead of hand-picking deals every day."
+    },
+    "theLineup": {
+      "clientType": "Sports Analytics Platform",
+      "title": "The Lineup",
+      "challenge": "Full-stack sports analytics platform with ML projections, real-time odds comparison, and automated betting analytics.",
+      "result": "Launched to 200+ paying subscribers generating recurring revenue, with a public accuracy tracking system that became a key trust signal and growth driver.",
+      "problem": "Sports bettors lacked a single platform to get reliable player projections, compare odds across sportsbooks, and identify mispriced lines. Existing tools were either prohibitively expensive, too shallow, or fragmented across dozens of sites — forcing users to rely on intuition over data.",
+      "solution": "I designed, built, and operate The Lineup end-to-end as a solo founder. The platform covers NBA, NFL, NHL, and college basketball.\n\nML Pipeline — LightGBM models trained on 198 engineered features including exponentially-weighted moving averages, defense-vs-position matchup adjustments, pace factors, and usage deltas. Models use per-stat Huber loss tuning to handle outlier performances. The pipeline processes nightly projections across full league slates with a bettable-population MAE of ~4.9 points, ~2.0 rebounds, and ~1.5 assists.\n\nReal-Time Odds Engine — Ingests and normalizes odds from multiple sportsbooks, surfacing line discrepancies, expected value calculations, and arbitrage opportunities. Includes automated settlement that grades every pick against actual results.\n\nFull-Stack Platform — FastAPI backend (Python 3.13) with Redis caching, Next.js 15 frontend with TypeScript, PostgreSQL on Supabase, and deployed on Railway. Stripe-integrated subscriptions, email campaigns via Postmark, and a native iOS app via Capacitor.",
+      "outcome": "Launched to 200+ paying subscribers generating recurring revenue. The accuracy tracking system — which publicly grades every projection against results — became a key trust signal and growth driver. I built, shipped, and continue to operate every layer: ML training, data pipelines, backend, frontend, billing, and growth."
+    }
+  },
+  "about": {
+    "label": "About",
+    "heading": "About Me",
+    "imageAlt": "Duncan Anderson — data scientist and AI engineer",
+    "p1": "I'm Duncan — a data scientist and AI engineer who helps businesses stop wasting time on work that machines should be doing.",
+    "p2": "I spent years building AI systems at a major travel company — automating dispute resolution, surfacing real-time deals, and turning raw data into decisions that saved real money. I also built and run a sports analytics platform used by hundreds of subscribers.",
+    "p3": "Now I bring that same approach to small and medium businesses. I look at how your operation actually runs, find the bottlenecks, and build solutions your team will use on day one. No pilot programs that go nowhere — just tools that work."
+  },
+  "contact": {
+    "label": "Contact",
+    "heading": "Let's Figure It Out Together",
+    "description": "Tell me what's eating up your team's time or where things keep falling through the cracks. I'll take a look and let you know if there's a practical way to fix it with AI — and be honest if there isn't.",
+    "noPitch": "No sales pitch. Just a straightforward conversation about what's possible.",
+    "nameLabel": "Name",
+    "emailLabel": "Email",
+    "messageLabel": "Message",
+    "sending": "Sending...",
+    "sendMessage": "Send Message",
+    "successHeading": "Message sent.",
+    "successMessage": "Thanks for reaching out. I'll get back to you soon.",
+    "sendAnother": "Send another message",
+    "genericError": "Something went wrong."
+  },
+  "footer": {
+    "heading": "Ready to save your team real time?",
+    "description": "Let's have a straightforward conversation about what AI can do for your business.",
+    "getInTouch": "Get in Touch"
+  },
+  "notFound": {
+    "code": "404",
+    "heading": "Page not found",
+    "description": "The page you're looking for doesn't exist or has been moved.",
+    "backHome": "Back to Home"
+  },
+  "metadata": {
+    "title": "Duncan Anderson — AI Consulting for Small Business",
+    "description": "I help small businesses save time and grow with practical AI solutions. No jargon, just results."
+  }
+}

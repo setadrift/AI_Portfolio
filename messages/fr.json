@@ -1,0 +1,97 @@
+{
+  "nav": {
+    "projects": "Projets",
+    "about": "A propos",
+    "contact": "Contact",
+    "getInTouch": "Me contacter",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu"
+  },
+  "hero": {
+    "subtitle": "Consultation et ingenierie en IA",
+    "heading": "Votre entreprise repose sur votre temps.",
+    "headingLine2": "Je vous aide a en recuperer.",
+    "description": "Je concois des systemes d'IA qui prennent en charge le travail que votre equipe ne devrait plus faire a la main — de l'automatisation des taches repetitives a la transformation de donnees complexes en decisions claires. Pas de jargon, pas de projets qui n'aboutissent jamais. Juste des solutions qui vous font gagner des heures chaque semaine.",
+    "cta": "Discutons",
+    "ctaSecondary": "Voir mes realisations"
+  },
+  "projects": {
+    "label": "Portfolio",
+    "heading": "Projets en vedette",
+    "description": "Des resultats concrets pour de vraies entreprises. Voici quelques exemples de la facon dont j'ai aide des equipes a travailler plus intelligemment grace a l'IA.",
+    "readCaseStudy": "Voir l'etude de cas",
+    "backToProjects": "Retour aux projets",
+    "theProblem": "Le probleme",
+    "whatIBuilt": "Ce que j'ai construit",
+    "theOutcome": "Le resultat",
+    "techUsed": "Technologies utilisees",
+    "stackLabel": "Stack",
+    "interestedCta": "Un projet similaire vous interesse pour votre entreprise?",
+    "letsTalk": "Discutons",
+    "disputeDefender": {
+      "clientType": "Agence de voyages en ligne",
+      "title": "Dispute Defender",
+      "challenge": "Une grande entreprise de voyages perdait de l'argent en contestations de paiement — chacune exigeait des heures de travail pour enqueter, rassembler les preuves et repondre. Des milliers s'accumulaient chaque mois.",
+      "result": "J'ai construit un pipeline d'IA qui rassemble automatiquement les bonnes preuves et gere les contestations de bout en bout — recuperant des revenus autrefois consideres comme perdus.",
+      "problem": "Chaque fois qu'un client contestait un paiement, quelqu'un dans l'equipe devait fouiller manuellement les dossiers de reservation, rassembler les preuves, comprendre la raison de la contestation et rediger une reponse. Avec des milliers de contestations chaque mois, l'equipe croulait sous la charge. La plupart recevaient une reponse generique — ou aucune reponse du tout — faute de temps. Les revenus filaient entre les doigts.",
+      "solution": "J'ai concu un pipeline automatise qui gere l'ensemble du processus de contestation du debut a la fin. Le systeme recupere la retro-facturation, rassemble toutes les donnees de reservation et de transaction pertinentes, identifie la cause et prepare un dossier de preuves sur mesure — le tout sans intervention humaine. Ce qui etait un processus lent et manuel est devenu un systeme qui fonctionne en arriere-plan et qui fait le travail correctement du premier coup.",
+      "outcome": "L'equipe a recupere des heures chaque semaine qu'elle passait auparavant sur des taches repetitives. Les taux de victoire se sont ameliores parce que chaque contestation recoit maintenant une reponse bien documentee et specifique, plutot qu'une reponse baclee. Les revenus autrefois consideres comme perdus ont commence a etre recuperes de facon constante."
+    },
+    "dealEngine": {
+      "clientType": "Agence de voyages en ligne",
+      "title": "Deal Engine",
+      "challenge": "Les clients parcouraient des milliers de vols sans pouvoir reperer facilement les meilleures offres. Les bons prix etaient noyes dans la masse, et les conversions en souffraient.",
+      "result": "J'ai construit un moteur de detection d'aubaines en temps reel qui met en avant les vols les plus avantageux a tout moment — presentant la bonne offre a la bonne personne.",
+      "problem": "L'inventaire de FlightHub comptait des milliers de vols a tout moment, mais les meilleures offres etaient enfouies dans le bruit. Les clients naviguaient, se sentaient submerges et partaient. L'equipe de vente savait que de bons prix existaient, mais n'avait aucun moyen systematique de les mettre en valeur. Pendant ce temps, la concurrence s'ameliorait pour montrer aux utilisateurs exactement ce qu'ils voulaient voir.",
+      "solution": "J'ai developpe un systeme qui analyse en continu l'inventaire complet de vols et identifie les offres reellement avantageuses — pas seulement les moins cheres, mais celles offrant le meilleur rapport qualite-prix selon la route, le moment et l'historique des tarifs. Le moteur note et classe les offres en temps reel pour que les meilleures soient presentees aux utilisateurs au moment ou ils naviguent. Un catalogue passif est devenu un systeme de recommandation actif.",
+      "outcome": "Les taux de conversion ont augmente parce que les utilisateurs voyaient des offres qui correspondaient reellement a ce qu'ils cherchaient, au bon moment. Le systeme fonctionnait en continu sans curation manuelle, ce qui permettait a l'equipe de merchandising de se concentrer sur la strategie plutot que de selectionner des offres a la main chaque jour."
+    },
+    "theLineup": {
+      "clientType": "Plateforme d'analytique sportive",
+      "title": "The Lineup",
+      "challenge": "Plateforme d'analytique sportive complete avec projections ML, comparaison de cotes en temps reel et analyses automatisees de paris.",
+      "result": "Lancee aupres de 200+ abonnes payants generant des revenus recurrents, avec un systeme de suivi de precision public devenu un signal de confiance cle et un moteur de croissance.",
+      "problem": "Les parieurs sportifs n'avaient aucune plateforme unique pour obtenir des projections fiables de joueurs, comparer les cotes entre les sites de paris et identifier les lignes mal evaluees. Les outils existants etaient soit trop chers, soit trop superficiels, soit fragmentes sur des dizaines de sites — forcant les utilisateurs a se fier a leur intuition plutot qu'aux donnees.",
+      "solution": "J'ai concu, developpe et j'opere The Lineup de bout en bout en tant que fondateur solo. La plateforme couvre la NBA, la NFL, la NHL et le basketball universitaire.\n\nPipeline ML — Modeles LightGBM entraines sur 198 caracteristiques incluant des moyennes mobiles ponderees exponentiellement, des ajustements de matchup defense-par-position, des facteurs de rythme et des deltas d'utilisation. Les modeles utilisent un reglage de perte de Huber par statistique pour gerer les performances aberrantes. Le pipeline traite les projections chaque soir sur l'ensemble des matchs avec une MAE de ~4.9 points, ~2.0 rebonds et ~1.5 passes decisives.\n\nMoteur de cotes en temps reel — Ingere et normalise les cotes de plusieurs sites de paris, met en evidence les ecarts de lignes, les calculs de valeur attendue et les opportunites d'arbitrage. Inclut un reglement automatise qui note chaque selection par rapport aux resultats reels.\n\nPlateforme full-stack — Backend FastAPI (Python 3.13) avec cache Redis, frontend Next.js 15 en TypeScript, PostgreSQL sur Supabase, deploye sur Railway. Abonnements integres via Stripe, campagnes courriel via Postmark, et application iOS native via Capacitor.",
+      "outcome": "Lancee aupres de 200+ abonnes payants generant des revenus recurrents. Le systeme de suivi de precision — qui evalue publiquement chaque projection par rapport aux resultats — est devenu un signal de confiance cle et un moteur de croissance. J'ai concu, livre et continue d'operer chaque couche : entrainement ML, pipelines de donnees, backend, frontend, facturation et croissance."
+    }
+  },
+  "about": {
+    "label": "A propos",
+    "heading": "A propos",
+    "imageAlt": "Duncan Anderson — scientifique des donnees et ingenieur en IA",
+    "p1": "Je suis Duncan — un scientifique des donnees et ingenieur en IA qui aide les entreprises a arreter de perdre du temps sur du travail que les machines devraient faire.",
+    "p2": "J'ai passe des annees a batir des systemes d'IA dans une grande entreprise de voyages — automatisant la resolution de contestations, mettant en avant des offres en temps reel et transformant des donnees brutes en decisions qui ont permis d'economiser de l'argent concret. J'ai aussi concu et je gere une plateforme d'analytique sportive utilisee par des centaines d'abonnes.",
+    "p3": "Maintenant, j'apporte cette meme approche aux petites et moyennes entreprises. J'examine comment votre operation fonctionne reellement, je repere les goulots d'etranglement et je construis des solutions que votre equipe utilisera des le premier jour. Pas de projets pilotes qui ne menent nulle part — juste des outils qui fonctionnent."
+  },
+  "contact": {
+    "label": "Contact",
+    "heading": "Trouvons la solution ensemble",
+    "description": "Dites-moi ce qui gruge le temps de votre equipe ou ce qui passe entre les mailles du filet. Je vais y jeter un coup d'oeil et vous dire s'il y a une facon concrete de regler ca avec l'IA — et etre honnete si ce n'est pas le cas.",
+    "noPitch": "Pas de pitch de vente. Juste une conversation franche sur ce qui est possible.",
+    "nameLabel": "Nom",
+    "emailLabel": "Courriel",
+    "messageLabel": "Message",
+    "sending": "Envoi en cours...",
+    "sendMessage": "Envoyer le message",
+    "successHeading": "Message envoye.",
+    "successMessage": "Merci de m'avoir ecrit. Je vous reviens sous peu.",
+    "sendAnother": "Envoyer un autre message",
+    "genericError": "Une erreur est survenue."
+  },
+  "footer": {
+    "heading": "Pret a faire gagner du temps a votre equipe?",
+    "description": "Parlons franchement de ce que l'IA peut faire pour votre entreprise.",
+    "getInTouch": "Me contacter"
+  },
+  "notFound": {
+    "code": "404",
+    "heading": "Page introuvable",
+    "description": "La page que vous cherchez n'existe pas ou a ete deplacee.",
+    "backHome": "Retour a l'accueil"
+  },
+  "metadata": {
+    "title": "Duncan Anderson — Consultation en IA pour petites entreprises",
+    "description": "J'aide les petites entreprises a gagner du temps et a croitre grace a des solutions d'IA pratiques. Pas de jargon, juste des resultats."
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import SectionWrapper from "@/components/ui/SectionWrapper";
 import Button from "@/components/ui/Button";
 
@@ -15,6 +16,7 @@ export default function Contact() {
   });
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const t = useTranslations("contact");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -30,7 +32,7 @@ export default function Contact() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Something went wrong.");
+        throw new Error(data.error || t("genericError"));
       }
 
       setStatus("success");
@@ -38,7 +40,7 @@ export default function Contact() {
     } catch (err) {
       setStatus("error");
       setErrorMsg(
-        err instanceof Error ? err.message : "Something went wrong.",
+        err instanceof Error ? err.message : t("genericError"),
       );
     }
   }
@@ -51,41 +53,37 @@ export default function Contact() {
       <div className="grid gap-16 md:grid-cols-2">
         <div>
           <p className="mb-3 font-mono text-xs uppercase tracking-[0.3em] text-accent">
-            Contact
+            {t("label")}
           </p>
           <h2 className="mb-6 font-display text-3xl text-cream md:text-4xl">
-            Let&apos;s Figure It Out Together
+            {t("heading")}
           </h2>
           <p className="mb-6 leading-relaxed text-cream-muted">
-            Tell me what&apos;s eating up your team&apos;s time or where things
-            keep falling through the cracks. I&apos;ll take a look and let you
-            know if there&apos;s a practical way to fix it with AI — and be
-            honest if there isn&apos;t.
+            {t("description")}
           </p>
           <p className="text-sm text-cream-dim">
-            No sales pitch. Just a straightforward conversation about
-            what&apos;s possible.
+            {t("noPitch")}
           </p>
         </div>
 
         {status === "success" ? (
           <div className="flex flex-col items-center justify-center border border-border bg-surface-elevated p-10 text-center">
             <h3 className="mb-3 font-display text-xl text-cream">
-              Message sent.
+              {t("successHeading")}
             </h3>
             <p className="mb-6 text-cream-muted">
-              Thanks for reaching out. I&apos;ll get back to you soon.
+              {t("successMessage")}
             </p>
             <button
               onClick={() => setStatus("idle")}
               className="text-sm font-medium text-accent transition-colors hover:text-accent-hover"
             >
-              Send another message
+              {t("sendAnother")}
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Honeypot field — hidden from real users, catches bots */}
+            {/* Honeypot field */}
             <div className="absolute -left-[9999px]" aria-hidden="true">
               <label htmlFor="company">Company</label>
               <input
@@ -102,7 +100,7 @@ export default function Contact() {
                 htmlFor="name"
                 className="mb-1.5 block font-mono text-xs uppercase tracking-wider text-cream-dim"
               >
-                Name
+                {t("nameLabel")}
               </label>
               <input
                 id="name"
@@ -118,7 +116,7 @@ export default function Contact() {
                 htmlFor="email"
                 className="mb-1.5 block font-mono text-xs uppercase tracking-wider text-cream-dim"
               >
-                Email
+                {t("emailLabel")}
               </label>
               <input
                 id="email"
@@ -134,7 +132,7 @@ export default function Contact() {
                 htmlFor="message"
                 className="mb-1.5 block font-mono text-xs uppercase tracking-wider text-cream-dim"
               >
-                Message
+                {t("messageLabel")}
               </label>
               <textarea
                 id="message"
@@ -149,7 +147,7 @@ export default function Contact() {
               <p className="text-sm text-red-400">{errorMsg}</p>
             )}
             <Button type="submit" disabled={status === "loading"}>
-              {status === "loading" ? "Sending..." : "Send Message"}
+              {status === "loading" ? t("sending") : t("sendMessage")}
             </Button>
           </form>
         )}
