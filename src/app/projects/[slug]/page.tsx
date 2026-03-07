@@ -55,6 +55,8 @@ export default async function ProjectPage({
     url: `${SITE.url}/projects/${project.slug}`,
   };
 
+  const solutionParagraphs = project.solution.split("\n\n");
+
   return (
     <>
       <script
@@ -63,11 +65,11 @@ export default async function ProjectPage({
       />
 
       {/* Hero */}
-      <section className="bg-warm-50 px-6 pb-16 pt-32 md:pb-20 md:pt-40">
-        <div className="mx-auto max-w-3xl">
+      <section className="grain relative overflow-hidden bg-background px-6 pb-16 pt-36 md:pb-20 md:pt-44">
+        <div className="relative z-10 mx-auto max-w-3xl">
           <Link
             href="/#projects"
-            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-amber-600"
+            className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-cream-dim transition-colors hover:text-accent"
           >
             <svg
               className="h-4 w-4"
@@ -84,78 +86,108 @@ export default async function ProjectPage({
             </svg>
             Back to Projects
           </Link>
-          <span className="mb-3 block text-xs font-semibold uppercase tracking-wider text-amber-600">
+          <p className="mb-4 font-mono text-xs uppercase tracking-[0.2em] text-accent">
             {project.clientType}
-          </span>
-          <h1 className="mb-4 text-3xl font-bold leading-tight text-slate-900 md:text-4xl">
+          </p>
+          <h1 className="mb-5 font-display text-3xl leading-tight text-cream md:text-5xl">
             {project.title}
           </h1>
-          <p className="text-lg leading-relaxed text-slate-600">
+          <p className="text-lg leading-relaxed text-cream-muted">
             {project.challenge}
           </p>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-light to-transparent" />
       </section>
 
       {/* The Problem */}
-      <section className="bg-white px-6 py-16 md:py-20">
+      <section className="bg-surface px-6 py-16 md:py-20">
         <div className="mx-auto max-w-3xl">
-          <h2 className="mb-4 text-2xl font-bold text-slate-900">
+          <p className="mb-2 font-mono text-xs uppercase tracking-[0.2em] text-accent">
+            01
+          </p>
+          <h2 className="mb-5 font-display text-2xl text-cream">
             The Problem
           </h2>
-          <p className="text-base leading-relaxed text-slate-600">
+          <p className="text-base leading-relaxed text-cream-muted">
             {project.problem}
           </p>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-light to-transparent" />
       </section>
 
       {/* What I Built */}
-      <section className="bg-warm-50 px-6 py-16 md:py-20">
+      <section className="bg-background px-6 py-16 md:py-20">
         <div className="mx-auto max-w-3xl">
-          <h2 className="mb-4 text-2xl font-bold text-slate-900">
+          <p className="mb-2 font-mono text-xs uppercase tracking-[0.2em] text-accent">
+            02
+          </p>
+          <h2 className="mb-5 font-display text-2xl text-cream">
             What I Built
           </h2>
-          <p className="text-base leading-relaxed text-slate-600">
-            {project.solution}
-          </p>
+          <div className="space-y-4 text-base leading-relaxed text-cream-muted">
+            {solutionParagraphs.map((paragraph, i) => {
+              const dashMatch = paragraph.match(/^(.+?) — (.+)$/);
+              if (dashMatch) {
+                return (
+                  <div key={i} className="border-l-2 border-accent/30 pl-5">
+                    <p>
+                      <span className="font-medium text-cream">{dashMatch[1]}</span>
+                      {" — "}
+                      {dashMatch[2]}
+                    </p>
+                  </div>
+                );
+              }
+              return <p key={i}>{paragraph}</p>;
+            })}
+          </div>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-light to-transparent" />
       </section>
 
       {/* The Outcome */}
-      <section className="bg-white px-6 py-16 md:py-20">
+      <section className="bg-surface px-6 py-16 md:py-20">
         <div className="mx-auto max-w-3xl">
-          <h2 className="mb-4 text-2xl font-bold text-slate-900">
+          <p className="mb-2 font-mono text-xs uppercase tracking-[0.2em] text-accent">
+            03
+          </p>
+          <h2 className="mb-5 font-display text-2xl text-cream">
             The Outcome
           </h2>
-          <p className="text-base leading-relaxed text-slate-600">
+          <p className="text-base leading-relaxed text-cream-muted">
             {project.outcome}
           </p>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-light to-transparent" />
       </section>
 
       {/* Tech & CTA */}
-      <section className="bg-warm-50 px-6 py-16 md:py-20">
+      <section className="bg-background px-6 py-16 md:py-20">
         <div className="mx-auto max-w-3xl">
-          <h2 className="mb-4 text-2xl font-bold text-slate-900">
+          <p className="mb-2 font-mono text-xs uppercase tracking-[0.2em] text-accent">
+            Stack
+          </p>
+          <h2 className="mb-5 font-display text-2xl text-cream">
             Tech Used
           </h2>
-          <div className="mb-12 flex flex-wrap gap-2">
+          <div className="mb-14 flex flex-wrap gap-3">
             {project.tech.map((t) => (
               <span
                 key={t}
-                className="rounded-full bg-warm-200 px-3 py-1 text-sm font-medium text-slate-700"
+                className="border border-border px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-cream-dim"
               >
                 {t}
               </span>
             ))}
           </div>
 
-          <div className="rounded-xl border border-warm-200 bg-white p-8 text-center">
-            <p className="mb-4 text-lg font-medium text-slate-800">
+          <div className="border border-border bg-surface p-10 text-center">
+            <p className="mb-5 font-display text-lg text-cream">
               Interested in something like this for your business?
             </p>
             <Link
               href="/#contact"
-              className="inline-flex items-center justify-center rounded-lg bg-amber-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+              className="inline-flex items-center justify-center bg-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-background transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
             >
               Let&apos;s Talk
             </Link>

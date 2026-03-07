@@ -4,23 +4,29 @@ import SectionWrapper from "@/components/ui/SectionWrapper";
 export default function About() {
   return (
     <SectionWrapper id="about">
-      <div className="grid gap-12 md:grid-cols-2 md:items-center">
-        <div className="flex justify-center">
-          <Image
-            src="/duncan.jpeg"
-            alt="Duncan Anderson — data scientist and AI engineer"
-            width={400}
-            height={400}
-            className="h-72 w-72 rounded-full object-cover md:h-96 md:w-96"
-            priority
-          />
+      <div className="grid gap-16 md:grid-cols-5 md:items-center">
+        <div className="flex justify-center md:col-span-2">
+          <div className="relative">
+            <Image
+              src="/duncan.jpeg"
+              alt="Duncan Anderson — data scientist and AI engineer"
+              width={400}
+              height={400}
+              className="h-72 w-72 object-cover transition-all duration-500 hover:scale-[1.03] md:h-80 md:w-80"
+              priority
+            />
+            <div className="absolute -inset-3 -z-10 border border-accent/20" />
+          </div>
         </div>
 
-        <div>
-          <h2 className="mb-4 text-3xl font-bold text-slate-900">
+        <div className="md:col-span-3">
+          <p className="mb-3 font-mono text-xs uppercase tracking-[0.3em] text-accent">
+            About
+          </p>
+          <h2 className="mb-6 font-display text-3xl text-cream md:text-4xl">
             About Me
           </h2>
-          <div className="space-y-4 text-slate-600 leading-relaxed">
+          <div className="space-y-5 text-cream-muted leading-relaxed">
             <p>
               I&apos;m Duncan — a data scientist and AI engineer who helps
               businesses stop wasting time on work that machines should be doing.

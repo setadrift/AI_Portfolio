@@ -63,15 +63,15 @@ export const PROJECTS: Project[] = [
     clientType: "Sports Analytics Platform",
     title: "The Lineup",
     challenge:
-      "Sports bettors and fantasy players had no reliable way to compare projections, spot value, or catch pricing errors across platforms.",
+      "Full-stack sports analytics platform with ML projections, real-time odds comparison, and automated betting analytics.",
     result:
-      "Created a full analytics platform with ML-powered projections, real-time arbitrage detection, and lineup optimization — now used by 200+ paying subscribers.",
+      "Launched to 200+ paying subscribers generating recurring revenue, with a public accuracy tracking system that became a key trust signal and growth driver.",
     problem:
-      "If you're serious about sports betting or daily fantasy, you need an edge — and that means data. But the tools available were either too basic, too expensive, or scattered across a dozen sites. There was no single place to get reliable projections, compare odds across sportsbooks, and build optimized lineups. People were making decisions on gut feel when they should've been using math.",
+      "Sports bettors lacked a single platform to get reliable player projections, compare odds across sportsbooks, and identify mispriced lines. Existing tools were either prohibitively expensive, too shallow, or fragmented across dozens of sites — forcing users to rely on intuition over data.",
     solution:
-      "I designed and built The Lineup from scratch — a full-stack platform that brings everything into one place. It runs ML models to generate player projections across NBA, NFL, NHL, and college basketball. It scans odds across multiple sportsbooks in real time to catch arbitrage opportunities and pricing mistakes. And it includes a DFS lineup optimizer that builds the best possible lineups based on projections, salary constraints, and correlation logic.",
+      "I designed, built, and operate The Lineup end-to-end as a solo founder. The platform covers NBA, NFL, NHL, and college basketball.\n\nML Pipeline — LightGBM models trained on 198 engineered features including exponentially-weighted moving averages, defense-vs-position matchup adjustments, pace factors, and usage deltas. Models use per-stat Huber loss tuning to handle outlier performances. The pipeline processes nightly projections across full league slates with a bettable-population MAE of ~4.9 points, ~2.0 rebounds, and ~1.5 assists.\n\nReal-Time Odds Engine — Ingests and normalizes odds from multiple sportsbooks, surfacing line discrepancies, expected value calculations, and arbitrage opportunities. Includes automated settlement that grades every pick against actual results.\n\nFull-Stack Platform — FastAPI backend (Python 3.13) with Redis caching, Next.js 15 frontend with TypeScript, PostgreSQL on Supabase, and deployed on Railway. Stripe-integrated subscriptions, email campaigns via Postmark, and a native iOS app via Capacitor.",
     outcome:
-      "The platform launched and grew to over 200 paying subscribers with recurring revenue. Users get a genuine edge from data they can't easily find elsewhere. It's a live product that I built, shipped, and continue to run — from the ML models to the frontend to billing.",
+      "Launched to 200+ paying subscribers generating recurring revenue. The accuracy tracking system — which publicly grades every projection against results — became a key trust signal and growth driver. I built, shipped, and continue to operate every layer: ML training, data pipelines, backend, frontend, billing, and growth.",
     tech: ["Python", "React", "Machine Learning", "PostgreSQL", "AWS"],
   },
 ];

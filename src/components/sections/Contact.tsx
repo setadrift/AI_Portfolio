@@ -43,36 +43,42 @@ export default function Contact() {
     }
   }
 
+  const inputStyles =
+    "w-full border border-border bg-surface px-4 py-3 text-sm text-cream outline-none transition-colors placeholder:text-cream-dim focus:border-accent focus:ring-1 focus:ring-accent/30";
+
   return (
     <SectionWrapper id="contact" alternate>
-      <div className="grid gap-12 md:grid-cols-2">
+      <div className="grid gap-16 md:grid-cols-2">
         <div>
-          <h2 className="mb-4 text-3xl font-bold text-slate-900">
+          <p className="mb-3 font-mono text-xs uppercase tracking-[0.3em] text-accent">
+            Contact
+          </p>
+          <h2 className="mb-6 font-display text-3xl text-cream md:text-4xl">
             Let&apos;s Figure It Out Together
           </h2>
-          <p className="mb-6 leading-relaxed text-slate-600">
+          <p className="mb-6 leading-relaxed text-cream-muted">
             Tell me what&apos;s eating up your team&apos;s time or where things
             keep falling through the cracks. I&apos;ll take a look and let you
             know if there&apos;s a practical way to fix it with AI — and be
             honest if there isn&apos;t.
           </p>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-cream-dim">
             No sales pitch. Just a straightforward conversation about
             what&apos;s possible.
           </p>
         </div>
 
         {status === "success" ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-warm-200 bg-white p-8 text-center">
-            <h3 className="mb-2 text-xl font-semibold text-slate-900">
-              Message sent!
+          <div className="flex flex-col items-center justify-center border border-border bg-surface-elevated p-10 text-center">
+            <h3 className="mb-3 font-display text-xl text-cream">
+              Message sent.
             </h3>
-            <p className="mb-6 text-slate-600">
+            <p className="mb-6 text-cream-muted">
               Thanks for reaching out. I&apos;ll get back to you soon.
             </p>
             <button
               onClick={() => setStatus("idle")}
-              className="text-sm font-medium text-amber-600 hover:text-amber-700"
+              className="text-sm font-medium text-accent transition-colors hover:text-accent-hover"
             >
               Send another message
             </button>
@@ -94,7 +100,7 @@ export default function Contact() {
             <div>
               <label
                 htmlFor="name"
-                className="mb-1 block text-sm font-medium text-slate-800"
+                className="mb-1.5 block font-mono text-xs uppercase tracking-wider text-cream-dim"
               >
                 Name
               </label>
@@ -104,13 +110,13 @@ export default function Contact() {
                 required
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full rounded-lg border border-warm-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+                className={inputStyles}
               />
             </div>
             <div>
               <label
                 htmlFor="email"
-                className="mb-1 block text-sm font-medium text-slate-800"
+                className="mb-1.5 block font-mono text-xs uppercase tracking-wider text-cream-dim"
               >
                 Email
               </label>
@@ -120,13 +126,13 @@ export default function Contact() {
                 required
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full rounded-lg border border-warm-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+                className={inputStyles}
               />
             </div>
             <div>
               <label
                 htmlFor="message"
-                className="mb-1 block text-sm font-medium text-slate-800"
+                className="mb-1.5 block font-mono text-xs uppercase tracking-wider text-cream-dim"
               >
                 Message
               </label>
@@ -136,11 +142,11 @@ export default function Contact() {
                 rows={5}
                 value={form.message}
                 onChange={(e) => setForm({ ...form, message: e.target.value })}
-                className="w-full rounded-lg border border-warm-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+                className={inputStyles}
               />
             </div>
             {status === "error" && (
-              <p className="text-sm text-red-600">{errorMsg}</p>
+              <p className="text-sm text-red-400">{errorMsg}</p>
             )}
             <Button type="submit" disabled={status === "loading"}>
               {status === "loading" ? "Sending..." : "Send Message"}
