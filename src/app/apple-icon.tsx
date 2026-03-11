@@ -29,7 +29,7 @@ export default async function AppleIcon() {
     (
       <div
         style={{
-          background: "#111113",
+          background: "#2563EB",
           width: "100%",
           height: "100%",
           display: "flex",
@@ -41,7 +41,7 @@ export default async function AppleIcon() {
           style={{
             fontFamily: "DM Serif Display",
             fontSize: 135,
-            color: "#b4b8c4",
+            color: "#FFFFFF",
             lineHeight: 1,
           }}
         >

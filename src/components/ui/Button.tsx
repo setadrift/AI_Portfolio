@@ -20,9 +20,9 @@ type ButtonProps = AsLink | AsButton;
 
 const styles: Record<Variant, string> = {
   primary:
-    "bg-accent text-background hover:bg-accent-hover",
+    "bg-accent text-white hover:bg-accent-hover",
   secondary:
-    "border border-cream-muted/30 text-cream hover:border-accent hover:text-accent",
+    "border border-accent text-accent hover:bg-[#EFF6FF]",
 };
 
 const base =

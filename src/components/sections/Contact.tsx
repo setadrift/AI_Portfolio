@@ -46,7 +46,7 @@ export default function Contact() {
   }
 
   const inputStyles =
-    "w-full border border-border bg-surface px-4 py-3 text-sm text-cream outline-none transition-colors placeholder:text-cream-dim focus:border-accent focus:ring-1 focus:ring-accent/30";
+    "w-full border border-border bg-white px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-cream-dim focus:border-accent focus:ring-1 focus:ring-accent/30";
 
   return (
     <SectionWrapper id="contact" alternate>
@@ -67,7 +67,7 @@ export default function Contact() {
         </div>
 
         {status === "success" ? (
-          <div className="flex flex-col items-center justify-center border border-border bg-surface-elevated p-10 text-center">
+          <div className="flex flex-col items-center justify-center border border-border bg-white p-10 text-center shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
             <h3 className="mb-3 font-display text-xl text-cream">
               {t("successHeading")}
             </h3>

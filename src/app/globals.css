@@ -1,18 +1,20 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #111113;
-  --color-foreground: #b4b8c4;
-  --color-surface: #19191d;
-  --color-surface-elevated: #212126;
-  --color-border: #2a2a30;
-  --color-border-light: #33333a;
-  --color-cream: #b4b8c4;
-  --color-cream-muted: #8b8f9c;
-  --color-cream-dim: #626673;
-  --color-accent: #3b82f6;
-  --color-accent-hover: #2563eb;
-  --color-accent-subtle: rgba(59, 130, 246, 0.12);
+  --color-background: #FAFAFA;
+  --color-foreground: #1A1A2E;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #F5F5F5;
+  --color-border: #E5E7EB;
+  --color-border-light: #E5E7EB;
+  --color-cream: #1A1A2E;
+  --color-cream-muted: #4A4A68;
+  --color-cream-dim: #9CA3AF;
+  --color-accent: #2563EB;
+  --color-accent-hover: #1D4ED8;
+  --color-accent-subtle: rgba(37, 99, 235, 0.08);
+  --color-footer-bg: #1A1A2E;
+  --color-footer-text: #D1D5DB;
   --font-display: var(--font-dm-serif-display);
   --font-body: var(--font-outfit);
 }
@@ -30,12 +32,12 @@ section {
   scroll-margin-top: 5rem;
 }
 
-/* Grain texture overlay */
+/* Grain texture overlay — very subtle on light */
 .grain::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 256px 256px;
   pointer-events: none;
@@ -67,5 +69,5 @@ section {
 /* Selection highlight */
 ::selection {
   background: var(--color-accent);
-  color: var(--color-background);
+  color: #FFFFFF;
 }
