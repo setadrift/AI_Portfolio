@@ -199,13 +199,13 @@ export default async function ProjectPage({
             ))}
           </div>
 
-          <div className="border border-border bg-surface p-10 text-center">
+          <div className="border border-border bg-white p-10 text-center shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
             <p className="mb-5 font-display text-lg text-cream">
               {t("interestedCta")}
             </p>
             <Link
               href="/#contact"
-              className="inline-flex items-center justify-center bg-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-background transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
+              className="inline-flex items-center justify-center bg-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-white transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
             >
               {t("letsTalk")}
             </Link>

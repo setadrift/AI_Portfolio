@@ -33,7 +33,7 @@ export default function Header() {
   }
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-border bg-white/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
         <Link href="/" className="font-display text-lg text-cream">
           {SITE.name}
@@ -44,14 +44,14 @@ export default function Header() {
             <Link
               key={link.key}
               href={link.href}
-              className="text-sm font-medium text-cream-muted transition-colors hover:text-cream"
+              className="text-sm font-medium text-cream-muted transition-colors hover:text-foreground"
             >
               {t(link.key)}
             </Link>
           ))}
           <button
             onClick={switchLocale}
-            className="border border-border px-2.5 py-1 font-mono text-xs font-semibold text-cream-dim transition-colors hover:border-accent hover:text-accent"
+            className="border border-border px-2.5 py-1 font-mono text-xs font-semibold text-cream-muted transition-colors hover:border-accent hover:text-accent"
             aria-label={locale === "en" ? "Passer au français" : "Switch to English"}
           >
             {locale === "en" ? "FR" : "EN"}
@@ -63,7 +63,7 @@ export default function Header() {
         <div className="flex items-center gap-3 md:hidden">
           <button
             onClick={switchLocale}
-            className="border border-border px-2.5 py-1 font-mono text-xs font-semibold text-cream-dim transition-colors hover:border-accent hover:text-accent"
+            className="border border-border px-2.5 py-1 font-mono text-xs font-semibold text-cream-muted transition-colors hover:border-accent hover:text-accent"
             aria-label={locale === "en" ? "Passer au français" : "Switch to English"}
           >
             {locale === "en" ? "FR" : "EN"}
@@ -108,14 +108,14 @@ export default function Header() {
 
       {/* Mobile menu drawer */}
       {menuOpen && (
-        <nav className="border-t border-border/60 bg-background px-6 pb-6 pt-4 md:hidden">
+        <nav className="border-t border-border bg-white px-6 pb-6 pt-4 md:hidden">
           <div className="flex flex-col gap-4">
             {NAV_KEYS.map((link) => (
               <Link
                 key={link.key}
                 href={link.href}
                 onClick={() => setMenuOpen(false)}
-                className="text-sm font-medium text-cream-muted transition-colors hover:text-cream"
+                className="text-sm font-medium text-cream-muted transition-colors hover:text-foreground"
               >
                 {t(link.key)}
               </Link>
