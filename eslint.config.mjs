@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Other paths to skip:
+    "worktrees/**",
+    "_python_reference/**",
+    "wp_publish/**",
   ]),
 ]);
 

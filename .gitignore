@@ -40,3 +40,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Stale files from earlier exploration sessions (keep on disk for reference)
+/wp_publish/
+/wp_test_publish.py
+/TTG_AI_Proposal.docx
+
+# Python reference code (the production version is in TypeScript under src/)
+/_python_reference/
+
+# Local generated images during development
+/generated_images/
+
+# Worktree slots — created by .claude/scripts/setup-worktree.sh in sibling dirs.
+# A stray copy may end up here from older configs; ignore it inside the repo.
+/worktrees/
+
