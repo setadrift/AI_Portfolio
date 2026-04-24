@@ -15,10 +15,11 @@ interface CleanedDoc {
   excerpt: string;
 }
 
-interface ImageResult {
+interface ImageVariant {
   prompt: string;
   imageBase64: string;
   mime: string;
+  byteLength: number;
 }
 
 interface DraftResult {
@@ -46,9 +47,12 @@ export default function PublishWizard() {
   const [ctaText, setCtaText] = useState(DEFAULT_CTA_TEXT);
   const [ctaUrl, setCtaUrl] = useState(DEFAULT_CTA_URL);
 
-  const [image, setImage] = useState<ImageResult | null>(null);
+  const [variants, setVariants] = useState<ImageVariant[] | null>(null);
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState<number | null>(null);
   const [imageBusy, setImageBusy] = useState(false);
   const [draft, setDraft] = useState<DraftResult | null>(null);
+
+  const selectedVariant = variants && selectedVariantIdx !== null ? variants[selectedVariantIdx] : null;
 
   async function handleFetchDoc(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +83,8 @@ export default function PublishWizard() {
     if (!cleaned) return;
     setError(null);
     setImageBusy(true);
+    setVariants(null);
+    setSelectedVariantIdx(null);
     setStage("image");
     try {
       const res = await fetch("/api/portal/ttg/generate-image", {
@@ -94,8 +100,11 @@ export default function PublishWizard() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error ?? `HTTP ${res.status}`);
       }
-      const data: ImageResult = await res.json();
-      setImage(data);
+      const data: { variants: ImageVariant[] } = await res.json();
+      setVariants(data.variants);
+      // Auto-select the first variant so users can hit publish without an extra
+      // click if they're happy with what came back.
+      if (data.variants.length > 0) setSelectedVariantIdx(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Image generation failed");
     } finally {
@@ -104,7 +113,7 @@ export default function PublishWizard() {
   }
 
   async function handlePublish() {
-    if (!cleaned || !image) return;
+    if (!cleaned || !selectedVariant) return;
     setError(null);
     setStage("publishing");
     try {
@@ -120,7 +129,8 @@ export default function PublishWizard() {
           seoKeywordsLine,
           ctaText,
           ctaUrl,
-          imageBase64: image.imageBase64,
+          imageBase64: selectedVariant.imageBase64,
+          imageMime: selectedVariant.mime,
           imageAlt: `Watercolor illustration for: ${title}`,
         }),
       });
@@ -148,7 +158,8 @@ export default function PublishWizard() {
     setSeoKeywordsLine("");
     setCtaText(DEFAULT_CTA_TEXT);
     setCtaUrl(DEFAULT_CTA_URL);
-    setImage(null);
+    setVariants(null);
+    setSelectedVariantIdx(null);
     setDraft(null);
   }
 
@@ -264,30 +275,64 @@ export default function PublishWizard() {
           </section>
 
           <section className="space-y-4 pt-2 border-t border-border">
-            <h2 className="font-display text-2xl">Featured image</h2>
-            {!image && !imageBusy && (
+            <div>
+              <h2 className="font-display text-2xl">Featured image</h2>
+              {variants && (
+                <p className="text-sm text-cream-muted mt-1">
+                  Pick the one that fits the post — the highlighted image is the one we&apos;ll
+                  use when you create the draft.
+                </p>
+              )}
+            </div>
+            {!variants && !imageBusy && (
               <button
                 type="button"
                 onClick={handleGenerateImage}
                 className="bg-accent text-white px-6 py-2.5 rounded-lg font-medium hover:bg-accent-hover transition-colors"
               >
-                Generate featured image
+                Generate 4 image options
               </button>
             )}
             {imageBusy && (
               <div className="flex items-center gap-3 text-cream-muted">
-                <Spinner /> Generating watercolor image (this takes about 10–15 seconds)…
+                <Spinner /> Generating 4 watercolor variations (this takes about 10–20 seconds)…
               </div>
             )}
-            {image && (
+            {variants && (
               <div className="space-y-3">
-                <div className="rounded-xl overflow-hidden border border-border bg-surface-elevated">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`data:${image.mime};base64,${image.imageBase64}`}
-                    alt="Generated featured image preview"
-                    className="w-full h-auto"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {variants.map((v, i) => {
+                    const selected = i === selectedVariantIdx;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSelectedVariantIdx(i)}
+                        aria-pressed={selected}
+                        className={`group relative rounded-xl overflow-hidden border-2 transition-all bg-surface-elevated text-left ${
+                          selected
+                            ? "border-accent ring-2 ring-accent/30 shadow-md"
+                            : "border-border hover:border-cream-muted"
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`data:${v.mime};base64,${v.imageBase64}`}
+                          alt={`Featured image option ${i + 1}`}
+                          className="w-full h-auto block"
+                        />
+                        <div
+                          className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-medium ${
+                            selected
+                              ? "bg-accent text-white"
+                              : "bg-white/90 text-cream-muted group-hover:bg-white"
+                          }`}
+                        >
+                          {selected ? "✓ Selected" : `Option ${i + 1}`}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
                 <button
                   type="button"
@@ -295,13 +340,13 @@ export default function PublishWizard() {
                   disabled={imageBusy}
                   className="text-sm text-cream-muted hover:text-foreground underline disabled:opacity-50"
                 >
-                  Regenerate image
+                  Generate 4 new options
                 </button>
               </div>
             )}
           </section>
 
-          {image && stage !== "publishing" && (
+          {selectedVariant && stage !== "publishing" && (
             <section className="pt-2 border-t border-border">
               <button
                 type="button"
@@ -343,31 +388,36 @@ export default function PublishWizard() {
             </a>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
-            <strong>One quick step in WordPress:</strong> the meta description displays at the top
-            of the post automatically, but Yoast SEO needs you to paste it (and the focus keyword)
-            into the Yoast panel below the editor — those fields drive the Google search snippet
-            preview and SEO scoring. Copy these:
-            {metaDescription && (
-              <div className="mt-3">
-                <div className="text-xs uppercase tracking-wide text-amber-900/70 mb-1">
-                  Meta description
-                </div>
-                <code className="block bg-white border border-amber-200 rounded px-2 py-1 text-xs whitespace-pre-wrap break-words">
-                  {metaDescription}
-                </code>
-              </div>
-            )}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm space-y-3">
+            <p>
+              <strong>Two manual paste steps in the Yoast SEO panel.</strong> The keyword tag line
+              is already in the post body — you don&apos;t need to do anything with it.
+            </p>
             {focusKeyword && (
-              <div className="mt-3">
+              <div>
                 <div className="text-xs uppercase tracking-wide text-amber-900/70 mb-1">
-                  Focus keyword
+                  1. Paste into Yoast → <em>Focus keyphrase</em>
                 </div>
                 <code className="block bg-white border border-amber-200 rounded px-2 py-1 text-xs">
                   {focusKeyword}
                 </code>
               </div>
             )}
+            {metaDescription && (
+              <div>
+                <div className="text-xs uppercase tracking-wide text-amber-900/70 mb-1">
+                  2. Paste into Yoast → <em>Search appearance → Meta description</em>
+                </div>
+                <code className="block bg-white border border-amber-200 rounded px-2 py-1 text-xs whitespace-pre-wrap break-words">
+                  {metaDescription}
+                </code>
+              </div>
+            )}
+            <p className="text-xs text-cream-muted pt-1">
+              Both fields drive the Google search snippet preview and Yoast&apos;s SEO scoring.
+              They aren&apos;t auto-saved because Yoast doesn&apos;t expose them to the WordPress
+              REST API by default.
+            </p>
           </div>
 
           <button
