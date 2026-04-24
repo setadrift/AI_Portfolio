@@ -29,6 +29,73 @@ function geminiKey(): string {
 }
 
 /**
+ * Ask Gemini to write 4 distinct subject sentences for the post — different
+ * compositions and symbolic angles, so the user has real variety to choose from
+ * rather than four near-duplicates. The same locked style guide is appended to
+ * each so they all feel like they belong on the same blog.
+ */
+export async function generateImagePromptVariants(input: {
+  title: string;
+  metaDescription: string;
+  bodyExcerpt: string;
+  count?: number;
+}): Promise<string[]> {
+  const count = input.count ?? 4;
+  const instruction = `You write image prompts for a blog about trauma therapy. The blog has an established visual style: soft watercolor, muted earthy palette (dusty rose, sage green, cream, terracotta, dusty blue), translucent organic shapes, faceless human silhouettes, botanical accents.
+
+For the post below, write ${count} DIFFERENT one-sentence subject descriptions. Each must depict a distinct symbolic composition — vary the focus (figure vs. botanical vs. abstract shapes), the pose, the framing, and the emotional angle so the four images give the reader real visual variety to choose from. Do not just rephrase the same idea four times.
+
+Format your response as exactly ${count} lines, one sentence per line, separated by newlines. No numbering, no bullet points, no preamble, no markdown — just ${count} bare sentences ending in periods.
+
+Example output for a post on healing through stillness:
+A faceless silhouette curled inward with arms wrapped around the knees, surrounded by translucent overlapping circles in dusty rose and sage.
+Two delicate ink-line botanical branches arching toward each other above empty cream space, with soft watercolor washes pooling beneath.
+A semi-transparent faceless figure standing in profile with sage green tendrils trailing upward from the chest into open sky.
+A loose grouping of overlapping translucent circles in terracotta and dusty blue floating across a wide cream field, with a single sketched leaf at the lower right.
+
+Rules for every sentence:
+- 20-35 words.
+- Always describe figures as faceless silhouettes — never describe hair, eyes, mouth, clothing detail, or any specific facial or bodily feature.
+- Do not include color codes, technical jargon, or section labels.
+- End each sentence with a period; do not trail off with "and..." or a comma.
+- Do not include any text or letters as part of the image.
+
+POST:
+Title: ${input.title}
+Meta description: ${input.metaDescription}
+Excerpt: ${input.bodyExcerpt.slice(0, 800)}`;
+
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiKey(),
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: instruction }] }],
+        generationConfig: { temperature: 0.95, maxOutputTokens: 8000 },
+      }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Gemini variant prompt generation failed: ${res.status} ${text.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  const raw: string = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+  if (!raw) throw new Error("Gemini returned empty variant prompts");
+  const subjects = raw
+    .split(/\r?\n+/)
+    .map((s) => s.trim().replace(/^[-*\d.\s"']+/, "").replace(/["']$/, "").trim())
+    .filter((s) => s.length > 10)
+    .slice(0, count);
+  if (subjects.length === 0) throw new Error("Could not parse any prompt variants");
+  return subjects.map((s) => `${s} ${STYLE_LOCK}`);
+}
+
+/**
  * Ask Gemini to write a single-sentence subject description for the post.
  * The full Imagen prompt is that sentence plus the style guide.
  */
@@ -82,6 +149,11 @@ Excerpt: ${input.bodyExcerpt.slice(0, 800)}`;
     throw new Error("Gemini returned empty image prompt");
   }
   return `${subject} ${STYLE_LOCK}`;
+}
+
+/** Generate N images in parallel via Imagen 4. Order matches the input prompts. */
+export async function generateImages(prompts: string[]): Promise<ArrayBuffer[]> {
+  return Promise.all(prompts.map((p) => generateImage(p)));
 }
 
 /** Generate one image with Imagen 4. Returns raw PNG bytes. */

@@ -19,7 +19,12 @@ export interface CreateDraftRequest {
   seoKeywordsLine?: string;
   ctaText?: string;
   ctaUrl?: string;
-  imageBase64: string; // PNG bytes from /generate-image
+  /** Base64-encoded image bytes. May already be the compressed WebP returned
+   *  from /generate-image, or raw PNG bytes from a hand-uploaded source. */
+  imageBase64: string;
+  /** MIME type of imageBase64 (e.g. "image/webp"). If "image/webp" we skip the
+   *  resize+compress step since /generate-image already did that. */
+  imageMime?: string;
   imageAlt?: string;
 }
 
@@ -61,29 +66,40 @@ export async function POST(req: NextRequest) {
 
   const altText = body.imageAlt ?? `Watercolor illustration for: ${body.title}`;
   const baseSlug = `${Date.now()}-${slugify(body.title)}`;
-  const rawBytes = base64ToArrayBuffer(body.imageBase64);
+  const inputBytes = base64ToArrayBuffer(body.imageBase64);
 
-  // Compress + resize the Imagen output (1408x768 ~1MB PNG) into a webp
-  // closer to 100-200KB at 1200px wide, matching the existing blog images.
-  let processed;
-  try {
-    processed = await processFeaturedImage(rawBytes, baseSlug);
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Image processing failed" },
-      { status: 500 },
-    );
+  // /generate-image already compresses to WebP at 1200px. Only re-process if
+  // the caller hands us something else (raw PNG, JPEG upload, etc.).
+  let uploadBytes: ArrayBuffer;
+  let uploadFilename: string;
+  let uploadContentType: string;
+  if (body.imageMime === "image/webp") {
+    uploadBytes = inputBytes;
+    uploadFilename = `${baseSlug}.webp`;
+    uploadContentType = "image/webp";
+  } else {
+    try {
+      const processed = await processFeaturedImage(inputBytes, baseSlug);
+      uploadBytes = processed.bytes;
+      uploadFilename = processed.filename;
+      uploadContentType = processed.contentType;
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Image processing failed" },
+        { status: 500 },
+      );
+    }
   }
 
   let media;
   try {
     media = await uploadMedia(
       cfg,
-      processed.bytes,
-      processed.filename,
+      uploadBytes,
+      uploadFilename,
       altText,
       body.title,
-      processed.contentType,
+      uploadContentType,
     );
   } catch (err) {
     return NextResponse.json(
