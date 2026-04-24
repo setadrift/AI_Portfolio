@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchGoogleDocAsHtml, extractDocId } from "@/lib/portal/ttg/google-doc";
-import { cleanGoogleDocsHtml, parseGoogleDoc } from "@/lib/portal/ttg/html-cleaner";
+import {
+  cleanGoogleDocsHtml,
+  htmlToPlainText,
+  parseGoogleDoc,
+} from "@/lib/portal/ttg/html-cleaner";
+import { suggestFocusKeyword } from "@/lib/portal/ttg/seo-suggest";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -31,11 +36,20 @@ export async function POST(req: NextRequest) {
   const cleaned = cleanGoogleDocsHtml(raw);
   const parsed = parseGoogleDoc(cleaned);
 
+  // Suggest a Yoast focus keyphrase up-front so the user doesn't have to think
+  // about it. Falls back to a title-based heuristic if the Gemini call fails.
+  const focusKeyword = await suggestFocusKeyword({
+    title: parsed.title,
+    metaDescription: parsed.metaDescription || parsed.excerpt,
+    bodyExcerpt: htmlToPlainText(parsed.contentHtml),
+  });
+
   return NextResponse.json({
     docId,
     title: parsed.title,
     metaDescription: parsed.metaDescription,
     keywordLine: parsed.keywordLine,
+    focusKeyword,
     contentHtml: parsed.contentHtml,
     intro: parsed.intro,
     sections: parsed.sections,

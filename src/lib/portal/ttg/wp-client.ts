@@ -143,3 +143,26 @@ export async function deletePost(cfg: WpConfig, id: number): Promise<void> {
 export async function deleteMedia(cfg: WpConfig, id: number): Promise<void> {
   await wpRequest(cfg, "DELETE", `/wp-json/wp/v2/media/${id}?force=true`);
 }
+
+/**
+ * Read back a post's Yoast meta fields after writing them — used to confirm
+ * whether the WP setup actually accepts REST writes to those fields. If the
+ * site is missing the ttg-publisher mu-plugin, the writes get silently
+ * dropped and the reads come back empty.
+ */
+export async function readYoastMeta(
+  cfg: WpConfig,
+  postId: number,
+): Promise<{ metaDescription: string; focusKeyword: string; seoTitle: string }> {
+  const post = await wpRequest<{ meta?: Record<string, string | null> }>(
+    cfg,
+    "GET",
+    `/wp-json/wp/v2/posts/${postId}?context=edit`,
+  );
+  const meta = post?.meta ?? {};
+  return {
+    metaDescription: meta._yoast_wpseo_metadesc ?? "",
+    focusKeyword: meta._yoast_wpseo_focuskw ?? "",
+    seoTitle: meta._yoast_wpseo_title ?? "",
+  };
+}

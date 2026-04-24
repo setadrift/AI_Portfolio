@@ -56,3 +56,6 @@ next-env.d.ts
 # A stray copy may end up here from older configs; ignore it inside the repo.
 /worktrees/
 
+# Headshot asset: pre-existing untracked file — leave it alone.
+/public/duncan-headshot.png
+

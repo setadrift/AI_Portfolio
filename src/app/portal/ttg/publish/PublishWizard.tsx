@@ -9,6 +9,7 @@ interface CleanedDoc {
   title: string;
   metaDescription: string;
   keywordLine: string;
+  focusKeyword: string;
   contentHtml: string;
   intro: string;
   sections: { title: string; body: string }[];
@@ -28,6 +29,7 @@ interface DraftResult {
   imageUrl: string;
   editUrl: string;
   previewUrl: string;
+  yoastAutoSaved: boolean;
 }
 
 const DEFAULT_CTA_TEXT = "Book a Free Consultation";
@@ -73,6 +75,7 @@ export default function PublishWizard() {
       setTitle(data.title);
       setMetaDescription(data.metaDescription || data.excerpt);
       setSeoKeywordsLine(data.keywordLine);
+      setFocusKeyword(data.focusKeyword || "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch doc");
       setStage("input");
@@ -216,8 +219,8 @@ export default function PublishWizard() {
             </Field>
 
             <Field
-              label="Meta description"
-              hint="What appears under your title in Google search and at the top of the post."
+              label="Meta description (for Yoast / Google search)"
+              hint="Used as the Yoast SEO meta description — drives the Google search snippet preview. Not shown anywhere in the post body."
             >
               <textarea
                 value={metaDescription}
@@ -228,7 +231,10 @@ export default function PublishWizard() {
             </Field>
 
             <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="Focus keyword (Yoast)">
+              <Field
+                label="Focus keyword (Yoast)"
+                hint="Auto-suggested from the post. Edit if you want to target a different search phrase."
+              >
                 <input
                   value={focusKeyword}
                   onChange={(e) => setFocusKeyword(e.target.value)}
@@ -236,7 +242,10 @@ export default function PublishWizard() {
                   className="w-full px-3 py-2 bg-surface border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
                 />
               </Field>
-              <Field label="Keyword tag line (italic, below meta)">
+              <Field
+                label="Keyword tag line (shown at top of post)"
+                hint="The pipe-separated italic line that appears above the intro. Purely visible — not a Yoast field."
+              >
                 <input
                   value={seoKeywordsLine}
                   onChange={(e) => setSeoKeywordsLine(e.target.value)}
@@ -388,37 +397,48 @@ export default function PublishWizard() {
             </a>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm space-y-3">
-            <p>
-              <strong>Two manual paste steps in the Yoast SEO panel.</strong> The keyword tag line
-              is already in the post body — you don&apos;t need to do anything with it.
-            </p>
-            {focusKeyword && (
-              <div>
-                <div className="text-xs uppercase tracking-wide text-amber-900/70 mb-1">
-                  1. Paste into Yoast → <em>Focus keyphrase</em>
+          {draft.yoastAutoSaved ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm">
+              <p>
+                <strong>Yoast SEO is already set.</strong> Focus keyphrase and meta description
+                were auto-saved alongside the draft — nothing to paste. The keyword tag line is
+                also already in place at the top of the post.
+              </p>
+              <p className="text-xs text-cream-muted mt-2">
+                You&apos;ll still see Yoast&apos;s readability suggestions inside the editor, but
+                the SEO-side fields are done.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm space-y-3">
+              <p>
+                <strong>Two manual paste steps in the Yoast SEO panel.</strong> Your WordPress
+                site is missing the mu-plugin that lets the tool auto-save Yoast fields, so for
+                now these need to be pasted by hand. The keyword tag line is already in the post
+                body — you don&apos;t need to do anything with it.
+              </p>
+              {focusKeyword && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-amber-900/70 mb-1">
+                    1. Paste into Yoast → <em>Focus keyphrase</em>
+                  </div>
+                  <code className="block bg-white border border-amber-200 rounded px-2 py-1 text-xs">
+                    {focusKeyword}
+                  </code>
                 </div>
-                <code className="block bg-white border border-amber-200 rounded px-2 py-1 text-xs">
-                  {focusKeyword}
-                </code>
-              </div>
-            )}
-            {metaDescription && (
-              <div>
-                <div className="text-xs uppercase tracking-wide text-amber-900/70 mb-1">
-                  2. Paste into Yoast → <em>Search appearance → Meta description</em>
+              )}
+              {metaDescription && (
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-amber-900/70 mb-1">
+                    2. Paste into Yoast → <em>Search appearance → Meta description</em>
+                  </div>
+                  <code className="block bg-white border border-amber-200 rounded px-2 py-1 text-xs whitespace-pre-wrap break-words">
+                    {metaDescription}
+                  </code>
                 </div>
-                <code className="block bg-white border border-amber-200 rounded px-2 py-1 text-xs whitespace-pre-wrap break-words">
-                  {metaDescription}
-                </code>
-              </div>
-            )}
-            <p className="text-xs text-cream-muted pt-1">
-              Both fields drive the Google search snippet preview and Yoast&apos;s SEO scoring.
-              They aren&apos;t auto-saved because Yoast doesn&apos;t expose them to the WordPress
-              REST API by default.
-            </p>
-          </div>
+              )}
+            </div>
+          )}
 
           <button
             type="button"
