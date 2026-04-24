@@ -63,14 +63,22 @@ export interface WpMedia {
   source_url: string;
 }
 
+function inferMime(filename: string): string {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "image/jpeg";
+}
+
 export async function uploadMedia(
   cfg: WpConfig,
   imageBytes: ArrayBuffer,
   filename: string,
   altText = "",
   title = "",
+  contentType?: string,
 ): Promise<WpMedia> {
-  const mime = filename.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+  const mime = contentType ?? inferMime(filename);
   const media = await wpRequest<WpMedia>(cfg, "POST", "/wp-json/wp/v2/media", {
     rawBody: imageBytes,
     extraHeaders: {
