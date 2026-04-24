@@ -69,6 +69,46 @@ function trimContent(html: string): string {
 }
 
 /**
+ * Domains considered "internal" — links to these stay in the same tab.
+ * Everything else opens in a new tab with rel="noopener noreferrer".
+ */
+const INTERNAL_HOSTS = new Set([
+  "traumatherapygroup.com",
+  "www.traumatherapygroup.com",
+]);
+
+function isInternalHref(href: string): boolean {
+  if (!href) return true;
+  const trimmed = href.trim();
+  if (trimmed.startsWith("#") || trimmed.startsWith("/")) return true;
+  if (trimmed.startsWith("mailto:") || trimmed.startsWith("tel:")) return true;
+  try {
+    const u = new URL(trimmed);
+    return INTERNAL_HOSTS.has(u.hostname);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * For every <a href="..."> in the html, add target="_blank" rel="noopener noreferrer"
+ * when the link points to an external domain (anything other than traumatherapygroup.com).
+ * Internal and relative links keep same-tab behavior.
+ */
+function applyExternalLinkAttrs(html: string): string {
+  return html.replace(/<a\b([^>]*)>/g, (full, attrs: string) => {
+    const hrefMatch = attrs.match(/\bhref="([^"]*)"/i);
+    if (!hrefMatch) return full;
+    if (isInternalHref(hrefMatch[1])) return full;
+    let cleaned = attrs;
+    // Remove any existing target / rel so we don't end up with duplicates.
+    cleaned = cleaned.replace(/\s+target="[^"]*"/gi, "");
+    cleaned = cleaned.replace(/\s+rel="[^"]*"/gi, "");
+    return `<a${cleaned} target="_blank" rel="noopener noreferrer">`;
+  });
+}
+
+/**
  * First pass: strip Google Docs cruft. Returns clean but un-structured HTML.
  */
 export function cleanGoogleDocsHtml(rawHtml: string): string {
@@ -79,6 +119,7 @@ export function cleanGoogleDocsHtml(rawHtml: string): string {
   html = stripGoogleSpans(html);
   html = collapseEmptyParagraphs(html);
   html = decodeHtmlEntities(html);
+  html = applyExternalLinkAttrs(html);
   html = trimContent(html);
   return html;
 }
@@ -112,15 +153,31 @@ function isHeadingLike(b: Block): "h3" | "h2" | null {
   const t = b.text;
   if (!t) return null;
   // Numbered sub-items like "1. Foo" or "10. Bar" → H3
-  if (/^\d{1,2}\.\s+\S/.test(t) && t.length < 200) return "h3";
+  if (/^\d{1,2}\.\s+\S/.test(t) && t.length < 220) return "h3";
   // Questions (FAQ items) → H3
-  if (t.endsWith("?") && t.length < 200) return "h3";
-  // Short paragraphs without sentence-ending punctuation → H2 candidate
+  if (t.endsWith("?") && t.length < 220) return "h3";
+  // URLs and pipe-separated keyword lines are never headings
+  if (/^https?:\/\//.test(t)) return null;
+  if (t.includes("|") && t.length < 280) return null;
+
+  // Promote short, fragment-style paragraphs to H2.
+  // We accept:
+  //  - Trailing period only if the heading is short (e.g. "Why this matters.")
+  //  - No internal periods (avoids multi-sentence paragraphs)
+  //  - No trailing comma/semicolon/colon (those signal mid-sentence)
+  //  - Must start with a capital letter, number, or opening quote
+  const startsWithCap = /^[A-Z0-9"“]/.test(t);
+  const internalPeriods = (t.match(/\.(?=\s)/g) || []).length;
+  const endsWithSentencePunct = /[.!]$/.test(t);
+  const endsWithMidPunct = /[,;:]$/.test(t);
+  const allowsTrailingPeriod = !endsWithSentencePunct || t.length < 80;
+
   if (
-    t.length < 120 &&
-    !/[.!,;:]$/.test(t) &&
-    !/^https?:\/\//.test(t) &&
-    !t.includes("|") // pipe-separated keyword lines aren't headings
+    t.length < 200 &&
+    startsWithCap &&
+    internalPeriods === 0 &&
+    !endsWithMidPunct &&
+    allowsTrailingPeriod
   ) {
     return "h2";
   }
@@ -196,7 +253,7 @@ export function parseGoogleDoc(cleanedBodyHtml: string): ParsedDoc {
     bodyBlocks.push(b);
   }
 
-  // Promote heading-like paragraphs
+  // Promote heading-like paragraphs.
   const promoted: Block[] = bodyBlocks.map((b) => {
     const lvl = isHeadingLike(b);
     if (!lvl) return b;

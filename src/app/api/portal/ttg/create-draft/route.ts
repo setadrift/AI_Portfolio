@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadWpConfig, uploadMedia, createDraftPost } from "@/lib/portal/ttg/wp-client";
 import { buildElementorData } from "@/lib/portal/ttg/elementor-builder";
 import { splitIntoSections } from "@/lib/portal/ttg/html-cleaner";
+import { processFeaturedImage } from "@/lib/portal/ttg/image-process";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,12 +60,31 @@ export async function POST(req: NextRequest) {
   }
 
   const altText = body.imageAlt ?? `Watercolor illustration for: ${body.title}`;
-  const filename = `${Date.now()}-${slugify(body.title)}.png`;
-  const imageBytes = base64ToArrayBuffer(body.imageBase64);
+  const baseSlug = `${Date.now()}-${slugify(body.title)}`;
+  const rawBytes = base64ToArrayBuffer(body.imageBase64);
+
+  // Compress + resize the Imagen output (1408x768 ~1MB PNG) into a webp
+  // closer to 100-200KB at 1200px wide, matching the existing blog images.
+  let processed;
+  try {
+    processed = await processFeaturedImage(rawBytes, baseSlug);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Image processing failed" },
+      { status: 500 },
+    );
+  }
 
   let media;
   try {
-    media = await uploadMedia(cfg, imageBytes, filename, altText, body.title);
+    media = await uploadMedia(
+      cfg,
+      processed.bytes,
+      processed.filename,
+      altText,
+      body.title,
+      processed.contentType,
+    );
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Image upload failed" },
