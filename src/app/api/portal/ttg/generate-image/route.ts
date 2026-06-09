@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateImagePromptVariants, generateImages } from "@/lib/portal/ttg/image-gen";
+import {
+  ImageGenerationRateLimitError,
+  generateImagePromptVariants,
+  generateImages,
+} from "@/lib/portal/ttg/image-gen";
 import { htmlToPlainText } from "@/lib/portal/ttg/html-cleaner";
 import { processFeaturedImage } from "@/lib/portal/ttg/image-process";
 
@@ -49,8 +53,18 @@ export async function POST(req: NextRequest) {
   try {
     rawImages = await generateImages(prompts);
   } catch (err) {
+    if (err instanceof ImageGenerationRateLimitError) {
+      return NextResponse.json(
+        {
+          error:
+            "Image generation is temporarily rate limited by Google. Please wait a few minutes and try again.",
+        },
+        { status: 429 },
+      );
+    }
+
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Image generation failed" },
+      { error: "Image generation failed. Please try again in a few minutes." },
       { status: 502 },
     );
   }

@@ -28,6 +28,33 @@ function geminiKey(): string {
   return k;
 }
 
+export class ImageGenerationRateLimitError extends Error {
+  retryAfterSeconds?: number;
+
+  constructor(message: string, retryAfterSeconds?: number) {
+    super(message);
+    this.name = "ImageGenerationRateLimitError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+const IMAGE_RETRY_DELAYS_MS = [1000, 2500];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryAfterSeconds(res: Response): number | undefined {
+  const raw = res.headers.get("retry-after");
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
+}
+
+function isRetryableImagenStatus(status: number): boolean {
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
 /**
  * Ask Gemini to write 4 distinct subject sentences for the post — different
  * compositions and symbolic angles, so the user has real variety to choose from
@@ -151,44 +178,70 @@ Excerpt: ${input.bodyExcerpt.slice(0, 800)}`;
   return `${subject} ${STYLE_LOCK}`;
 }
 
-/** Generate N images in parallel via Imagen 4. Order matches the input prompts. */
+/** Generate N images sequentially via Imagen 4. Order matches the input prompts. */
 export async function generateImages(prompts: string[]): Promise<ArrayBuffer[]> {
-  return Promise.all(prompts.map((p) => generateImage(p)));
+  const images: ArrayBuffer[] = [];
+  for (const prompt of prompts) {
+    images.push(await generateImage(prompt));
+  }
+  return images;
 }
 
 /** Generate one image with Imagen 4. Returns raw PNG bytes. */
 export async function generateImage(prompt: string): Promise<ArrayBuffer> {
-  const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": geminiKey(),
-      },
-      body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: "16:9",
-          personGeneration: "allow_adult",
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= IMAGE_RETRY_DELAYS_MS.length; attempt++) {
+    const res = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiKey(),
         },
-      }),
-    },
-  );
-  if (!res.ok) {
+        body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: {
+            sampleCount: 1,
+            aspectRatio: "16:9",
+            personGeneration: "allow_adult",
+          },
+        }),
+      },
+    );
+
+    if (res.ok) {
+      const data = await res.json();
+      const b64: string | undefined = data?.predictions?.[0]?.bytesBase64Encoded;
+      if (!b64) {
+        throw new Error("Imagen returned no image bytes");
+      }
+      // Decode base64 -> ArrayBuffer (Edge runtime: use atob)
+      const binary =
+        typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary");
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    }
+
     const text = await res.text();
-    throw new Error(`Imagen generation failed: ${res.status} ${text.slice(0, 500)}`);
+    const retryAfter = retryAfterSeconds(res);
+    lastError =
+      res.status === 429
+        ? new ImageGenerationRateLimitError(
+            "Imagen is temporarily rate limited or out of quota.",
+            retryAfter,
+          )
+        : new Error(`Imagen generation failed: ${res.status} ${text.slice(0, 500)}`);
+
+    if (!isRetryableImagenStatus(res.status) || attempt === IMAGE_RETRY_DELAYS_MS.length) {
+      throw lastError;
+    }
+
+    await sleep((retryAfter ? retryAfter * 1000 : IMAGE_RETRY_DELAYS_MS[attempt]) ?? 1000);
   }
-  const data = await res.json();
-  const b64: string | undefined = data?.predictions?.[0]?.bytesBase64Encoded;
-  if (!b64) {
-    throw new Error("Imagen returned no image bytes");
-  }
-  // Decode base64 → ArrayBuffer (Edge runtime: use atob)
-  const binary = typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary");
-  const len = binary.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
+
+  throw lastError ?? new Error("Imagen generation failed");
 }
