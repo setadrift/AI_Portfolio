@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(request: Request) {
   try {
+    if (!process.env.RESEND_API_KEY) {
+      console.error("Contact form missing RESEND_API_KEY");
+      return NextResponse.json(
+        { error: "Contact form is not configured." },
+        { status: 500 },
+      );
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const body = await request.json();
     const { name, email, message, company } = body;
 
@@ -37,13 +44,23 @@ export async function POST(request: Request) {
       );
     }
 
-    await resend.emails.send({
-      from: "Portfolio Contact <onboarding@resend.dev>",
-      to: "duncan@duncananderson.ca",
+    const { error } = await resend.emails.send({
+      from:
+        process.env.CONTACT_FROM_EMAIL ||
+        "Portfolio Contact <hello@duncananderson.ca>",
+      to: process.env.CONTACT_TO_EMAIL || "duncan@duncananderson.ca",
       replyTo: email,
       subject: `New message from ${name}`,
       text: `Name: ${name}\nEmail: ${email}\n\n${message}`,
     });
+
+    if (error) {
+      console.error("Resend contact email error:", error);
+      return NextResponse.json(
+        { error: "Failed to send message. Please try again." },
+        { status: 502 },
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
