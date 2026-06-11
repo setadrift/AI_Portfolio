@@ -20,6 +20,10 @@ export default async function middleware(request: NextRequest) {
       if (pathname !== "/portal") loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
+    const [, , portalClient] = pathname.split("/");
+    if (portalClient && portalClient !== session.client) {
+      return NextResponse.redirect(new URL(`/portal/${session.client}`, request.url));
+    }
     return NextResponse.next();
   }
 
