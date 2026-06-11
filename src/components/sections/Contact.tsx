@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import SectionWrapper from "@/components/ui/SectionWrapper";
 import Button from "@/components/ui/Button";
+import { BOOKING_URL } from "@/lib/constants";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -64,6 +65,23 @@ export default function Contact() {
           <p className="text-sm text-cream-dim">
             {t("noPitch")}
           </p>
+          <div className="mt-8 border-t border-border pt-6">
+            <h3 className="mb-2 font-display text-xl text-cream">
+              {t("bookingHeading")}
+            </h3>
+            <p className="mb-5 text-sm leading-relaxed text-cream-muted">
+              {t("bookingDescription")}
+            </p>
+            <a
+              href={BOOKING_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={t("bookingAriaLabel")}
+              className="inline-flex items-center justify-center rounded-none border border-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-accent transition-all duration-200 hover:bg-[#EFF6FF] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
+            >
+              {t("bookingCta")}
+            </a>
+          </div>
         </div>
 
         {status === "success" ? (

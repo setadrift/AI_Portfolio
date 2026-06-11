@@ -13,6 +13,9 @@ export const NAV_LINKS = [
   { label: "Contact", href: "/#contact" },
 ];
 
+export const BOOKING_URL =
+  "https://cal.com/duncan-anderson-sdo5hp/ai-automation-discovery-call";
+
 export interface Project {
   slug: string;
   clientType: string;
