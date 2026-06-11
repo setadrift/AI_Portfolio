@@ -1,0 +1,20 @@
+{
+  "feeds": [
+    "https://www.reddit.com/r/smallbusiness/new.rss",
+    "https://www.reddit.com/r/Entrepreneur/new.rss",
+    "https://www.reddit.com/r/developers_hire/new.rss",
+    "https://www.reddit.com/r/Zapier/new.rss",
+    "https://www.reddit.com/r/Airtable/new.rss",
+    "https://www.reddit.com/r/Excel/new.rss",
+    "https://www.reddit.com/r/googlesheets/new.rss",
+    "https://www.reddit.com/r/WholesaleRealestate/new.rss",
+    "https://www.reddit.com/r/bookkeeping/new.rss",
+    "https://www.reddit.com/r/Accounting/new.rss"
+  ],
+  "maxAgeHours": 48,
+  "minScore": 4,
+  "useLlm": true,
+  "llmModel": "gpt-4.1-mini",
+  "maxLlmCandidates": 15,
+  "requestDelayMs": 1500
+}

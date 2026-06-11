@@ -54,6 +54,7 @@ next-env.d.ts
 
 # Local outreach notes; do not publish live lead details.
 /docs/lead-tracker.md
+/outputs/reddit-leads/
 
 # Worktree slots — created by .claude/scripts/setup-worktree.sh in sibling dirs.
 # A stray copy may end up here from older configs; ignore it inside the repo.

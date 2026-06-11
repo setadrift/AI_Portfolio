@@ -5,7 +5,8 @@
  *   [{"username":"gabby","password":"...","client":"ttg"},
  *    {"username":"jess","password":"...","client":"ttg"}]
  *
- * For development, defaults to a single user defined by PORTAL_PASSWORD.
+ * For development, supports ADMIN_PORTAL_PASSWORD for Duncan plus a TTG user
+ * defined by PORTAL_PASSWORD.
  */
 
 export interface PortalUser {
@@ -24,12 +25,18 @@ function loadUsers(): PortalUser[] {
       // fall through to defaults
     }
   }
-  // Dev fallback: single user using PORTAL_PASSWORD.
+  const fallbackUsers: PortalUser[] = [];
+  const adminPw = process.env.ADMIN_PORTAL_PASSWORD;
+  if (adminPw) {
+    fallbackUsers.push({ username: "duncan", password: adminPw, client: "admin" });
+  }
+
+  // Dev fallback: single TTG user using PORTAL_PASSWORD.
   const pw = process.env.PORTAL_PASSWORD;
   if (pw) {
-    return [{ username: "ttg", password: pw, client: "ttg" }];
+    fallbackUsers.push({ username: "ttg", password: pw, client: "ttg" });
   }
-  return [];
+  return fallbackUsers;
 }
 
 export function authenticate(
