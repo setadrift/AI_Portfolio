@@ -4,6 +4,7 @@ import path from "node:path";
 
 const CONFIG_PATH = "config/reddit-lead-monitor.json";
 const OUTPUT_DIR = "outputs/reddit-leads";
+const STATUS_PATH = path.join(OUTPUT_DIR, "latest-status.json");
 const USER_AGENT =
   "DuncanAndersonLeadMonitor/0.1 (manual lead review; https://duncananderson.ca)";
 
@@ -77,6 +78,12 @@ const negativeTerms = [
   "cold email",
   "seo agency",
   "lead gen agency",
+  "here's how",
+  "here’s how",
+  "i automated",
+  "i built",
+  "i made",
+  "case study",
 ];
 
 const hardNegativeTerms = [
@@ -116,7 +123,7 @@ async function main() {
   const feedResults = [];
   const posts = [];
 
-  const feeds = config.feeds ?? [];
+  const feeds = limitFeeds(config.feeds ?? []);
   for (const [index, feed] of feeds.entries()) {
     const result = await fetchFeed(feed);
     feedResults.push(result);
@@ -137,21 +144,63 @@ async function main() {
     .slice(0, config.maxLlmCandidates ?? 25);
 
   const scored = await scorePosts(filtered, config, env.OPENAI_API_KEY);
+  const successfulFeeds = feedResults.filter((result) => result.ok).length;
+  const minSuccessfulFeeds = Math.min(
+    config.minSuccessfulFeeds ?? Math.min(3, feeds.length),
+    feeds.length,
+  );
+  const hasLeads = scored.length > 0;
+  const hasEnoughCoverage = successfulFeeds >= minSuccessfulFeeds;
+  const shouldWriteDigest = hasEnoughCoverage || hasLeads;
+  const partialCoverage = shouldWriteDigest && !hasEnoughCoverage;
   const digest = buildDigest({
     date: outputDate,
     leads: scored,
     rejectedCount: freshPosts.length - filtered.length,
     feedResults,
     config,
+    partialCoverage,
   });
 
   await mkdir(OUTPUT_DIR, { recursive: true });
   const outputPath = path.join(OUTPUT_DIR, `${outputDate}.md`);
-  await writeFile(outputPath, digest, "utf8");
+  await writeStatus({
+    ok: shouldWriteDigest,
+    generatedAt: new Date().toISOString(),
+    successfulFeeds,
+    totalFeeds: feedResults.length,
+    fetchedPosts: posts.length,
+    candidatesScored: filtered.length,
+    leadsIncluded: scored.length,
+    outputPath: shouldWriteDigest ? outputPath : "",
+    message: partialCoverage
+      ? `Partial digest updated with ${scored.length} lead(s); only ${successfulFeeds}/${feedResults.length} feeds succeeded.`
+      : shouldWriteDigest
+        ? "Digest updated."
+      : `Skipped digest update because only ${successfulFeeds}/${feedResults.length} feeds succeeded.`,
+    feedErrors: feedResults
+      .filter((result) => !result.ok)
+      .map((result) => ({
+        url: result.url,
+        status: result.status,
+        error: result.error ?? "",
+      })),
+  });
+
+  if (shouldWriteDigest) {
+    await writeFile(outputPath, digest, "utf8");
+  }
 
   console.log(`Fetched ${posts.length} posts from ${feedResults.length} feeds.`);
   console.log(`Filtered ${filtered.length} candidates for scoring.`);
-  console.log(`Wrote digest: ${outputPath}`);
+  if (shouldWriteDigest) {
+    console.log(`Wrote digest: ${outputPath}`);
+  } else {
+    console.log(
+      `Skipped digest update: only ${successfulFeeds}/${feedResults.length} feeds succeeded.`,
+    );
+    console.log(`Wrote run status: ${STATUS_PATH}`);
+  }
 }
 
 async function loadConfig() {
@@ -170,6 +219,10 @@ async function loadDotEnv(filePath) {
     env[match[1]] = stripQuotes(match[2]);
   }
   return env;
+}
+
+async function writeStatus(status) {
+  await writeFile(STATUS_PATH, `${JSON.stringify(status, null, 2)}\n`, "utf8");
 }
 
 async function fetchFeed(feedUrl) {
@@ -200,6 +253,20 @@ async function fetchFeed(feedUrl) {
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function limitFeeds(feeds) {
+  const match = process.env.REDDIT_FEED_MATCH;
+  const matchedFeeds = match
+    ? feeds.filter((feed) => feed.toLowerCase().includes(match.toLowerCase()))
+    : feeds;
+
+  const rawLimit = process.env.REDDIT_FEED_LIMIT;
+  if (!rawLimit) return matchedFeeds;
+
+  const limit = Number.parseInt(rawLimit, 10);
+  if (!Number.isFinite(limit) || limit <= 0) return matchedFeeds;
+  return matchedFeeds.slice(0, limit);
 }
 
 function parseFeed(xml, feedUrl) {
@@ -259,7 +326,7 @@ function shouldKeepPost(post) {
   if (post.negativeMatches.length > 0 && post.buyingIntentMatches.length === 0) {
     return false;
   }
-  return post.buyingIntentMatches.length > 0 || hasWorkflowPain(post);
+  return hasRequestIntent(post);
 }
 
 async function scorePosts(posts, config, apiKey) {
@@ -407,8 +474,6 @@ function normalizeLlmScore(post, parsed) {
     : "watch";
   const scoreReason = String(parsed.scoreReason || "").trim();
 
-  if (recommendedAction === "ignore") score = Math.min(score, 2);
-  if (recommendedAction === "watch") score = Math.min(score, 3);
   if (category === "other") score = Math.min(score, 3);
   if (category !== "other" && post.buyingIntentMatches.length > 0) {
     score = Math.max(score, 4);
@@ -420,6 +485,8 @@ function normalizeLlmScore(post, parsed) {
   if (isGeneralHelpReason(scoreReason)) score = Math.min(score, 3);
   if (post.negativeMatches.length > 0) score = Math.min(score, 3);
   if (post.buyingIntentMatches.length === 0) score = Math.min(score, 4);
+  if (recommendedAction === "ignore") score = Math.min(score, 2);
+  if (recommendedAction === "watch") score = Math.min(score, 3);
 
   return {
     ...post,
@@ -432,7 +499,7 @@ function normalizeLlmScore(post, parsed) {
   };
 }
 
-function buildDigest({ date, leads, rejectedCount, feedResults, config }) {
+function buildDigest({ date, leads, rejectedCount, feedResults, config, partialCoverage }) {
   const sorted = [...leads].sort((a, b) => b.score - a.score);
   const best = sorted.filter((lead) => lead.score >= 4);
   const maybe = sorted.filter((lead) => lead.score === 3);
@@ -446,6 +513,7 @@ function buildDigest({ date, leads, rejectedCount, feedResults, config }) {
     `Candidates included: ${sorted.length}`,
     `Filtered/rejected before digest: ${rejectedCount}`,
     `Minimum score: ${config.minScore}`,
+    `Partial coverage: ${partialCoverage ? "yes" : "no"}`,
     "",
     "## Best Leads",
     "",
@@ -516,9 +584,9 @@ function categorize(post) {
   return "other";
 }
 
-function hasWorkflowPain(post) {
+function hasRequestIntent(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /manual|too slow|takes forever|bottleneck|messy|currently a mess|repetitive|time-consuming|another quarter of manual work/.test(
+  return /looking for|need help|recommend|recommendations|which .* use|anyone .* use|how do i|how do you|where do i start|seeking|paid help|paid opportunity|hire|consultant|freelancer|developer|build this|need someone|help setting up|open to paid help/.test(
     text,
   );
 }
