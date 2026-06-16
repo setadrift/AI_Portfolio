@@ -2,6 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
 const DIGEST_DIR = path.join(process.cwd(), "outputs", "reddit-leads");
+const STATUS_PATH = path.join(DIGEST_DIR, "latest-status.json");
 
 export interface RedditLead {
   score: string;
@@ -26,6 +27,63 @@ export interface LeadDigest {
   leads: RedditLead[];
 }
 
+export interface LeadRunStatus {
+  ok: boolean;
+  generatedAt: string;
+  successfulFeeds: number;
+  totalFeeds: number;
+  fetchedPosts: number;
+  candidatesScored: number;
+  leadsIncluded: number;
+  outputPath: string;
+  message: string;
+  feedErrors: Array<{
+    url: string;
+    status: string | number;
+    error: string;
+  }>;
+}
+
+export interface LeadDashboardData {
+  digest: LeadDigest | null;
+  status: LeadRunStatus | null;
+  channels: LeadChannel[];
+}
+
+export interface LeadChannel {
+  id: string;
+  label: string;
+  feed: string;
+}
+
+export async function readLeadDashboardData(): Promise<LeadDashboardData> {
+  const [digest, status, channels] = await Promise.all([
+    readLatestLeadDigest(),
+    readLatestRunStatus(),
+    readLeadChannels(),
+  ]);
+
+  return { digest, status, channels };
+}
+
+export async function readLeadChannels(): Promise<LeadChannel[]> {
+  try {
+    const configPath = path.join(process.cwd(), "config", "reddit-lead-monitor.json");
+    const raw = await readFile(configPath, "utf8");
+    const config = JSON.parse(raw) as { feeds?: string[] };
+    return (config.feeds ?? []).map((feed) => {
+      const subreddit = feed.match(/\/r\/([^/]+)/i)?.[1] ?? feed;
+      return {
+        id: subreddit,
+        label: `r/${subreddit}`,
+        feed,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 export async function readLatestLeadDigest(): Promise<LeadDigest | null> {
   try {
     const files = (await readdir(DIGEST_DIR))
@@ -33,11 +91,22 @@ export async function readLatestLeadDigest(): Promise<LeadDigest | null> {
       .sort()
       .reverse();
 
-    const fileName = files[0];
-    if (!fileName) return null;
+    for (const fileName of files) {
+      const markdown = await readFile(path.join(DIGEST_DIR, fileName), "utf8");
+      const digest = parseDigest(fileName, markdown);
+      if (isUsableDigest(digest)) return digest;
+    }
 
-    const markdown = await readFile(path.join(DIGEST_DIR, fileName), "utf8");
-    return parseDigest(fileName, markdown);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function readLatestRunStatus(): Promise<LeadRunStatus | null> {
+  try {
+    const raw = await readFile(STATUS_PATH, "utf8");
+    return JSON.parse(raw) as LeadRunStatus;
   } catch {
     return null;
   }
@@ -84,6 +153,16 @@ function parseFeedErrors(markdown: string) {
     .map((line) => line.trim())
     .filter((line) => line.startsWith("- "))
     .map((line) => line.slice(2));
+}
+
+function isUsableDigest(digest: LeadDigest) {
+  const feedsChecked = Number.parseInt(digest.feedsChecked || "0", 10);
+  const candidatesIncluded = Number.parseInt(digest.candidatesIncluded || "0", 10);
+  const errorCount = digest.feedErrors.length;
+
+  if (candidatesIncluded > 0) return true;
+  if (feedsChecked === 0) return false;
+  return errorCount < Math.ceil(feedsChecked / 2);
 }
 
 function metadataValue(markdown: string, label: string) {
