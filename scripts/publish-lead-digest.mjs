@@ -4,7 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { put } from "@vercel/blob";
 
-const OUTPUT_DIR = "outputs/reddit-leads";
+const OUTPUT_DIR = process.env.REDDIT_LEAD_OUTPUT_DIR || "outputs/reddit-leads";
 const STATUS_PATH = path.join(OUTPUT_DIR, "latest-status.json");
 const PUBLISHED_DIGEST_PATH = "admin/leads/latest.json";
 

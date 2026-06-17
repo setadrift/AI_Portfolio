@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 const CONFIG_PATH = "config/reddit-lead-monitor.json";
-const OUTPUT_DIR = "outputs/reddit-leads";
+const OUTPUT_DIR = process.env.REDDIT_LEAD_OUTPUT_DIR || "outputs/reddit-leads";
 const STATUS_PATH = path.join(OUTPUT_DIR, "latest-status.json");
 const USER_AGENT =
   "DuncanAndersonLeadMonitor/0.1 (manual lead review; https://duncananderson.ca)";

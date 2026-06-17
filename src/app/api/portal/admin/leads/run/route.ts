@@ -44,13 +44,36 @@ export async function POST(req: NextRequest) {
 }
 
 function runLeadMonitor(channel: string) {
+  const outputDir = process.env.VERCEL ? "/tmp/reddit-leads" : undefined;
+  const shouldPublish = Boolean(process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN);
+
+  return runScript("reddit-lead-monitor.mjs", {
+    REDDIT_FEED_MATCH: channel,
+    ...(outputDir ? { REDDIT_LEAD_OUTPUT_DIR: outputDir } : {}),
+  }).then(async (scanResult) => {
+    if (scanResult.code !== 0) return scanResult;
+    if (!shouldPublish) return scanResult;
+
+    const publishResult = await runScript("publish-lead-digest.mjs", {
+      ...(outputDir ? { REDDIT_LEAD_OUTPUT_DIR: outputDir } : {}),
+    });
+
+    return {
+      code: publishResult.code,
+      stdout: [scanResult.stdout, publishResult.stdout].filter(Boolean).join("\n"),
+      stderr: [scanResult.stderr, publishResult.stderr].filter(Boolean).join("\n"),
+    };
+  });
+}
+
+function runScript(scriptName: string, env: Record<string, string>) {
   return new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
-    const scriptPath = path.join(process.cwd(), "scripts", "reddit-lead-monitor.mjs");
+    const scriptPath = path.join(process.cwd(), "scripts", scriptName);
     const child = spawn(process.execPath, [scriptPath], {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        REDDIT_FEED_MATCH: channel,
+        ...env,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
