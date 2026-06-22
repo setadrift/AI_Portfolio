@@ -2,6 +2,33 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const MAX_FIELD_LENGTH = 5000;
+
+type ContactBody = {
+  name?: string;
+  email?: string;
+  message?: string;
+  company?: string;
+  companyTrap?: string;
+  formType?: string;
+  businessName?: string;
+  website?: string;
+  country?: string;
+  teamSize?: string;
+  budgetRange?: string;
+  workflow?: string;
+  tools?: string;
+  timeline?: string;
+  attribution?: Record<string, string | undefined>;
+};
+
+function clean(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function formatLine(label: string, value: string) {
+  return value ? `${label}: ${value}\n` : "";
+}
 
 export async function POST(request: Request) {
   try {
@@ -14,16 +41,29 @@ export async function POST(request: Request) {
     }
 
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const body = await request.json();
-    const { name, email, message, company } = body;
+    const body = (await request.json()) as ContactBody;
+    const name = clean(body.name);
+    const email = clean(body.email);
+    const message = clean(body.message);
+    const formType = clean(body.formType) || "contact";
+    const businessName = clean(body.businessName);
+    const website = clean(body.website);
+    const country = clean(body.country);
+    const teamSize = clean(body.teamSize);
+    const budgetRange = clean(body.budgetRange);
+    const workflow = clean(body.workflow);
+    const tools = clean(body.tools);
+    const timeline = clean(body.timeline);
+    const companyTrap = clean(body.companyTrap || body.company);
+    const attribution = body.attribution || {};
 
     // Honeypot — real users never fill this hidden field
-    if (company) {
+    if (companyTrap) {
       // Silently accept to not tip off bots
       return NextResponse.json({ success: true });
     }
 
-    if (!name || !email || !message) {
+    if (!name || !email || (!message && !workflow)) {
       return NextResponse.json(
         { error: "Name, email, and message are required." },
         { status: 400 },
@@ -37,30 +77,85 @@ export async function POST(request: Request) {
       );
     }
 
-    if (message.length > 5000) {
+    const fieldsToCheck = [
+      message,
+      businessName,
+      website,
+      country,
+      teamSize,
+      budgetRange,
+      workflow,
+      tools,
+      timeline,
+    ];
+
+    if (fieldsToCheck.some((field) => field.length > MAX_FIELD_LENGTH)) {
       return NextResponse.json(
-        { error: "Message must be under 5,000 characters." },
+        { error: "Message fields must be under 5,000 characters." },
         { status: 400 },
       );
     }
 
-    const { error } = await resend.emails.send({
+    const sourceLines = [
+      formatLine("UTM source", clean(attribution.utm_source)),
+      formatLine("UTM medium", clean(attribution.utm_medium)),
+      formatLine("UTM campaign", clean(attribution.utm_campaign)),
+      formatLine("UTM term", clean(attribution.utm_term)),
+      formatLine("UTM content", clean(attribution.utm_content)),
+      formatLine("GCLID", clean(attribution.gclid)),
+      formatLine("GBRAID", clean(attribution.gbraid)),
+      formatLine("WBRAID", clean(attribution.wbraid)),
+      formatLine("Landing path", clean(attribution.landing_path)),
+      formatLine("Landing URL", clean(attribution.landing_url)),
+      formatLine("Referrer", clean(attribution.referrer)),
+      formatLine("First touch", clean(attribution.first_touch_at)),
+      formatLine("Current touch", clean(attribution.current_touch_at)),
+    ].join("");
+
+    const text =
+      formType === "ai-workflow-audit"
+        ? [
+            "New AI workflow audit request",
+            "",
+            `Name: ${name}`,
+            `Email: ${email}`,
+            formatLine("Business", businessName).trimEnd(),
+            formatLine("Website", website).trimEnd(),
+            formatLine("Country", country).trimEnd(),
+            formatLine("Team size", teamSize).trimEnd(),
+            formatLine("Budget range", budgetRange).trimEnd(),
+            formatLine("Timeline", timeline).trimEnd(),
+            "",
+            "Workflow:",
+            workflow,
+            "",
+            "Tools involved:",
+            tools || "Not provided",
+            "",
+            "Additional message:",
+            message || "Not provided",
+            "",
+            "Attribution:",
+            sourceLines || "No attribution captured.",
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : `Name: ${name}\nEmail: ${email}\n\n${message}\n\nAttribution:\n${
+            sourceLines || "No attribution captured."
+          }`;
+
+    await resend.emails.send({
       from:
         process.env.CONTACT_FROM_EMAIL ||
         "Portfolio Contact <hello@duncananderson.ca>",
       to: process.env.CONTACT_TO_EMAIL || "duncan@duncananderson.ca",
       replyTo: email,
-      subject: `New message from ${name}`,
-      text: `Name: ${name}\nEmail: ${email}\n\n${message}`,
+      subject:
+        formType === "ai-workflow-audit"
+          ? `AI workflow audit request from ${name}`
+          : `New message from ${name}`,
+      text,
     });
-
-    if (error) {
-      console.error("Resend contact email error:", error);
-      return NextResponse.json(
-        { error: "Failed to send message. Please try again." },
-        { status: 502 },
-      );
-    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -6,21 +6,24 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "leads:reddit": "node scripts/reddit-lead-monitor.mjs",
-    "leads:publish": "node scripts/publish-lead-digest.mjs",
-    "lint": "eslint"
+    "lint": "eslint",
+    "google-ads:smoke": "scripts/google_ads_python.sh scripts/google_ads_smoke.py",
+    "google-ads:create-customer": "scripts/google_ads_python.sh scripts/google_ads_create_ai_consulting_customer.py",
+    "google-ads:conversion": "scripts/google_ads_python.sh scripts/google_ads_create_ai_consulting_conversion.py",
+    "google-ads:conversion:apply": "scripts/google_ads_python.sh scripts/google_ads_create_ai_consulting_conversion.py --apply",
+    "google-ads:validate": "scripts/google_ads_python.sh scripts/google_ads_build_ai_consulting_campaign.py",
+    "google-ads:apply-paused": "scripts/google_ads_python.sh scripts/google_ads_build_ai_consulting_campaign.py --apply",
+    "google-ads:launch:check": "scripts/google_ads_python.sh scripts/google_ads_launch_ai_consulting_campaign.py",
+    "google-ads:launch:apply": "scripts/google_ads_python.sh scripts/google_ads_launch_ai_consulting_campaign.py --apply"
   },
   "dependencies": {
     "@vercel/analytics": "^1.6.1",
-    "@vercel/blob": "^2.4.0",
     "@vercel/speed-insights": "^1.3.1",
-    "jose": "^6.2.2",
     "next": "16.1.6",
     "next-intl": "^4.8.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "resend": "^6.9.2",
-    "sharp": "^0.34.5"
+    "resend": "^6.9.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -71,18 +71,3 @@ section {
   background: var(--color-accent);
   color: #FFFFFF;
 }
-
-.queue-button {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.375rem;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.875rem;
-  height: 2rem;
-  padding: 0 0.75rem;
-  transition: background-color 150ms ease, color 150ms ease;
-}
-
-.queue-button:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
-}
