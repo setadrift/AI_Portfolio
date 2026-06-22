@@ -6,6 +6,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { DM_Serif_Display, Outfit } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import Script from "next/script";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { SITE } from "@/lib/constants";
@@ -99,12 +100,29 @@ export default async function LocaleLayout({
     serviceType: "AI Consulting",
     areaServed: "Worldwide",
   };
+  const googleTagId = process.env.NEXT_PUBLIC_GOOGLE_TAG_ID;
 
   return (
     <html lang={locale}>
       <body
         className={`${dmSerif.variable} ${outfit.variable} font-body antialiased`}
       >
+        {googleTagId ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${googleTagId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="google-tag" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${googleTagId}');
+              `}
+            </Script>
+          </>
+        ) : null}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
