@@ -48,7 +48,7 @@ function runLeadMonitor(channel: string) {
   const shouldPublish = Boolean(process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN);
 
   return runScript("reddit-lead-monitor.mjs", {
-    REDDIT_FEED_MATCH: channel,
+    REDDIT_CHANNEL_MATCH: channel,
     ...(outputDir ? { REDDIT_LEAD_OUTPUT_DIR: outputDir } : {}),
   }).then(async (scanResult) => {
     if (scanResult.code !== 0) return scanResult;
