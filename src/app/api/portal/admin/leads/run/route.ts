@@ -1,8 +1,13 @@
 import { spawn } from "node:child_process";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { readLeadChannels } from "@/lib/portal/admin/leads";
+import {
+  publishLeadDigest,
+  readLeadChannels,
+  type LeadRunStatus,
+} from "@/lib/portal/admin/leads";
 import { PORTAL_COOKIE, verifySession } from "@/lib/portal/session";
 
 export const runtime = "nodejs";
@@ -27,43 +32,96 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => null)) as { channel?: string } | null;
   const channels = await readLeadChannels();
-  const channel = body?.channel ?? "automation";
-  const selected = channels.find((item) => item.id === channel);
+  const channel = body?.channel ?? "all";
+  const selected = channel === "all" ? null : channels.find((item) => item.id === channel);
 
-  if (!selected) {
+  if (channel !== "all" && !selected) {
     return NextResponse.json({ error: "Unknown channel" }, { status: 400 });
   }
 
-  const result = await runLeadMonitor(selected.id);
+  const result = await runLeadMonitor(selected?.id ?? null);
   return NextResponse.json({
     ok: result.code === 0,
-    channel: selected.id,
+    channel,
     stdout: result.stdout,
     stderr: result.stderr,
   });
 }
 
-function runLeadMonitor(channel: string) {
-  const outputDir = process.env.VERCEL ? "/tmp/reddit-leads" : undefined;
+async function runLeadMonitor(channel: string | null) {
+  const outputDir = process.env.VERCEL ? "/tmp/reddit-leads" : "outputs/reddit-leads";
   const shouldPublish = Boolean(process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN);
 
-  return runScript("reddit-lead-monitor.mjs", {
-    REDDIT_FEED_MATCH: channel,
-    ...(outputDir ? { REDDIT_LEAD_OUTPUT_DIR: outputDir } : {}),
-  }).then(async (scanResult) => {
-    if (scanResult.code !== 0) return scanResult;
-    if (!shouldPublish) return scanResult;
-
-    const publishResult = await runScript("publish-lead-digest.mjs", {
-      ...(outputDir ? { REDDIT_LEAD_OUTPUT_DIR: outputDir } : {}),
-    });
-
-    return {
-      code: publishResult.code,
-      stdout: [scanResult.stdout, publishResult.stdout].filter(Boolean).join("\n"),
-      stderr: [scanResult.stderr, publishResult.stderr].filter(Boolean).join("\n"),
-    };
+  const scanResult = await runScript("reddit-lead-monitor.mjs", {
+    REDDIT_LEAD_OUTPUT_DIR: outputDir,
+    ...(channel ? { REDDIT_FEED_MATCH: channel } : {}),
   });
+
+  if (scanResult.code !== 0) return scanResult;
+  if (!shouldPublish) return scanResult;
+
+  try {
+    const publishMessage = await publishLatestLeadDigest(outputDir);
+    return {
+      code: 0,
+      stdout: [scanResult.stdout, publishMessage].filter(Boolean).join("\n"),
+      stderr: scanResult.stderr,
+    };
+  } catch (error) {
+    return {
+      code: 1,
+      stdout: scanResult.stdout,
+      stderr: [scanResult.stderr, error instanceof Error ? error.message : "Failed to publish lead digest"]
+        .filter(Boolean)
+        .join("\n"),
+    };
+  }
+}
+
+async function publishLatestLeadDigest(outputDir: string) {
+  const status = await readLatestRunStatus(outputDir);
+  const digestPath = await findLatestDigestPath(outputDir, status?.outputPath);
+  const fileName = path.basename(digestPath);
+  const markdown = await readFile(digestPath, "utf8");
+
+  await publishLeadDigest({
+    fileName,
+    markdown,
+    status,
+  });
+
+  return `Published ${fileName} to Vercel Blob`;
+}
+
+async function readLatestRunStatus(outputDir: string): Promise<LeadRunStatus | null> {
+  try {
+    const raw = await readFile(path.join(outputDir, "latest-status.json"), "utf8");
+    return JSON.parse(raw) as LeadRunStatus;
+  } catch {
+    return null;
+  }
+}
+
+async function findLatestDigestPath(outputDir: string, statusOutputPath?: string) {
+  if (statusOutputPath) {
+    try {
+      await readFile(statusOutputPath, "utf8");
+      return statusOutputPath;
+    } catch {
+      // Fall through to the latest dated digest in the configured output directory.
+    }
+  }
+
+  const files = (await readdir(outputDir))
+    .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file))
+    .sort()
+    .reverse();
+
+  if (!files[0]) {
+    throw new Error(`No dated digest found in ${outputDir}`);
+  }
+
+  return path.join(outputDir, files[0]);
 }
 
 function runScript(scriptName: string, env: Record<string, string>) {

@@ -16,27 +16,35 @@ export interface PortalUser {
 }
 
 function loadUsers(): PortalUser[] {
-  const raw = process.env.PORTAL_USERS;
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed as PortalUser[];
-    } catch {
-      // fall through to defaults
-    }
-  }
-  const fallbackUsers: PortalUser[] = [];
+  const usersByName = new Map<string, PortalUser>();
   const adminPw = process.env.ADMIN_PORTAL_PASSWORD;
   if (adminPw) {
-    fallbackUsers.push({ username: "duncan", password: adminPw, client: "admin" });
+    usersByName.set("duncan", { username: "duncan", password: adminPw, client: "admin" });
   }
 
   // Dev fallback: single TTG user using PORTAL_PASSWORD.
   const pw = process.env.PORTAL_PASSWORD;
   if (pw) {
-    fallbackUsers.push({ username: "ttg", password: pw, client: "ttg" });
+    usersByName.set("ttg", { username: "ttg", password: pw, client: "ttg" });
   }
-  return fallbackUsers;
+
+  const raw = process.env.PORTAL_USERS;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const user of parsed as PortalUser[]) {
+          if (user?.username && user?.password && user?.client) {
+            usersByName.set(user.username, user);
+          }
+        }
+      }
+    } catch {
+      // fall through to defaults
+    }
+  }
+
+  return Array.from(usersByName.values());
 }
 
 export function authenticate(

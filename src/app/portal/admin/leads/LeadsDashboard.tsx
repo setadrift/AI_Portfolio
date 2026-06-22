@@ -15,9 +15,7 @@ export default function LeadsDashboard({
   initialData: LeadDashboardData;
 }) {
   const router = useRouter();
-  const [selectedChannel, setSelectedChannel] = useState(
-    initialData.channels[0]?.id ?? "automation",
-  );
+  const [selectedChannel, setSelectedChannel] = useState("all");
   const [selectedLeadUrl, setSelectedLeadUrl] = useState(
     initialData.digest?.leads[0]?.url ?? "",
   );
@@ -110,7 +108,7 @@ function Header({
         <p className="text-xs uppercase tracking-[0.22em] text-white/45">Reddit lead monitor</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Leads</h1>
         <p className="mt-1 text-sm text-white/50">
-          Run focused scans by subreddit, then review the highest-intent matches.
+          Run all configured sources or focus on one subreddit.
         </p>
       </div>
 
@@ -124,6 +122,7 @@ function Header({
           onChange={(event) => onChannelChange(event.target.value)}
           className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
         >
+          <option value="all">All configured sources</option>
           {channels.map((channel) => (
             <option key={channel.id} value={channel.id}>
               {channel.label}
