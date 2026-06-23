@@ -25,7 +25,7 @@ CAMPAIGN_NAME = "Search | AI Consulting | Exact/Phrase"
 BUDGET_NAME = "AI Consulting Search Test Budget 2026-06-22"
 LANDING_URL = os.getenv(
     "GOOGLE_ADS_AI_CONSULTING_LANDING_URL",
-    "https://duncananderson.ca/ai-workflow-audit",
+    "https://www.duncananderson.ca/en/ai-workflow-audit",
 )
 FINAL_URL_SUFFIX = (
     "utm_source=google&utm_medium=cpc"
