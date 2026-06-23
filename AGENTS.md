@@ -54,7 +54,7 @@ Format: `<type>: <description>` -- Types: `feat`, `fix`, `docs`, `refactor`, `te
 
 ### Worktree Workflow (Multi-Session)
 - Primary repo: `/Users/duncananderson/Desktop/AI_Portfolio`
-- Worktree slots: `/Users/duncananderson/Desktop/worktrees/slot-1/`, `slot-2/`, `slot-3/`, `slot-4/`
+- Worktree slots: `/Users/duncananderson/Desktop/worktrees/slot-1/`, `slot-2/`, `slot-3/`, `slot-4/`, `slot-5/`
 - Each worktree has its own branch. Never run `git checkout` to switch branches.
-- To set up a slot: `bash .Codex/scripts/setup-worktree.sh slot-1`
+- To set up a slot: `bash .codex/scripts/setup-worktree.sh slot-1`
 - Then: `cd /Users/duncananderson/Desktop/worktrees/slot-1 && Codex`
