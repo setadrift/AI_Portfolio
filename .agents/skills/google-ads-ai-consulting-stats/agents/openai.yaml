@@ -1,0 +1,4 @@
+interface:
+  display_name: "Google Ads AI Consulting Stats"
+  short_description: "Report AI consulting ad performance."
+  default_prompt: "Use google-ads-ai-consulting-stats to summarize current AI consulting Google Ads performance."

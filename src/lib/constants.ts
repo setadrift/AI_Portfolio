@@ -7,6 +7,9 @@ export const SITE = {
   url: "https://duncananderson.ca",
 };
 
+export const BOOKING_URL =
+  "https://cal.com/duncan-anderson-sdo5hp/ai-automation-discovery-call";
+
 export const NAV_LINKS = [
   { label: "Projects", href: "/#projects" },
   { label: "About", href: "/#about" },

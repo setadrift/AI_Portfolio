@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
+import BookingConversionLink from "@/components/ads/BookingConversionLink";
 import AiWorkflowAuditForm from "@/components/ads/AiWorkflowAuditForm";
 import Button from "@/components/ui/Button";
-import { PROJECTS, SITE } from "@/lib/constants";
+import { BOOKING_URL, PROJECTS, SITE } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "AI Workflow Audits for Small Businesses | Duncan Anderson",
@@ -42,6 +43,14 @@ export default async function AiWorkflowAuditPage({
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button href="#audit-form">Request an audit</Button>
+              <BookingConversionLink
+                href={BOOKING_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center border border-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-accent transition-all duration-200 hover:bg-[#EFF6FF] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
+              >
+                Book a call
+              </BookingConversionLink>
               <Button href="#examples" variant="secondary">
                 See examples
               </Button>
