@@ -2,10 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import BookingConversionLink from "@/components/ads/BookingConversionLink";
 import SectionWrapper from "@/components/ui/SectionWrapper";
 import Button from "@/components/ui/Button";
-import { BOOKING_URL } from "@/lib/constants";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -48,7 +46,7 @@ export default function Contact() {
   }
 
   const inputStyles =
-    "w-full border border-border bg-white px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-cream-dim focus:border-accent focus:ring-1 focus:ring-accent/30";
+    "w-full border border-border bg-surface px-4 py-3 text-sm text-cream outline-none transition-colors placeholder:text-cream-dim focus:border-accent focus:ring-1 focus:ring-accent/30";
 
   return (
     <SectionWrapper id="contact" alternate>
@@ -66,18 +64,10 @@ export default function Contact() {
           <p className="text-sm text-cream-dim">
             {t("noPitch")}
           </p>
-          <BookingConversionLink
-            href={BOOKING_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-6 inline-flex border border-accent px-5 py-3 text-sm font-medium uppercase tracking-wide text-accent transition-colors hover:bg-[#EFF6FF]"
-          >
-            Book a discovery call
-          </BookingConversionLink>
         </div>
 
         {status === "success" ? (
-          <div className="flex flex-col items-center justify-center border border-border bg-white p-10 text-center shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+          <div className="flex flex-col items-center justify-center border border-border bg-surface-elevated p-10 text-center">
             <h3 className="mb-3 font-display text-xl text-cream">
               {t("successHeading")}
             </h3>

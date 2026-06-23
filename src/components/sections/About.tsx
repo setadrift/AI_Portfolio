@@ -11,11 +11,10 @@ export default function About() {
         <div className="flex justify-center md:col-span-2">
           <div className="relative">
             <Image
-              src="/duncs.png"
+              src="/duncan.jpeg"
               alt={t("imageAlt")}
               width={400}
               height={400}
-              quality={100}
               className="h-72 w-72 object-cover transition-all duration-500 hover:scale-[1.03] md:h-80 md:w-80"
               priority
             />
