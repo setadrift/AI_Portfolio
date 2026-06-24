@@ -103,7 +103,17 @@ function getAttribution() {
   return current;
 }
 
-export default function AiWorkflowAuditForm() {
+type AiWorkflowAuditFormProps = {
+  contextLabel?: string;
+  defaultWorkflow?: string;
+  workflowPlaceholder?: string;
+};
+
+export default function AiWorkflowAuditForm({
+  contextLabel = "AI workflow audit",
+  defaultWorkflow = "",
+  workflowPlaceholder = "Example: every week we manually copy data from Airtable into spreadsheets, summarize it, and send status emails.",
+}: AiWorkflowAuditFormProps) {
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -112,7 +122,7 @@ export default function AiWorkflowAuditForm() {
     country: "",
     teamSize: "",
     budgetRange: "",
-    workflow: "",
+    workflow: defaultWorkflow,
     tools: "",
     timeline: "",
     message: "",
@@ -140,6 +150,7 @@ export default function AiWorkflowAuditForm() {
           ...form,
           formType: "ai-workflow-audit",
           attribution,
+          landingContext: contextLabel,
         }),
       });
 
@@ -162,7 +173,7 @@ export default function AiWorkflowAuditForm() {
         country: "",
         teamSize: "",
         budgetRange: "",
-        workflow: "",
+        workflow: defaultWorkflow,
         tools: "",
         timeline: "",
         message: "",
@@ -223,6 +234,11 @@ export default function AiWorkflowAuditForm() {
         <h2 className="font-display text-3xl text-cream">
           Tell me what workflow you want fixed.
         </h2>
+        {contextLabel !== "AI workflow audit" && (
+          <p className="mt-3 text-sm leading-6 text-cream-muted">
+            Context: {contextLabel}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -359,7 +375,7 @@ export default function AiWorkflowAuditForm() {
           rows={4}
           value={form.workflow}
           onChange={(e) => setForm({ ...form, workflow: e.target.value })}
-          placeholder="Example: every week we manually copy data from Airtable into spreadsheets, summarize it, and send status emails."
+          placeholder={workflowPlaceholder}
           className={inputStyles}
         />
       </div>

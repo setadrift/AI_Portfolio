@@ -17,6 +17,10 @@
     "google-ads:update-urls:apply": "scripts/google_ads_python.sh scripts/google_ads_update_ai_consulting_urls.py --apply",
     "google-ads:expand-traffic": "scripts/google_ads_python.sh scripts/google_ads_expand_ai_consulting_traffic.py",
     "google-ads:expand-traffic:apply": "scripts/google_ads_python.sh scripts/google_ads_expand_ai_consulting_traffic.py --apply",
+    "google-ads:maintain": "scripts/google_ads_python.sh scripts/google_ads_maintain_ai_consulting_campaign.py",
+    "google-ads:maintain:apply": "scripts/google_ads_python.sh scripts/google_ads_maintain_ai_consulting_campaign.py --apply",
+    "google-ads:verticals": "scripts/google_ads_python.sh scripts/google_ads_add_ai_consulting_vertical_ads.py",
+    "google-ads:verticals:apply": "scripts/google_ads_python.sh scripts/google_ads_add_ai_consulting_vertical_ads.py --apply",
     "google-ads:launch:check": "scripts/google_ads_python.sh scripts/google_ads_launch_ai_consulting_campaign.py",
     "google-ads:launch:apply": "scripts/google_ads_python.sh scripts/google_ads_launch_ai_consulting_campaign.py --apply"
   },

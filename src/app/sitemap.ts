@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE, PROJECTS } from "@/lib/constants";
+import { WORKFLOW_VERTICALS } from "@/lib/ai-workflow-verticals";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const locales = ["en", "fr"] as const;
@@ -15,6 +16,22 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 1,
     });
+
+    pages.push({
+      url: `${SITE.url}${prefix}/ai-workflow-audit`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    });
+
+    for (const vertical of WORKFLOW_VERTICALS) {
+      pages.push({
+        url: `${SITE.url}${prefix}/ai-workflow-audit/${vertical.slug}`,
+        lastModified: new Date(),
+        changeFrequency: "weekly",
+        priority: 0.85,
+      });
+    }
 
     for (const project of PROJECTS) {
       pages.push({

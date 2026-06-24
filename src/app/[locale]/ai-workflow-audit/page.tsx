@@ -3,6 +3,7 @@ import { setRequestLocale } from "next-intl/server";
 import BookingConversionLink from "@/components/ads/BookingConversionLink";
 import AiWorkflowAuditForm from "@/components/ads/AiWorkflowAuditForm";
 import Button from "@/components/ui/Button";
+import { WORKFLOW_VERTICALS } from "@/lib/ai-workflow-verticals";
 import { BOOKING_URL, PROJECTS, SITE } from "@/lib/constants";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default async function AiWorkflowAuditPage({
   const proofProjects = PROJECTS.filter((project) =>
     ["dispute-defender", "deal-engine", "the-lineup"].includes(project.slug),
   );
+  const localePrefix = locale === "en" ? "/en" : `/${locale}`;
 
   return (
     <>
@@ -134,6 +136,43 @@ export default async function AiWorkflowAuditPage({
                   {project.result}
                 </p>
               </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-surface px-6 py-16 md:py-24">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-3xl">
+            <p className="mb-3 font-mono text-xs uppercase tracking-[0.3em] text-accent">
+              Specific workflows
+            </p>
+            <h2 className="font-display text-4xl text-cream">
+              Start with the workflow that is already costing time or deals
+            </h2>
+            <p className="mt-5 leading-7 text-cream-muted">
+              These pages are built around specific operational bottlenecks,
+              not generic AI strategy. The strongest first project is usually
+              close to revenue, deadlines, follow-up, or document-heavy admin.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {WORKFLOW_VERTICALS.map((vertical) => (
+              <a
+                key={vertical.slug}
+                href={`${localePrefix}/ai-workflow-audit/${vertical.slug}`}
+                className="border border-border bg-white p-5 transition-colors hover:border-accent"
+              >
+                <p className="font-mono text-xs uppercase tracking-[0.2em] text-accent">
+                  {vertical.market}
+                </p>
+                <h3 className="mt-3 font-display text-2xl text-cream">
+                  {vertical.shortTitle}
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-cream-muted">
+                  {vertical.metaDescription}
+                </p>
+              </a>
             ))}
           </div>
         </div>
