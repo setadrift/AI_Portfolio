@@ -42,6 +42,13 @@ class Keyword:
 
 
 @dataclass(frozen=True)
+class NegativeKeyword:
+    text: str
+    match_type: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class AdGroupSpec:
     name: str
     path1: str
@@ -117,6 +124,133 @@ AD_GROUPS: tuple[AdGroupSpec, ...] = (
             "Get a focused workflow audit before committing to a larger build.",
         ),
     ),
+    AdGroupSpec(
+        name="HVAC Plumbing Automation - Phrase",
+        path1="hvac-plumbing",
+        path2="automation",
+        keywords=(
+            Keyword("hvac automation", "PHRASE"),
+            Keyword("hvac workflow automation", "PHRASE"),
+            Keyword("hvac dispatch automation", "PHRASE"),
+            Keyword("hvac estimate follow up", "PHRASE"),
+            Keyword("hvac service automation", "PHRASE"),
+            Keyword("plumbing automation", "PHRASE"),
+            Keyword("plumbing workflow automation", "PHRASE"),
+            Keyword("plumbing dispatch automation", "PHRASE"),
+            Keyword("plumbing estimate follow up", "PHRASE"),
+            Keyword("plumbing service automation", "PHRASE"),
+        ),
+        headlines=(
+            "HVAC Workflow Automation",
+            "Plumbing Workflow Help",
+            "Automate Service Calls",
+            "Estimate Follow Up Help",
+            "Dispatch Workflow Audit",
+            "Reduce Manual Admin",
+            "Built By An Engineer",
+            "Book A Workflow Audit",
+        ),
+        descriptions=(
+            "Capture calls, estimates, dispatch notes, and follow-up in one cleaner workflow.",
+            "Practical automation for HVAC and plumbing teams with admin bottlenecks.",
+            "Find missed-call, quote, and service follow-up gaps before building.",
+            "Start with a focused audit for one revenue or admin workflow.",
+        ),
+    ),
+    AdGroupSpec(
+        name="Roofing Construction Automation - Phrase",
+        path1="contractors",
+        path2="follow-up",
+        keywords=(
+            Keyword("roofing automation", "PHRASE"),
+            Keyword("roofing workflow automation", "PHRASE"),
+            Keyword("roofing estimate follow up", "PHRASE"),
+            Keyword("roofing CRM automation", "PHRASE"),
+            Keyword("construction workflow automation", "PHRASE"),
+            Keyword("construction bid follow up", "PHRASE"),
+            Keyword("construction document automation", "PHRASE"),
+            Keyword("construction quote follow up", "PHRASE"),
+            Keyword("contractor estimate follow up", "PHRASE"),
+            Keyword("contractor admin automation", "PHRASE"),
+        ),
+        headlines=(
+            "Roofing Workflow Help",
+            "Construction Automation",
+            "Estimate Follow Up Help",
+            "Bid Follow Up Workflow",
+            "Contractor Admin Help",
+            "Workflow Audit For Trades",
+            "Built By An Engineer",
+            "Automate Quote Follow Up",
+        ),
+        descriptions=(
+            "Track estimates, job details, photos, documents, and follow-up in one workflow.",
+            "Practical automation for roofing, construction, and contractor admin work.",
+            "Find the quote, bid, document, or production handoff slowing your team down.",
+            "Start with one workflow audit before building a larger system.",
+        ),
+    ),
+    AdGroupSpec(
+        name="Small Business Admin Pain - Phrase",
+        path1="admin",
+        path2="automation",
+        keywords=(
+            Keyword("automate customer follow up", "PHRASE"),
+            Keyword("automate quote follow up", "PHRASE"),
+            Keyword("automate email follow up", "PHRASE"),
+            Keyword("automate intake forms", "PHRASE"),
+            Keyword("automate admin tasks", "PHRASE"),
+            Keyword("admin automation for small business", "PHRASE"),
+            Keyword("small business workflow automation", "PHRASE"),
+            Keyword("customer follow up automation", "PHRASE"),
+            Keyword("intake workflow automation", "PHRASE"),
+            Keyword("spreadsheet automation consultant", "PHRASE"),
+        ),
+        headlines=(
+            "Automate Admin Tasks",
+            "Customer Follow Up Help",
+            "Small Business Workflows",
+            "Intake Workflow Audit",
+            "Spreadsheet Automation",
+            "Reduce Manual Follow Up",
+            "Built By An Engineer",
+            "Book A Workflow Audit",
+        ),
+        descriptions=(
+            "Turn inboxes, forms, spreadsheets, and follow-up into a cleaner workflow.",
+            "Practical automation for small teams with repetitive admin bottlenecks.",
+            "Find one high-value workflow to automate before investing in a larger build.",
+            "Get a focused audit for customer follow-up, intake, quoting, or reporting.",
+        ),
+    ),
+)
+
+NEGATIVE_KEYWORDS: tuple[NegativeKeyword, ...] = (
+    NegativeKeyword("power automate", "PHRASE", "Avoid Microsoft tutorial/tool traffic."),
+    NegativeKeyword("sharepoint", "PHRASE", "Avoid SharePoint how-to searches."),
+    NegativeKeyword("jira", "PHRASE", "Avoid Jira workflow tool searches."),
+    NegativeKeyword("uipath", "PHRASE", "Avoid RPA vendor searches."),
+    NegativeKeyword("servicetitan", "PHRASE", "Avoid field-service software brand searches."),
+    NegativeKeyword("ansible", "PHRASE", "Avoid IT/devops automation searches."),
+    NegativeKeyword("aws", "PHRASE", "Avoid cloud engineering searches."),
+    NegativeKeyword("step functions", "PHRASE", "Avoid AWS Step Functions searches."),
+    NegativeKeyword("sap", "PHRASE", "Avoid enterprise ERP searches."),
+    NegativeKeyword("s a p", "PHRASE", "Avoid enterprise ERP searches."),
+    NegativeKeyword("prefect", "PHRASE", "Avoid data workflow tool searches."),
+    NegativeKeyword("jobrouter", "PHRASE", "Avoid workflow software login searches."),
+    NegativeKeyword("informatica", "PHRASE", "Avoid data integration platform searches."),
+    NegativeKeyword("login", "PHRASE", "Avoid navigational login searches."),
+    NegativeKeyword("tutorial", "PHRASE", "Avoid how-to searches."),
+    NegativeKeyword("how to use", "PHRASE", "Avoid software tutorial searches."),
+    NegativeKeyword("thermostat", "PHRASE", "Avoid HVAC hardware/control searches."),
+    NegativeKeyword("honeywell", "PHRASE", "Avoid HVAC hardware/control searches."),
+    NegativeKeyword("schneider", "PHRASE", "Avoid HVAC hardware/control searches."),
+    NegativeKeyword("hvac controls", "PHRASE", "Avoid HVAC controls searches."),
+    NegativeKeyword("controls", "PHRASE", "Avoid building-control hardware searches."),
+    NegativeKeyword("m847a1031", "PHRASE", "Avoid Honeywell part-number searches."),
+    NegativeKeyword("sensor", "PHRASE", "Avoid HVAC hardware searches."),
+    NegativeKeyword("actuator", "PHRASE", "Avoid HVAC hardware searches."),
+    NegativeKeyword("valve", "PHRASE", "Avoid HVAC hardware searches."),
 )
 
 SITELINKS = (
@@ -262,6 +396,33 @@ def existing_keywords(
     }
 
 
+def existing_negative_keywords(
+    client: GoogleAdsClient,
+    selected_customer: str,
+    campaign: str,
+) -> set[tuple[str, str]]:
+    result = rows(
+        client,
+        selected_customer,
+        f"""
+        SELECT
+          campaign_criterion.keyword.text,
+          campaign_criterion.keyword.match_type
+        FROM campaign_criterion
+        WHERE campaign.resource_name = '{campaign}'
+          AND campaign_criterion.negative = TRUE
+          AND campaign_criterion.status != REMOVED
+        """,
+    )
+    return {
+        (
+            row.campaign_criterion.keyword.text.lower(),
+            row.campaign_criterion.keyword.match_type.name,
+        )
+        for row in result
+    }
+
+
 def existing_asset_labels(
     client: GoogleAdsClient,
     selected_customer: str,
@@ -334,6 +495,8 @@ def wrap(client: GoogleAdsClient, operation: object) -> object:
         mutate_operation.ad_group_operation = operation
     elif name == "CampaignOperation":
         mutate_operation.campaign_operation = operation
+    elif name == "CampaignCriterionOperation":
+        mutate_operation.campaign_criterion_operation = operation
     elif name == "AdGroupCriterionOperation":
         mutate_operation.ad_group_criterion_operation = operation
     elif name == "AdGroupAdOperation":
@@ -392,6 +555,20 @@ def create_keyword_operation(
     criterion.status = client.enums.AdGroupCriterionStatusEnum.ENABLED
     criterion.keyword.text = keyword.text
     criterion.keyword.match_type = keyword_match_type(client, keyword.match_type)
+    return operation
+
+
+def create_campaign_negative_keyword_operation(
+    client: GoogleAdsClient,
+    campaign: str,
+    negative: NegativeKeyword,
+) -> object:
+    operation = client.get_type("CampaignCriterionOperation")
+    criterion = operation.create
+    criterion.campaign = campaign
+    criterion.negative = True
+    criterion.keyword.text = negative.text
+    criterion.keyword.match_type = keyword_match_type(client, negative.match_type)
     return operation
 
 
@@ -495,6 +672,7 @@ def build_operations(
 
     ad_groups = existing_ad_groups(client, selected_customer, campaign)
     keyword_set = existing_keywords(client, selected_customer, campaign)
+    negative_keyword_set = existing_negative_keywords(client, selected_customer, campaign)
     asset_labels = existing_asset_labels(client, selected_customer, campaign)
 
     print(f"Target CPC: CA${TARGET_CPC_MICROS / 1_000_000:.2f}")
@@ -527,6 +705,16 @@ def build_operations(
                 continue
             print(f"add_keyword\t{spec.name}\t{keyword.match_type}\t{keyword.text}")
             operations.append(wrap(client, create_keyword_operation(client, ad_group_resource, keyword)))
+
+    for negative in NEGATIVE_KEYWORDS:
+        key = (negative.text.lower(), negative.match_type)
+        if key in negative_keyword_set:
+            print(f"negative_exists\t{negative.match_type}\t{negative.text}")
+            continue
+        print(f"add_negative\t{negative.match_type}\t{negative.text}\t{negative.reason}")
+        operations.append(
+            wrap(client, create_campaign_negative_keyword_operation(client, campaign, negative))
+        )
 
     temp_asset_id = 200
     for link_text, description1, description2, final_url in SITELINKS:

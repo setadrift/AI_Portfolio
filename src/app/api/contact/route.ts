@@ -19,6 +19,7 @@ type ContactBody = {
   workflow?: string;
   tools?: string;
   timeline?: string;
+  landingContext?: string;
   attribution?: Record<string, string | undefined>;
 };
 
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
     const workflow = clean(body.workflow);
     const tools = clean(body.tools);
     const timeline = clean(body.timeline);
+    const landingContext = clean(body.landingContext);
     const companyTrap = clean(body.companyTrap || body.company);
     const attribution = body.attribution || {};
 
@@ -87,6 +89,7 @@ export async function POST(request: Request) {
       workflow,
       tools,
       timeline,
+      landingContext,
     ];
 
     if (fieldsToCheck.some((field) => field.length > MAX_FIELD_LENGTH)) {
@@ -125,6 +128,7 @@ export async function POST(request: Request) {
             formatLine("Team size", teamSize).trimEnd(),
             formatLine("Budget range", budgetRange).trimEnd(),
             formatLine("Timeline", timeline).trimEnd(),
+            formatLine("Landing context", landingContext).trimEnd(),
             "",
             "Workflow:",
             workflow,
