@@ -118,18 +118,23 @@ export function findBestPropertyMatch(
   propertyText: string | null,
   contextText: string,
 ): SandboxPropertyOption | null {
-  const needle = normalizeMatchText([propertyText, contextText].filter(Boolean).join(" "));
-  if (!needle) return null;
+  const propertyNeedle = normalizeMatchText(propertyText ?? "");
+  const contextNeedle = normalizeMatchText(contextText);
+  if (!propertyNeedle && !contextNeedle) return null;
 
   const scored = properties
     .map((property) => {
       const name = normalizeMatchText(property.name);
       const address = normalizeMatchText(property.address);
       const label = normalizeMatchText(property.label);
-      const score =
-        exactOrContainsScore(needle, name) ||
-        exactOrContainsScore(needle, address) ||
-        exactOrContainsScore(needle, label);
+      const score = Math.max(
+        propertyMatchScore(propertyNeedle, name),
+        propertyMatchScore(propertyNeedle, address),
+        propertyMatchScore(propertyNeedle, label),
+        propertyMatchScore(contextNeedle, name),
+        propertyMatchScore(contextNeedle, address),
+        propertyMatchScore(contextNeedle, label),
+      );
 
       return { property, score };
     })
@@ -480,12 +485,29 @@ function normalizeMatchText(value: string): string {
     .trim();
 }
 
-function exactOrContainsScore(haystack: string, needle: string): number {
-  if (!haystack || !needle) return 0;
-  if (haystack === needle) return 100;
-  if (haystack.includes(needle) || needle.includes(haystack)) return Math.min(90, needle.length);
-  const needleTokens = new Set(needle.split(" ").filter(Boolean));
-  const haystackTokens = new Set(haystack.split(" ").filter(Boolean));
-  const overlap = [...needleTokens].filter((token) => haystackTokens.has(token));
+function propertyMatchScore(query: string, candidate: string): number {
+  if (!query || !candidate) return 0;
+
+  const candidateNumber = firstStreetNumber(candidate);
+  const queryNumbers = streetNumbers(query);
+  if (candidateNumber && queryNumbers.size > 0 && !queryNumbers.has(candidateNumber)) {
+    return 0;
+  }
+
+  if (query === candidate) return 120;
+  if (query.includes(candidate)) return 110;
+  if (candidate.includes(query)) return 100;
+
+  const queryTokens = new Set(query.split(" ").filter(Boolean));
+  const candidateTokens = new Set(candidate.split(" ").filter(Boolean));
+  const overlap = [...candidateTokens].filter((token) => queryTokens.has(token));
   return overlap.length >= 2 ? overlap.length * 10 : 0;
+}
+
+function firstStreetNumber(value: string): string | null {
+  return value.split(" ").find((token) => /^\d+[a-z]?$/.test(token)) ?? null;
+}
+
+function streetNumbers(value: string): Set<string> {
+  return new Set(value.split(" ").filter((token) => /^\d+[a-z]?$/.test(token)));
 }
