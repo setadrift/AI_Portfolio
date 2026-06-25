@@ -7,9 +7,9 @@ import { SITE } from "@/lib/constants";
 import Button from "@/components/ui/Button";
 
 const NAV_KEYS = [
+  { key: "workflowAudit", href: "/ai-workflow-audit" },
   { key: "projects", href: "/#projects" },
   { key: "about", href: "/#about" },
-  { key: "contact", href: "/#contact" },
 ] as const;
 
 export default function Header() {
@@ -56,7 +56,7 @@ export default function Header() {
           >
             {locale === "en" ? "FR" : "EN"}
           </button>
-          <Button href="/#contact">{t("getInTouch")}</Button>
+          <Button href="/ai-workflow-audit">{t("getInTouch")}</Button>
         </nav>
 
         {/* Mobile menu button */}
@@ -120,7 +120,7 @@ export default function Header() {
                 {t(link.key)}
               </Link>
             ))}
-            <Button href="/#contact" onClick={() => setMenuOpen(false)}>
+            <Button href="/ai-workflow-audit" onClick={() => setMenuOpen(false)}>
               {t("getInTouch")}
             </Button>
           </div>

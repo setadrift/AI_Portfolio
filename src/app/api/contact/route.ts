@@ -13,11 +13,15 @@ type ContactBody = {
   formType?: string;
   businessName?: string;
   website?: string;
+  businessType?: string;
   country?: string;
   teamSize?: string;
   budgetRange?: string;
+  workflowType?: string;
+  weeklyVolume?: string;
   workflow?: string;
   tools?: string;
+  humanReviewBoundary?: string;
   timeline?: string;
   landingContext?: string;
   attribution?: Record<string, string | undefined>;
@@ -49,11 +53,15 @@ export async function POST(request: Request) {
     const formType = clean(body.formType) || "contact";
     const businessName = clean(body.businessName);
     const website = clean(body.website);
+    const businessType = clean(body.businessType);
     const country = clean(body.country);
     const teamSize = clean(body.teamSize);
     const budgetRange = clean(body.budgetRange);
+    const workflowType = clean(body.workflowType);
+    const weeklyVolume = clean(body.weeklyVolume);
     const workflow = clean(body.workflow);
     const tools = clean(body.tools);
+    const humanReviewBoundary = clean(body.humanReviewBoundary);
     const timeline = clean(body.timeline);
     const landingContext = clean(body.landingContext);
     const companyTrap = clean(body.companyTrap || body.company);
@@ -83,11 +91,15 @@ export async function POST(request: Request) {
       message,
       businessName,
       website,
+      businessType,
       country,
       teamSize,
       budgetRange,
+      workflowType,
+      weeklyVolume,
       workflow,
       tools,
+      humanReviewBoundary,
       timeline,
       landingContext,
     ];
@@ -124,8 +136,11 @@ export async function POST(request: Request) {
             `Email: ${email}`,
             formatLine("Business", businessName).trimEnd(),
             formatLine("Website", website).trimEnd(),
+            formatLine("Business type", businessType).trimEnd(),
             formatLine("Country", country).trimEnd(),
             formatLine("Team size", teamSize).trimEnd(),
+            formatLine("Workflow type", workflowType).trimEnd(),
+            formatLine("Weekly volume", weeklyVolume).trimEnd(),
             formatLine("Budget range", budgetRange).trimEnd(),
             formatLine("Timeline", timeline).trimEnd(),
             formatLine("Landing context", landingContext).trimEnd(),
@@ -135,6 +150,9 @@ export async function POST(request: Request) {
             "",
             "Tools involved:",
             tools || "Not provided",
+            "",
+            "What should stay human:",
+            humanReviewBoundary || "Not provided",
             "",
             "Additional message:",
             message || "Not provided",
