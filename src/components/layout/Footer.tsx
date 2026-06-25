@@ -16,7 +16,7 @@ export default function Footer() {
             {t("description")}
           </p>
           <Link
-            href="/#contact"
+            href="/ai-workflow-audit"
             className="inline-flex items-center justify-center bg-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-white transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-footer-bg"
           >
             {t("getInTouch")}

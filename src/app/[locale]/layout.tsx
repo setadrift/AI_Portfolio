@@ -97,8 +97,8 @@ export default async function LocaleLayout({
     name: SITE.name,
     description: SITE.description,
     url: SITE.url,
-    serviceType: "AI Consulting",
-    areaServed: "Worldwide",
+    serviceType: "Review-first AI workflow automation",
+    areaServed: ["Canada", "United States"],
   };
   const googleTagId = process.env.NEXT_PUBLIC_GOOGLE_TAG_ID;
 

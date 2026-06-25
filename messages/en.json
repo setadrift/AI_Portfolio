@@ -1,19 +1,20 @@
 {
   "nav": {
+    "workflowAudit": "Workflow Audit",
     "projects": "Projects",
     "about": "About",
     "contact": "Contact",
-    "getInTouch": "Get in Touch",
+    "getInTouch": "Request an Audit",
     "openMenu": "Open menu",
     "closeMenu": "Close menu"
   },
   "hero": {
-    "subtitle": "AI Consulting & Engineering",
-    "heading": "Your business runs on your time.",
-    "headingLine2": "I'll help you get more of it back.",
-    "description": "I build AI systems that handle the work your team shouldn't be doing manually — from automating repetitive processes to turning messy data into clear decisions. No jargon, no science projects. Just solutions that save real hours every week.",
-    "cta": "Let's Talk",
-    "ctaSecondary": "See My Work"
+    "subtitle": "AI workflow systems for service businesses",
+    "heading": "Practical AI automation for the admin",
+    "headingLine2": "your team keeps tracking manually.",
+    "description": "I help owner-led service businesses turn emails, forms, PDFs, photos, quotes, spreadsheets, and follow-up into review-first workflows that save time without removing human judgment.",
+    "cta": "Request a Workflow Audit",
+    "ctaSecondary": "See Workflow Examples"
   },
   "projects": {
     "label": "Portfolio",
@@ -66,9 +67,9 @@
   },
   "contact": {
     "label": "Contact",
-    "heading": "Let's Figure It Out Together",
-    "description": "Tell me what's eating up your team's time or where things keep falling through the cracks. I'll take a look and let you know if there's a practical way to fix it with AI — and be honest if there isn't.",
-    "noPitch": "No sales pitch. Just a straightforward conversation about what's possible.",
+    "heading": "Map one workflow before building anything",
+    "description": "Tell me the workflow that is costing time, deals, or deadline confidence. I will look for a practical first automation and tell you what should stay human.",
+    "noPitch": "Best fit: frequent work with clear inputs, repeatable decisions, and a review point.",
     "nameLabel": "Name",
     "emailLabel": "Email",
     "messageLabel": "Message",
@@ -80,9 +81,9 @@
     "genericError": "Something went wrong."
   },
   "footer": {
-    "heading": "Ready to save your team real time?",
-    "description": "Let's have a straightforward conversation about what AI can do for your business.",
-    "getInTouch": "Get in Touch"
+    "heading": "Ready to fix one admin-heavy workflow?",
+    "description": "Start with a focused workflow audit before investing in a larger AI build.",
+    "getInTouch": "Request an Audit"
   },
   "notFound": {
     "code": "404",
@@ -91,7 +92,7 @@
     "backHome": "Back to Home"
   },
   "metadata": {
-    "title": "Duncan Anderson — AI Consulting for Small Business",
-    "description": "I help small businesses save time and grow with practical AI solutions. No jargon, just results."
+    "title": "Duncan Anderson — AI Workflow Automation for Service Businesses",
+    "description": "Review-first AI workflow automation for service businesses dealing with emails, PDFs, forms, quotes, photos, spreadsheets, and repeated follow-up."
   }
 }

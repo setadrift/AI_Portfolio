@@ -3,6 +3,10 @@ import AiWorkflowAuditForm from "@/components/ads/AiWorkflowAuditForm";
 import Button from "@/components/ui/Button";
 import { BOOKING_URL } from "@/lib/constants";
 import type { WorkflowVertical } from "@/lib/ai-workflow-verticals";
+import {
+  getOfferForWorkflow,
+  getVerticalExclusion,
+} from "@/lib/ai-workflow-offers";
 
 type WorkflowVerticalLandingPageProps = {
   locale: string;
@@ -59,6 +63,9 @@ export default function WorkflowVerticalLandingPage({
   related,
 }: WorkflowVerticalLandingPageProps) {
   const localePrefix = locale === "en" ? "/en" : `/${locale}`;
+  const offer = getOfferForWorkflow(vertical.slug);
+  const exclusion = getVerticalExclusion(vertical.slug);
+  const firstBuild = vertical.automationIdeas[0];
 
   return (
     <>
@@ -130,6 +137,67 @@ export default function WorkflowVerticalLandingPage({
                 <p className="text-sm leading-6 text-cream-muted">{item}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-background px-6 py-16 md:py-24">
+        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+          <SectionHeader
+            eyebrow="Audit package"
+            title="A fixed first step before any larger automation build"
+            body="The audit maps the current workflow, identifies the real bottleneck, scores what is worth automating, and defines the review step that keeps your team in control."
+          />
+          <div className="grid gap-4 md:grid-cols-2">
+            {[
+              "Workflow map with inputs, owners, tools, handoffs, and status points.",
+              "Automate / keep human / redesign / buy recommendation.",
+              "First-build plan with trigger, data source, review step, output, and owner.",
+              "Risk boundary for what AI can prepare and what your team must approve.",
+            ].map((item) => (
+              <div key={item} className="border border-border bg-white p-5">
+                <p className="text-sm leading-6 text-cream-muted">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-surface px-6 py-16 md:py-24">
+        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-3">
+          <div className="border border-border bg-white p-6 lg:col-span-1">
+            <p className="font-mono text-xs uppercase tracking-[0.25em] text-accent">
+              Offer path
+            </p>
+            <h2 className="mt-4 font-display text-3xl leading-tight text-cream">
+              {offer?.title || "Operations Inbox and Admin Queue"}
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-cream-muted">
+              {offer?.outcome ||
+                "A practical queue for owner, status, aging, missing information, and next action."}
+            </p>
+          </div>
+          <div className="border border-border bg-white p-6 lg:col-span-1">
+            <p className="font-mono text-xs uppercase tracking-[0.25em] text-accent">
+              First build could be
+            </p>
+            <h2 className="mt-4 font-display text-3xl leading-tight text-cream">
+              A small workflow your team can review
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-cream-muted">
+              {firstBuild}
+            </p>
+          </div>
+          <div className="border border-border bg-white p-6 lg:col-span-1">
+            <p className="font-mono text-xs uppercase tracking-[0.25em] text-accent">
+              Not this
+            </p>
+            <h2 className="mt-4 font-display text-3xl leading-tight text-cream">
+              Clear scope boundary
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-cream-muted">
+              {exclusion}
+            </p>
           </div>
         </div>
       </section>

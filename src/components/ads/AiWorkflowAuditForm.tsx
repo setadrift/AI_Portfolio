@@ -119,11 +119,15 @@ export default function AiWorkflowAuditForm({
     email: "",
     businessName: "",
     website: "",
+    businessType: "",
     country: "",
     teamSize: "",
     budgetRange: "",
+    workflowType: "",
+    weeklyVolume: "",
     workflow: defaultWorkflow,
     tools: "",
+    humanReviewBoundary: "",
     timeline: "",
     message: "",
     companyTrap: "",
@@ -170,11 +174,15 @@ export default function AiWorkflowAuditForm({
         email: "",
         businessName: "",
         website: "",
+        businessType: "",
         country: "",
         teamSize: "",
         budgetRange: "",
+        workflowType: "",
+        weeklyVolume: "",
         workflow: defaultWorkflow,
         tools: "",
+        humanReviewBoundary: "",
         timeline: "",
         message: "",
         companyTrap: "",
@@ -232,7 +240,7 @@ export default function AiWorkflowAuditForm({
           Request an audit
         </p>
         <h2 className="font-display text-3xl text-cream">
-          Tell me what workflow you want fixed.
+          Tell me which workflow is leaking time or follow-up.
         </h2>
         {contextLabel !== "AI workflow audit" && (
           <p className="mt-3 text-sm leading-6 text-cream-muted">
@@ -292,6 +300,20 @@ export default function AiWorkflowAuditForm({
           />
         </div>
         <div>
+          <label htmlFor="businessType" className={labelStyles}>
+            Business type
+          </label>
+          <input
+            id="businessType"
+            value={form.businessType}
+            onChange={(e) =>
+              setForm({ ...form, businessType: e.target.value })
+            }
+            placeholder="Roofing contractor, bookkeeper, property manager..."
+            className={inputStyles}
+          />
+        </div>
+        <div>
           <label htmlFor="country" className={labelStyles}>
             Country
           </label>
@@ -324,6 +346,47 @@ export default function AiWorkflowAuditForm({
             <option>21-50</option>
             <option>51-200</option>
             <option>200+</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="workflowType" className={labelStyles}>
+            Workflow type
+          </label>
+          <select
+            id="workflowType"
+            required
+            value={form.workflowType}
+            onChange={(e) =>
+              setForm({ ...form, workflowType: e.target.value })
+            }
+            className={inputStyles}
+          >
+            <option value="">Select</option>
+            <option>Revenue follow-up</option>
+            <option>Document intake and review</option>
+            <option>Operations inbox and admin queue</option>
+            <option>Reporting workflow</option>
+            <option>Other admin-heavy workflow</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="weeklyVolume" className={labelStyles}>
+            Weekly volume
+          </label>
+          <select
+            id="weeklyVolume"
+            value={form.weeklyVolume}
+            onChange={(e) =>
+              setForm({ ...form, weeklyVolume: e.target.value })
+            }
+            className={inputStyles}
+          >
+            <option value="">Select</option>
+            <option>Less than 10</option>
+            <option>10-50</option>
+            <option>50-200</option>
+            <option>200+</option>
+            <option>Not sure</option>
           </select>
         </div>
         <div>
@@ -367,7 +430,7 @@ export default function AiWorkflowAuditForm({
 
       <div className="mt-5">
         <label htmlFor="workflow" className={labelStyles}>
-          Workflow to improve
+          What breaks today?
         </label>
         <textarea
           id="workflow"
@@ -394,6 +457,22 @@ export default function AiWorkflowAuditForm({
       </div>
 
       <div className="mt-5">
+        <label htmlFor="humanReviewBoundary" className={labelStyles}>
+          What should stay human?
+        </label>
+        <textarea
+          id="humanReviewBoundary"
+          rows={3}
+          value={form.humanReviewBoundary}
+          onChange={(e) =>
+            setForm({ ...form, humanReviewBoundary: e.target.value })
+          }
+          placeholder="Example: final customer messages, pricing, approvals, legal/financial judgment, or record updates."
+          className={inputStyles}
+        />
+      </div>
+
+      <div className="mt-5">
         <label htmlFor="message" className={labelStyles}>
           Anything else
         </label>
@@ -407,8 +486,8 @@ export default function AiWorkflowAuditForm({
       </div>
 
       <p className="mt-5 text-sm text-cream-muted">
-        Best fit: a real business workflow, a clear owner, and enough volume
-        that saving a few hours every week matters.
+        Best fit: frequent work with clear inputs, repeatable next steps, and
+        a human review point before anything important changes.
       </p>
 
       {status === "error" && (
