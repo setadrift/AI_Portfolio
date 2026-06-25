@@ -1,19 +1,20 @@
 {
   "nav": {
+    "workflowAudit": "Audit de workflow",
     "projects": "Projets",
     "about": "À propos",
     "contact": "Contact",
-    "getInTouch": "Me contacter",
+    "getInTouch": "Demander un audit",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer le menu"
   },
   "hero": {
-    "subtitle": "Consultation et ingénierie en IA",
-    "heading": "Votre entreprise repose sur votre temps.",
-    "headingLine2": "Je vous aide à en récupérer.",
-    "description": "Je conçois des systèmes d'IA qui prennent en charge le travail que votre équipe ne devrait plus faire à la main — de l'automatisation des tâches répétitives à la transformation de données complexes en décisions claires. Pas de jargon, pas de projets qui n'aboutissent jamais. Juste des solutions qui vous font gagner des heures chaque semaine.",
-    "cta": "Discutons",
-    "ctaSecondary": "Voir mes réalisations"
+    "subtitle": "Systèmes de workflow IA pour entreprises de services",
+    "heading": "Automatisation IA pratique pour l'admin",
+    "headingLine2": "que votre équipe suit encore à la main.",
+    "description": "J'aide les entreprises de services dirigées par leur propriétaire à transformer courriels, formulaires, PDF, photos, devis, feuilles de calcul et suivis en workflows avec validation humaine.",
+    "cta": "Demander un audit",
+    "ctaSecondary": "Voir les workflows"
   },
   "projects": {
     "label": "Portfolio",
@@ -66,9 +67,9 @@
   },
   "contact": {
     "label": "Contact",
-    "heading": "Trouvons la solution ensemble",
-    "description": "Dites-moi ce qui gruge le temps de votre équipe ou ce qui passe entre les mailles du filet. Je vais y jeter un coup d'œil et vous dire s'il y a une façon concrète de régler ça avec l'IA — et être honnête si ce n'est pas le cas.",
-    "noPitch": "Pas de pitch de vente. Juste une conversation franche sur ce qui est possible.",
+    "heading": "Cartographier un workflow avant de bâtir",
+    "description": "Dites-moi quel workflow vous coûte du temps, des ventes ou de la confiance dans les délais. Je chercherai une première automatisation réaliste et ce qui doit rester humain.",
+    "noPitch": "Meilleur fit : travail fréquent avec entrées claires, décisions répétables et validation humaine.",
     "nameLabel": "Nom",
     "emailLabel": "Courriel",
     "messageLabel": "Message",
@@ -80,9 +81,9 @@
     "genericError": "Une erreur est survenue."
   },
   "footer": {
-    "heading": "Prêt à faire gagner du temps à votre équipe?",
-    "description": "Parlons franchement de ce que l'IA peut faire pour votre entreprise.",
-    "getInTouch": "Me contacter"
+    "heading": "Prêt à corriger un workflow administratif?",
+    "description": "Commencez par un audit ciblé avant d'investir dans une automatisation IA plus large.",
+    "getInTouch": "Demander un audit"
   },
   "notFound": {
     "code": "404",
@@ -91,7 +92,7 @@
     "backHome": "Retour à l'accueil"
   },
   "metadata": {
-    "title": "Duncan Anderson — Consultation en IA pour petites entreprises",
-    "description": "J'aide les petites entreprises à gagner du temps et à croître grâce à des solutions d'IA pratiques. Pas de jargon, juste des résultats."
+    "title": "Duncan Anderson — Automatisation IA pour entreprises de services",
+    "description": "Automatisation IA avec validation humaine pour entreprises de services qui gèrent courriels, PDF, formulaires, devis, photos, feuilles de calcul et suivis."
   }
 }

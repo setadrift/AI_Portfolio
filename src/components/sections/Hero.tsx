@@ -19,8 +19,8 @@ export default function Hero() {
           {t("description")}
         </p>
         <div className="animate-fade-in-up delay-3 flex flex-col gap-4 sm:flex-row">
-          <Button href="/#contact">{t("cta")}</Button>
-          <Button href="/#projects" variant="secondary">
+          <Button href="/ai-workflow-audit">{t("cta")}</Button>
+          <Button href="/ai-workflow-audit#workflow-examples" variant="secondary">
             {t("ctaSecondary")}
           </Button>
         </div>

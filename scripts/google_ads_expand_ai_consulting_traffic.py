@@ -28,8 +28,10 @@ LANDING_URL = os.getenv(
     "https://www.duncananderson.ca/en/ai-workflow-audit",
 )
 HOME_URL = "https://www.duncananderson.ca/en"
-CONTACT_URL = "https://www.duncananderson.ca/en/#contact"
 PROJECTS_URL = "https://www.duncananderson.ca/en/#projects"
+ROOFING_URL = "https://www.duncananderson.ca/en/ai-workflow-audit/roofing-estimate-follow-up"
+HVAC_PLUMBING_URL = "https://www.duncananderson.ca/en/ai-workflow-audit/hvac-plumbing-dispatch-follow-up"
+CONSTRUCTION_BID_URL = "https://www.duncananderson.ca/en/ai-workflow-audit/construction-bid-package-review"
 TARGET_CPC_MICROS = int(
     float(os.getenv("GOOGLE_ADS_EXPANDED_MAX_CPC_CAD", "6.00")) * 1_000_000,
 )
@@ -85,10 +87,10 @@ AD_GROUPS: tuple[AdGroupSpec, ...] = (
             "Request A Workflow Audit",
         ),
         descriptions=(
-            "Map one repetitive workflow and get a practical automation plan for your business.",
-            "Turn inboxes, spreadsheets, forms, and follow-up into a cleaner operating system.",
-            "Hands-on workflow automation for small teams with real admin bottlenecks.",
-            "Start with a focused audit before investing in a larger automation build.",
+            "Map one admin-heavy workflow and get a review-first automation plan.",
+            "Turn emails, forms, PDFs, photos, quotes, and follow-up into a cleaner workflow.",
+            "Built for service businesses with real admin bottlenecks.",
+            "Start with a focused audit before investing in a larger AI build.",
         ),
     ),
     AdGroupSpec(
@@ -108,7 +110,7 @@ AD_GROUPS: tuple[AdGroupSpec, ...] = (
             Keyword("service call automation", "PHRASE"),
         ),
         headlines=(
-            "Automation For Contractors",
+            "Revenue Follow-Up Workflow",
             "Estimate Follow Up Help",
             "Service Business Automation",
             "Dispatch Workflow Audit",
@@ -118,7 +120,7 @@ AD_GROUPS: tuple[AdGroupSpec, ...] = (
             "Workflow Help For Trades",
         ),
         descriptions=(
-            "Capture service requests, estimates, job updates, and follow-up in one workflow.",
+            "Capture service requests, estimates, job updates, and follow-up in one review-first workflow.",
             "Practical automation for contractors, HVAC, plumbing, roofing, and field service.",
             "Find the missed-call, quote, dispatch, or follow-up gaps costing admin time.",
             "Get a focused workflow audit before committing to a larger build.",
@@ -143,7 +145,7 @@ AD_GROUPS: tuple[AdGroupSpec, ...] = (
         headlines=(
             "HVAC Workflow Automation",
             "Plumbing Workflow Help",
-            "Automate Service Calls",
+            "Review-First Service Calls",
             "Estimate Follow Up Help",
             "Dispatch Workflow Audit",
             "Reduce Manual Admin",
@@ -175,7 +177,7 @@ AD_GROUPS: tuple[AdGroupSpec, ...] = (
         ),
         headlines=(
             "Roofing Workflow Help",
-            "Construction Automation",
+            "Revenue Follow-Up Workflow",
             "Estimate Follow Up Help",
             "Bid Follow Up Workflow",
             "Contractor Admin Help",
@@ -209,7 +211,7 @@ AD_GROUPS: tuple[AdGroupSpec, ...] = (
         headlines=(
             "Automate Admin Tasks",
             "Customer Follow Up Help",
-            "Small Business Workflows",
+            "Operations Admin Queue",
             "Intake Workflow Audit",
             "Spreadsheet Automation",
             "Reduce Manual Follow Up",
@@ -241,12 +243,24 @@ NEGATIVE_KEYWORDS: tuple[NegativeKeyword, ...] = (
     NegativeKeyword("informatica", "PHRASE", "Avoid data integration platform searches."),
     NegativeKeyword("login", "PHRASE", "Avoid navigational login searches."),
     NegativeKeyword("tutorial", "PHRASE", "Avoid how-to searches."),
+    NegativeKeyword("template", "PHRASE", "Avoid template searches."),
+    NegativeKeyword("course", "PHRASE", "Avoid course searches."),
+    NegativeKeyword("training", "PHRASE", "Avoid training searches."),
+    NegativeKeyword("jobs", "PHRASE", "Avoid job searches."),
+    NegativeKeyword("career", "PHRASE", "Avoid career searches."),
     NegativeKeyword("how to use", "PHRASE", "Avoid software tutorial searches."),
     NegativeKeyword("thermostat", "PHRASE", "Avoid HVAC hardware/control searches."),
     NegativeKeyword("honeywell", "PHRASE", "Avoid HVAC hardware/control searches."),
     NegativeKeyword("schneider", "PHRASE", "Avoid HVAC hardware/control searches."),
     NegativeKeyword("hvac controls", "PHRASE", "Avoid HVAC controls searches."),
     NegativeKeyword("controls", "PHRASE", "Avoid building-control hardware searches."),
+    NegativeKeyword("smb market", "PHRASE", "Avoid unrelated SMB market searches."),
+    NegativeKeyword("smbmarket", "PHRASE", "Avoid unrelated SMB market searches."),
+    NegativeKeyword("ai hvac", "PHRASE", "Avoid broad HVAC AI research/hardware searches."),
+    NegativeKeyword("ai for hvac", "PHRASE", "Avoid broad HVAC AI research/hardware searches."),
+    NegativeKeyword("hvac monitoring", "PHRASE", "Avoid HVAC monitoring hardware searches."),
+    NegativeKeyword("building ddc", "PHRASE", "Avoid building controls searches."),
+    NegativeKeyword("tcc thermostat", "PHRASE", "Avoid thermostat hardware searches."),
     NegativeKeyword("m847a1031", "PHRASE", "Avoid Honeywell part-number searches."),
     NegativeKeyword("sensor", "PHRASE", "Avoid HVAC hardware searches."),
     NegativeKeyword("actuator", "PHRASE", "Avoid HVAC hardware searches."),
@@ -255,34 +269,41 @@ NEGATIVE_KEYWORDS: tuple[NegativeKeyword, ...] = (
 
 SITELINKS = (
     (
-        "AI Workflow Audit",
-        "Map one repetitive workflow.",
-        "Get a practical first project.",
+        "Workflow Audit",
+        "Map one admin bottleneck.",
+        "Get a review-first plan.",
         LANDING_URL,
     ),
     (
-        "Case Studies",
+        "Revenue Follow-Up",
+        "Quotes and estimates.",
+        "Stop stale opportunities.",
+        ROOFING_URL,
+    ),
+    (
+        "Dispatch Workflow",
+        "Calls and service quotes.",
+        "Keep follow-up visible.",
+        HVAC_PLUMBING_URL,
+    ),
+    (
+        "Document Intake",
+        "PDFs forms and reviews.",
+        "Human approval stays.",
+        CONSTRUCTION_BID_URL,
+    ),
+    (
+        "Proof And Projects",
         "See production systems.",
-        "Built for real operations.",
+        "Built by an engineer.",
         PROJECTS_URL,
-    ),
-    (
-        "Contact Duncan",
-        "Send the workflow problem.",
-        "Get a practical next step.",
-        CONTACT_URL,
-    ),
-    (
-        "Small Business AI Help",
-        "Start with one workflow.",
-        "Avoid vague AI strategy.",
-        HOME_URL,
     ),
 )
 CALLOUTS = (
     "Built By An Engineer",
-    "Practical Workflow Audit",
-    "Small Business Focus",
+    "Review-First Automation",
+    "Service Workflows",
+    "Human Approval Stays",
     "Canada And US",
 )
 STRUCTURED_SNIPPETS = (
@@ -290,9 +311,9 @@ STRUCTURED_SNIPPETS = (
         "Services",
         (
             "AI Workflow Audit",
-            "Admin Automation",
-            "Dispatch Workflows",
-            "Reporting Systems",
+            "Revenue Follow-Up",
+            "Document Intake",
+            "Operations Admin Queue",
         ),
     ),
 )
