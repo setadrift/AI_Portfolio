@@ -813,19 +813,27 @@ async function uploadCapturePhotos(
   const safeProperty = slugify(context.propertyLabel) || "property";
   const safeDate = slugify(context.sessionDate || new Date().toISOString().slice(0, 10));
   const safeSession = slugify(context.sessionType || "capture");
-  const uploads = await Promise.all(
-    files.map(async (file) => {
-      const pathname = [
-        "alex-turn-repairs",
-        safeProperty,
-        safeDate,
-        safeSession,
-        `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]+/g, "-")}`,
-      ].join("/");
+  const uploads: string[] = [];
+
+  for (const file of files) {
+    const pathname = [
+      "alex-turn-repairs",
+      safeProperty,
+      safeDate,
+      safeSession,
+      `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]+/g, "-")}`,
+    ].join("/");
+
+    try {
       const blob = await put(pathname, file, { access: "public" });
-      return blob.url;
-    }),
-  );
+      uploads.push(blob.url);
+    } catch (error) {
+      console.warn("Alex turn repair photo upload skipped", {
+        pathname,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   return { urls: uploads, fileNames };
 }
