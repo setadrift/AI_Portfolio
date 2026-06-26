@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import createMiddleware from "next-intl/middleware";
 import { routing } from "./i18n/routing";
 import { PORTAL_COOKIE, verifySession } from "@/lib/portal/session";
+import {
+  HELPER_UPLOAD_TOKEN_PARAM,
+  validateHelperUploadToken,
+} from "@/lib/portal/alex/helper-upload-access";
 
 const intlMiddleware = createMiddleware(routing);
 
@@ -15,8 +19,19 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(portalUrl);
   }
 
+  if (pathname === "/alex-turn-repairs-share") {
+    return NextResponse.next();
+  }
+
   if (pathname.startsWith("/portal")) {
     if (pathname === "/portal/login") {
+      return NextResponse.next();
+    }
+
+    if (
+      pathname === "/portal/alex/turn-repairs/helper-upload" &&
+      validateHelperUploadToken(request.nextUrl.searchParams.get(HELPER_UPLOAD_TOKEN_PARAM))
+    ) {
       return NextResponse.next();
     }
 
@@ -43,6 +58,13 @@ export default async function middleware(request: NextRequest) {
 
   if (pathname.startsWith("/api/portal")) {
     if (pathname === "/api/portal/login") {
+      return NextResponse.next();
+    }
+
+    if (
+      pathname === "/api/portal/alex/turn-repairs/capture-items" &&
+      validateHelperUploadToken(request.nextUrl.searchParams.get(HELPER_UPLOAD_TOKEN_PARAM))
+    ) {
       return NextResponse.next();
     }
 

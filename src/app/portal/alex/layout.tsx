@@ -13,6 +13,12 @@ export default function AlexLayout({ children }: { children: React.ReactNode }) 
             <Link href="/portal/alex" className="transition-colors hover:text-foreground">
               Home
             </Link>
+            <Link
+              href="/portal/alex/turn-repairs"
+              className="transition-colors hover:text-foreground"
+            >
+              Turn repairs
+            </Link>
             <Link href="/portal/alex/receipts" className="transition-colors hover:text-foreground">
               Receipts
             </Link>
