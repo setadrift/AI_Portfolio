@@ -8,11 +8,16 @@ export default function AlexPortalHome() {
       </p>
       <h1 className="mb-3 font-display text-4xl">Private prototype workspace</h1>
       <p className="mb-10 text-lg leading-8 text-cream-muted">
-        This is a review-first test area for the receipt extraction and Gmail sweep workflow. It is
-        meant to show what is feasible before anything is moved into live Airtable.
+        This is a review-first test area for turn repairs, receipt extraction, and Gmail sweep
+        workflows. It is meant to show what is feasible before anything is moved into live Airtable.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <ToolCard
+          href="/portal/alex/turn-repairs"
+          title="Turn repair command center"
+          description="Capture repair notes, review staged items, use phone-friendly work views, coordinate schedule risk, and preview contractor lists."
+        />
         <ToolCard
           href="/portal/alex/receipts"
           title="Receipt extraction demo"
