@@ -236,11 +236,8 @@ export default function AiWorkflowAuditForm({
       </div>
 
       <div className="mb-6">
-        <p className="mb-2 font-mono text-xs uppercase tracking-[0.25em] text-accent">
-          Request an audit
-        </p>
         <h2 className="font-display text-3xl text-cream">
-          Tell me which workflow is leaking time or follow-up.
+          What workflow is costing time?
         </h2>
         {contextLabel !== "AI workflow audit" && (
           <p className="mt-3 text-sm leading-6 text-cream-muted">
@@ -275,167 +272,16 @@ export default function AiWorkflowAuditForm({
             className={inputStyles}
           />
         </div>
-        <div>
-          <label htmlFor="businessName" className={labelStyles}>
-            Business
-          </label>
-          <input
-            id="businessName"
-            value={form.businessName}
-            onChange={(e) =>
-              setForm({ ...form, businessName: e.target.value })
-            }
-            className={inputStyles}
-          />
-        </div>
-        <div>
-          <label htmlFor="website" className={labelStyles}>
-            Website
-          </label>
-          <input
-            id="website"
-            value={form.website}
-            onChange={(e) => setForm({ ...form, website: e.target.value })}
-            className={inputStyles}
-          />
-        </div>
-        <div>
-          <label htmlFor="businessType" className={labelStyles}>
-            Business type
-          </label>
-          <input
-            id="businessType"
-            value={form.businessType}
-            onChange={(e) =>
-              setForm({ ...form, businessType: e.target.value })
-            }
-            placeholder="Roofing contractor, bookkeeper, property manager..."
-            className={inputStyles}
-          />
-        </div>
-        <div>
-          <label htmlFor="country" className={labelStyles}>
-            Country
-          </label>
-          <select
-            id="country"
-            required
-            value={form.country}
-            onChange={(e) => setForm({ ...form, country: e.target.value })}
-            className={inputStyles}
-          >
-            <option value="">Select</option>
-            <option>Canada</option>
-            <option>United States</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="teamSize" className={labelStyles}>
-            Team size
-          </label>
-          <select
-            id="teamSize"
-            value={form.teamSize}
-            onChange={(e) => setForm({ ...form, teamSize: e.target.value })}
-            className={inputStyles}
-          >
-            <option value="">Select</option>
-            <option>1-5</option>
-            <option>6-20</option>
-            <option>21-50</option>
-            <option>51-200</option>
-            <option>200+</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="workflowType" className={labelStyles}>
-            Workflow type
-          </label>
-          <select
-            id="workflowType"
-            required
-            value={form.workflowType}
-            onChange={(e) =>
-              setForm({ ...form, workflowType: e.target.value })
-            }
-            className={inputStyles}
-          >
-            <option value="">Select</option>
-            <option>Revenue follow-up</option>
-            <option>Document intake and review</option>
-            <option>Operations inbox and admin queue</option>
-            <option>Reporting workflow</option>
-            <option>Other admin-heavy workflow</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="weeklyVolume" className={labelStyles}>
-            Weekly volume
-          </label>
-          <select
-            id="weeklyVolume"
-            value={form.weeklyVolume}
-            onChange={(e) =>
-              setForm({ ...form, weeklyVolume: e.target.value })
-            }
-            className={inputStyles}
-          >
-            <option value="">Select</option>
-            <option>Less than 10</option>
-            <option>10-50</option>
-            <option>50-200</option>
-            <option>200+</option>
-            <option>Not sure</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="budgetRange" className={labelStyles}>
-            Budget range
-          </label>
-          <select
-            id="budgetRange"
-            value={form.budgetRange}
-            onChange={(e) =>
-              setForm({ ...form, budgetRange: e.target.value })
-            }
-            className={inputStyles}
-          >
-            <option value="">Select</option>
-            <option>Under $2,500</option>
-            <option>$2,500-$7,500</option>
-            <option>$7,500-$20,000</option>
-            <option>$20,000+</option>
-            <option>Not sure yet</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="timeline" className={labelStyles}>
-            Timeline
-          </label>
-          <select
-            id="timeline"
-            value={form.timeline}
-            onChange={(e) => setForm({ ...form, timeline: e.target.value })}
-            className={inputStyles}
-          >
-            <option value="">Select</option>
-            <option>ASAP</option>
-            <option>This month</option>
-            <option>This quarter</option>
-            <option>Just exploring</option>
-          </select>
-        </div>
       </div>
 
       <div className="mt-5">
         <label htmlFor="workflow" className={labelStyles}>
-          What breaks today?
+          Workflow
         </label>
         <textarea
           id="workflow"
           required
-          rows={4}
+          rows={6}
           value={form.workflow}
           onChange={(e) => setForm({ ...form, workflow: e.target.value })}
           placeholder={workflowPlaceholder}
@@ -443,51 +289,9 @@ export default function AiWorkflowAuditForm({
         />
       </div>
 
-      <div className="mt-5">
-        <label htmlFor="tools" className={labelStyles}>
-          Tools involved
-        </label>
-        <input
-          id="tools"
-          value={form.tools}
-          onChange={(e) => setForm({ ...form, tools: e.target.value })}
-          placeholder="Airtable, Google Sheets, HubSpot, Gmail, Make, n8n, Zapier..."
-          className={inputStyles}
-        />
-      </div>
-
-      <div className="mt-5">
-        <label htmlFor="humanReviewBoundary" className={labelStyles}>
-          What should stay human?
-        </label>
-        <textarea
-          id="humanReviewBoundary"
-          rows={3}
-          value={form.humanReviewBoundary}
-          onChange={(e) =>
-            setForm({ ...form, humanReviewBoundary: e.target.value })
-          }
-          placeholder="Example: final customer messages, pricing, approvals, legal/financial judgment, or record updates."
-          className={inputStyles}
-        />
-      </div>
-
-      <div className="mt-5">
-        <label htmlFor="message" className={labelStyles}>
-          Anything else
-        </label>
-        <textarea
-          id="message"
-          rows={3}
-          value={form.message}
-          onChange={(e) => setForm({ ...form, message: e.target.value })}
-          className={inputStyles}
-        />
-      </div>
-
       <p className="mt-5 text-sm text-cream-muted">
-        Best fit: frequent work with clear inputs, repeatable next steps, and
-        a human review point before anything important changes.
+        A few plain sentences is enough. Current tools, volume, or urgency can
+        go here if they matter.
       </p>
 
       {status === "error" && (

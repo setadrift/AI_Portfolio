@@ -1,25 +1,27 @@
 {
   "nav": {
+    "work": "Work",
+    "method": "Method",
     "workflowAudit": "Workflow Audit",
     "projects": "Projects",
     "about": "About",
     "contact": "Contact",
-    "getInTouch": "Request an Audit",
+    "getInTouch": "Send the workflow",
     "openMenu": "Open menu",
     "closeMenu": "Close menu"
   },
   "hero": {
-    "subtitle": "AI workflow systems for service businesses",
-    "heading": "Practical AI automation for the admin",
-    "headingLine2": "your team keeps tracking manually.",
-    "description": "I help owner-led service businesses turn emails, forms, PDFs, photos, quotes, spreadsheets, and follow-up into review-first workflows that save time without removing human judgment.",
-    "cta": "Request a Workflow Audit",
-    "ctaSecondary": "See Workflow Examples"
+    "subtitle": "Practical AI systems",
+    "heading": "Systems for the work",
+    "headingLine2": "your team still tracks by hand.",
+    "description": "I help owner-led businesses turn inboxes, spreadsheets, PDFs, calls, and follow-up into internal systems people actually use.",
+    "cta": "Send the workflow",
+    "ctaSecondary": "See proof"
   },
   "projects": {
     "label": "Portfolio",
-    "heading": "Featured Projects",
-    "description": "Real results for real businesses. Here are a few examples of how I've helped small teams work smarter with AI.",
+    "heading": "Proof from shipped systems",
+    "description": "A few examples of production systems built around data, operations, automation, and business outcomes.",
     "readCaseStudy": "Read case study",
     "backToProjects": "Back to Projects",
     "theProblem": "The Problem",
@@ -59,11 +61,11 @@
   },
   "about": {
     "label": "About",
-    "heading": "About Me",
+    "heading": "Builder, operator, data scientist",
     "imageAlt": "Duncan Anderson — data scientist and AI engineer",
-    "p1": "I'm Duncan — a data scientist and AI engineer who helps businesses stop wasting time on work that machines should be doing.",
-    "p2": "I spent years building AI systems at a major travel company — automating dispute resolution, surfacing real-time deals, and turning raw data into decisions that saved real money. I also built and run a sports analytics platform used by hundreds of subscribers.",
-    "p3": "Now I bring that same approach to small and medium businesses. I look at how your operation actually runs, find the bottlenecks, and build solutions your team will use on day one. No pilot programs that go nowhere — just tools that work."
+    "p1": "I'm Duncan — a data scientist and AI engineer who builds practical systems around real operating work.",
+    "p2": "I spent years building AI and data systems inside a major travel company, then built and operate The Lineup as a live paid product with data pipelines, billing, analytics, and automation.",
+    "p3": "Now I use the same operator mindset for smaller businesses: understand the workflow, remove the noise, and build the smallest useful system people will actually use."
   },
   "contact": {
     "label": "Contact",
@@ -81,9 +83,9 @@
     "genericError": "Something went wrong."
   },
   "footer": {
-    "heading": "Ready to fix one admin-heavy workflow?",
-    "description": "Start with a focused workflow audit before investing in a larger AI build.",
-    "getInTouch": "Request an Audit"
+    "heading": "Send one messy workflow.",
+    "description": "A useful system starts with a specific operating problem, not a broad AI transformation pitch.",
+    "getInTouch": "Send the workflow"
   },
   "notFound": {
     "code": "404",
@@ -92,7 +94,7 @@
     "backHome": "Back to Home"
   },
   "metadata": {
-    "title": "Duncan Anderson — AI Workflow Automation for Service Businesses",
-    "description": "Review-first AI workflow automation for service businesses dealing with emails, PDFs, forms, quotes, photos, spreadsheets, and repeated follow-up."
+    "title": "Duncan Anderson — Practical AI Systems for Messy Business Workflows",
+    "description": "Practical AI systems for businesses that run on inboxes, spreadsheets, PDFs, calls, and follow-up."
   }
 }

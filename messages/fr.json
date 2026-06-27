@@ -1,25 +1,27 @@
 {
   "nav": {
+    "work": "Travail",
+    "method": "Méthode",
     "workflowAudit": "Audit de workflow",
     "projects": "Projets",
     "about": "À propos",
     "contact": "Contact",
-    "getInTouch": "Demander un audit",
+    "getInTouch": "Envoyer le workflow",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer le menu"
   },
   "hero": {
-    "subtitle": "Systèmes de workflow IA pour entreprises de services",
-    "heading": "Automatisation IA pratique pour l'admin",
+    "subtitle": "Systèmes IA pratiques",
+    "heading": "Des systèmes pour le travail",
     "headingLine2": "que votre équipe suit encore à la main.",
-    "description": "J'aide les entreprises de services dirigées par leur propriétaire à transformer courriels, formulaires, PDF, photos, devis, feuilles de calcul et suivis en workflows avec validation humaine.",
-    "cta": "Demander un audit",
-    "ctaSecondary": "Voir les workflows"
+    "description": "J'aide les entreprises dirigées par leur propriétaire à transformer courriels, feuilles de calcul, PDF, appels et suivis en systèmes internes réellement utilisés.",
+    "cta": "Envoyer le workflow",
+    "ctaSecondary": "Voir les preuves"
   },
   "projects": {
     "label": "Portfolio",
-    "heading": "Projets en vedette",
-    "description": "Des résultats concrets pour de vraies entreprises. Voici quelques exemples de la façon dont j'ai aidé des équipes à travailler plus intelligemment grâce à l'IA.",
+    "heading": "Preuves de systèmes livrés",
+    "description": "Quelques exemples de systèmes en production construits autour des données, des opérations, de l'automatisation et des résultats d'affaires.",
     "readCaseStudy": "Voir l'étude de cas",
     "backToProjects": "Retour aux projets",
     "theProblem": "Le problème",
@@ -59,11 +61,11 @@
   },
   "about": {
     "label": "À propos",
-    "heading": "À propos",
+    "heading": "Bâtisseur, opérateur, scientifique des données",
     "imageAlt": "Duncan Anderson — scientifique des données et ingénieur en IA",
-    "p1": "Je suis Duncan — un scientifique des données et ingénieur en IA qui aide les entreprises à arrêter de perdre du temps sur du travail que les machines devraient faire.",
-    "p2": "J'ai passé des années à bâtir des systèmes d'IA dans une grande entreprise de voyages — automatisant la résolution de contestations, mettant en avant des offres en temps réel et transformant des données brutes en décisions qui ont permis d'économiser de l'argent concret. J'ai aussi conçu et je gère une plateforme d'analytique sportive utilisée par des centaines d'abonnés.",
-    "p3": "Maintenant, j'apporte cette même approche aux petites et moyennes entreprises. J'examine comment votre opération fonctionne réellement, je repère les goulots d'étranglement et je construis des solutions que votre équipe utilisera dès le premier jour. Pas de projets pilotes qui ne mènent nulle part — juste des outils qui fonctionnent."
+    "p1": "Je suis Duncan — un scientifique des données et ingénieur en IA qui construit des systèmes pratiques autour du vrai travail opérationnel.",
+    "p2": "J'ai bâti des systèmes d'IA et de données dans une grande entreprise de voyages, puis j'ai conçu et j'opère The Lineup comme produit payant en production avec pipelines de données, facturation, analytics et automatisation.",
+    "p3": "J'applique maintenant la même mentalité d'opérateur à de plus petites entreprises : comprendre le workflow, enlever le bruit et construire le plus petit système utile que les gens utiliseront réellement."
   },
   "contact": {
     "label": "Contact",
@@ -81,9 +83,9 @@
     "genericError": "Une erreur est survenue."
   },
   "footer": {
-    "heading": "Prêt à corriger un workflow administratif?",
-    "description": "Commencez par un audit ciblé avant d'investir dans une automatisation IA plus large.",
-    "getInTouch": "Demander un audit"
+    "heading": "Envoyez un workflow désordonné.",
+    "description": "Un système utile commence par un problème opérationnel précis, pas par un grand discours de transformation IA.",
+    "getInTouch": "Envoyer le workflow"
   },
   "notFound": {
     "code": "404",
@@ -92,7 +94,7 @@
     "backHome": "Retour à l'accueil"
   },
   "metadata": {
-    "title": "Duncan Anderson — Automatisation IA pour entreprises de services",
-    "description": "Automatisation IA avec validation humaine pour entreprises de services qui gèrent courriels, PDF, formulaires, devis, photos, feuilles de calcul et suivis."
+    "title": "Duncan Anderson — Systèmes IA pratiques pour workflows d'affaires",
+    "description": "Systèmes IA pratiques pour entreprises qui fonctionnent avec courriels, feuilles de calcul, PDF, appels et suivis."
   }
 }
