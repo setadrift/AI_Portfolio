@@ -3,7 +3,6 @@ import path from "node:path";
 import { get, put } from "@vercel/blob";
 
 const DIGEST_DIR = path.join(process.cwd(), "outputs", "reddit-leads");
-const STATUS_PATH = path.join(DIGEST_DIR, "latest-status.json");
 const PUBLISHED_DIGEST_PATH = "admin/leads/latest.json";
 
 export interface RedditLead {
@@ -174,6 +173,55 @@ export async function publishLeadDigest(payload: PublishedLeadDigest) {
   });
 }
 
+export async function publishLatestLeadDigest(outputDir = DIGEST_DIR) {
+  const status = await readRunStatus(outputDir);
+  const digestPath = await findLatestDigestPath(outputDir, status?.outputPath);
+  const fileName = path.basename(digestPath);
+  const markdown = await readFile(digestPath, "utf8");
+  const existingAutomationSource = await readPublishedAutomationSource();
+  const automationMarkdown = await buildAutomationMarkdown(
+    outputDir,
+    fileName,
+    existingAutomationSource?.markdown,
+  );
+
+  await put(
+    PUBLISHED_DIGEST_PATH,
+    JSON.stringify(
+      {
+        sources: [
+          {
+            id: "reddit",
+            label: "Reddit monitor",
+            description: "Leads from the configured Reddit scan.",
+            fileName,
+            markdown,
+            status,
+          },
+          {
+            id: "automation",
+            label: "Codex automation",
+            description: "Broader public-web leads from the AI consulting research automation.",
+            fileName: "codex-automation-leads.md",
+            markdown: automationMarkdown,
+            status: null,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    {
+      access: "private",
+      allowOverwrite: true,
+      contentType: "application/json",
+      cacheControlMaxAge: 60,
+    },
+  );
+
+  return `Published ${fileName} to Vercel Blob at ${PUBLISHED_DIGEST_PATH}`;
+}
+
 async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
   try {
     const result = await get(PUBLISHED_DIGEST_PATH, {
@@ -210,6 +258,22 @@ async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
       .filter((source) => isUsableDigest(source.digest));
   } catch {
     return [];
+  }
+}
+
+async function readPublishedAutomationSource(): Promise<PublishedLeadSource | null> {
+  try {
+    const result = await get(PUBLISHED_DIGEST_PATH, {
+      access: "private",
+      useCache: false,
+    });
+    if (!result || result.statusCode !== 200) return null;
+
+    const raw = await streamToText(result.stream);
+    const payload = JSON.parse(raw) as PublishedLeadBundle;
+    return payload.sources?.find((source) => source.id === "automation") ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -290,12 +354,88 @@ async function readLocalAutomationLeadDigest(): Promise<LeadDigest | null> {
 }
 
 async function readLatestLocalRunStatus(): Promise<LeadRunStatus | null> {
+  return readRunStatus(DIGEST_DIR);
+}
+
+async function readRunStatus(outputDir: string): Promise<LeadRunStatus | null> {
   try {
-    const raw = await readFile(STATUS_PATH, "utf8");
+    const raw = await readFile(path.join(outputDir, "latest-status.json"), "utf8");
     return JSON.parse(raw) as LeadRunStatus;
   } catch {
     return null;
   }
+}
+
+async function findLatestDigestPath(outputDir: string, statusOutputPath?: string) {
+  if (statusOutputPath) {
+    try {
+      await readFile(statusOutputPath, "utf8");
+      return statusOutputPath;
+    } catch {
+      // Fall through to latest dated digest.
+    }
+  }
+
+  const files = (await readdir(outputDir))
+    .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file))
+    .sort()
+    .reverse();
+
+  if (!files[0]) {
+    throw new Error(`No dated digest found in ${outputDir}`);
+  }
+
+  return path.join(outputDir, files[0]);
+}
+
+async function buildAutomationMarkdown(
+  outputDir: string,
+  redditFileName: string,
+  fallbackMarkdown = "",
+) {
+  const files = (await readdir(outputDir))
+    .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file) && file !== redditFileName)
+    .sort()
+    .reverse();
+  const seen = new Set<string>();
+  const blocks: string[] = [];
+  let generatedAt = "";
+
+  for (const file of files) {
+    const markdown = await readFile(path.join(outputDir, file), "utf8");
+    generatedAt ||= metadataValue(markdown, "Generated");
+    for (const block of leadBlocks(markdown)) {
+      const heading = block.match(/^### ([1-5])\/5 - (.+?) - (.+)$/m);
+      if (!heading || !["4", "5"].includes(heading[1])) continue;
+      const url = bulletValue(block, "URL");
+      const key = url || `${heading[2]}:${heading[3]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      blocks.push(block.trim());
+    }
+  }
+
+  if (!blocks.length && fallbackMarkdown) return fallbackMarkdown;
+
+  return [
+    "# Codex Automation Lead Digest",
+    "",
+    `Generated: ${generatedAt || new Date().toISOString()}`,
+    `Feeds checked: ${files.length}`,
+    `Candidates included: ${blocks.length}`,
+    "Filtered/rejected before digest: 0",
+    "Minimum score: 4",
+    "Partial coverage: no",
+    "",
+    "## Best Leads",
+    "",
+    blocks.length ? blocks.join("\n\n") : "No 4+ leads found.",
+    "",
+    "## Feed Errors",
+    "",
+    "No feed errors.",
+    "",
+  ].join("\n");
 }
 
 function parseDigest(fileName: string, markdown: string, sourceKind: LeadSourceId): LeadDigest {
@@ -336,6 +476,12 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         suggestedDm: sectionQuote(block, "Suggested DM"),
       };
     });
+}
+
+function leadBlocks(markdown: string) {
+  return markdown
+    .split(/\n(?=### [1-5]\/5 - )/g)
+    .filter((block) => block.startsWith("### "));
 }
 
 function parseFeedErrors(markdown: string) {
