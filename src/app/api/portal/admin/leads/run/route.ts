@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { readLeadChannels } from "@/lib/portal/admin/leads";
+import { publishLatestLeadDigest, readLeadChannels } from "@/lib/portal/admin/leads";
 import { PORTAL_COOKIE, verifySession } from "@/lib/portal/session";
 
 export const runtime = "nodejs";
@@ -55,15 +55,22 @@ async function runLeadMonitor(channel: string | null) {
   if (scanResult.code !== 0) return scanResult;
   if (!shouldPublish) return scanResult;
 
-  const publishResult = await runScript("publish-lead-digest.mjs", {
-    REDDIT_LEAD_OUTPUT_DIR: outputDir,
-  });
-
-  return {
-    code: publishResult.code,
-    stdout: [scanResult.stdout, publishResult.stdout].filter(Boolean).join("\n"),
-    stderr: [scanResult.stderr, publishResult.stderr].filter(Boolean).join("\n"),
-  };
+  try {
+    const publishMessage = await publishLatestLeadDigest(outputDir);
+    return {
+      code: 0,
+      stdout: [scanResult.stdout, publishMessage].filter(Boolean).join("\n"),
+      stderr: scanResult.stderr,
+    };
+  } catch (error) {
+    return {
+      code: 1,
+      stdout: scanResult.stdout,
+      stderr: [scanResult.stderr, error instanceof Error ? error.message : "Failed to publish lead digest"]
+        .filter(Boolean)
+        .join("\n"),
+    };
+  }
 }
 
 function runScript(scriptName: string, env: Record<string, string>) {
