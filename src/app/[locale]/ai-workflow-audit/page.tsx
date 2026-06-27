@@ -1,80 +1,122 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import BookingConversionLink from "@/components/ads/BookingConversionLink";
 import AiWorkflowAuditForm from "@/components/ads/AiWorkflowAuditForm";
-import WorkflowOfferCards from "@/components/ads/WorkflowOfferCards";
 import Button from "@/components/ui/Button";
-import { WORKFLOW_VERTICALS } from "@/lib/ai-workflow-verticals";
-import type { WorkflowVertical } from "@/lib/ai-workflow-verticals";
-import {
-  FEATURED_WORKFLOW_SLUGS,
-  WORKFLOW_OFFER_PATHS,
-} from "@/lib/ai-workflow-offers";
-import { BOOKING_URL, PROJECTS, SITE } from "@/lib/constants";
+import { PROJECTS, SITE } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  title: "AI Workflow Audit for Service Businesses | Duncan Anderson",
+  title: "Practical AI Systems for Messy Business Workflows | Duncan Anderson",
   description:
-    "Map one admin-heavy workflow across emails, PDFs, forms, quotes, photos, spreadsheets, and follow-up before building AI automation.",
+    "Turn inboxes, spreadsheets, PDFs, calls, and follow-up into practical internal systems people actually use.",
   alternates: {
     canonical: `${SITE.url}/ai-workflow-audit`,
   },
 };
 
-const auditDeliverables = [
-  "Current workflow map: inputs, owners, handoffs, tools, status points, and failure points.",
-  "Automate / keep human / redesign / buy recommendation for the workflow.",
-  "First-build plan with trigger, data source, review step, output, and owner.",
-  "Risk and human-review boundaries so AI prepares work without silently making high-stakes decisions.",
-  "Time-savings or revenue-leak hypothesis tied to weekly volume and current follow-up gaps.",
+const workflowAreas = [
+  {
+    title: "Intake",
+    body: "Capture requests cleanly and get the right information up front.",
+  },
+  {
+    title: "Follow-up",
+    body: "Move work forward with visible owners, dates, and next steps.",
+  },
+  {
+    title: "Review",
+    body: "Put the context in one place before a person makes the call.",
+  },
 ];
 
-const goodFitSignals = [
-  "The work happens every week.",
-  "Inputs are visible: emails, forms, PDFs, photos, spreadsheets, CRM notes, or portal requests.",
-  "The next step follows a repeatable pattern.",
-  "A human can review the draft, queue, summary, or status update before anything important changes.",
-  "The bottleneck costs time, deals, deadline confidence, or customer follow-up.",
+const proofItems = [
+  {
+    title: "The Lineup",
+    body: "A live analytics product with data pipelines, payments, monitoring, and automated settlement.",
+  },
+  {
+    title: "Travel automation",
+    body: "High-volume operational AI systems for disputes, data, ranking, and revenue workflows.",
+  },
+  {
+    title: "Property operations",
+    body: "A practical system for tenant, maintenance, vendor, and field-work coordination across 13 rental houses.",
+  },
 ];
 
-const notFitSignals = [
-  "One-off creative brainstorming with no repeat workflow.",
-  "Fully autonomous decisions where human review is not acceptable.",
-  "A vague desire to use AI without a real operating bottleneck.",
-  "Hardware, controls, sensors, or infrastructure automation unrelated to business workflow.",
+const methodSteps = [
+  ["Map", "Understand the real workflow and where it breaks."],
+  ["Simplify", "Remove avoidable friction before adding automation."],
+  ["Build", "Ship the smallest useful system the team can trust."],
+  ["Operate", "Support, refine, and keep the workflow honest."],
 ];
 
-function SectionHeader({
-  eyebrow,
-  title,
-  body,
-}: {
-  eyebrow: string;
-  title: string;
-  body?: string;
-}) {
+function OperationsMap() {
+  const inputs = ["Inbox", "PDFs", "Sheets", "Calls"];
+  const outputs = ["Owner", "Status", "Next step"];
+
   return (
-    <div className="max-w-3xl">
-      <p className="mb-3 font-mono text-xs uppercase tracking-[0.3em] text-accent">
-        {eyebrow}
-      </p>
-      <h2 className="font-display text-4xl leading-tight text-cream">
-        {title}
-      </h2>
-      {body && <p className="mt-5 leading-7 text-cream-muted">{body}</p>}
+    <div className="relative min-h-[420px] border border-border bg-white p-6 shadow-[0_18px_60px_rgba(26,26,46,0.07)]">
+      <div className="absolute left-6 right-6 top-1/2 h-px bg-border" />
+      <div className="absolute bottom-6 top-6 left-1/2 w-px bg-border" />
+
+      <div className="relative grid h-full min-h-[368px] grid-cols-[0.9fr_1.2fr] gap-8">
+        <div className="flex flex-col justify-between">
+          {inputs.map((item, index) => (
+            <div
+              key={item}
+              className="flex items-center gap-3 text-sm text-cream-muted"
+              style={{ marginLeft: `${index % 2 === 0 ? 0 : 22}px` }}
+            >
+              <span className="h-2.5 w-2.5 bg-accent" />
+              <span className="border border-border bg-background px-3 py-2">
+                {item}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center">
+          <div className="w-full border border-cream bg-cream p-5 text-white">
+            <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/55">
+              Operating lane
+            </p>
+            <div className="mt-8 space-y-4">
+              {outputs.map((item) => (
+                <div
+                  key={item}
+                  className="flex items-center justify-between border-b border-white/15 pb-3 text-sm"
+                >
+                  <span>{item}</span>
+                  <span className="h-2 w-2 bg-accent" />
+                </div>
+              ))}
+            </div>
+            <p className="mt-8 max-w-xs text-sm leading-6 text-white/68">
+              The goal is not more AI. It is a cleaner path from messy input to
+              useful action.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function BulletList({ items }: { items: string[] }) {
+function SectionHeading({
+  title,
+  body,
+}: {
+  title: string;
+  body?: string;
+}) {
   return (
-    <div className="space-y-4">
-      {items.map((item) => (
-        <div key={item} className="flex gap-3">
-          <div className="mt-2 h-2 w-2 shrink-0 bg-accent" />
-          <p className="text-sm leading-6 text-cream-muted">{item}</p>
-        </div>
-      ))}
+    <div className="max-w-2xl">
+      <h2 className="font-display text-4xl leading-tight text-cream md:text-5xl">
+        {title}
+      </h2>
+      {body ? (
+        <p className="mt-5 text-base leading-7 text-cream-muted">{body}</p>
+      ) : null}
     </div>
   );
 }
@@ -91,180 +133,74 @@ export default async function AiWorkflowAuditPage({
     ["dispute-defender", "deal-engine", "the-lineup"].includes(project.slug),
   );
   const localePrefix = locale === "en" ? "/en" : `/${locale}`;
-  const featuredWorkflows = FEATURED_WORKFLOW_SLUGS.map((slug) =>
-    WORKFLOW_VERTICALS.find((vertical) => vertical.slug === slug),
-  ).filter((vertical): vertical is WorkflowVertical => Boolean(vertical));
-  const secondaryWorkflows = WORKFLOW_VERTICALS.filter(
-    (vertical) => !FEATURED_WORKFLOW_SLUGS.includes(vertical.slug),
-  );
 
   return (
     <>
-      <section className="relative overflow-hidden bg-background px-6 pb-16 pt-28 md:pb-24 md:pt-36">
-        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
+      <section className="bg-background px-6 pb-20 pt-28 md:pb-28 md:pt-36">
+        <div className="mx-auto grid max-w-6xl gap-14 lg:grid-cols-[0.92fr_0.78fr] lg:items-center">
           <div>
-            <p className="mb-4 font-mono text-xs uppercase tracking-[0.3em] text-accent">
-              AI workflow audit
-            </p>
-            <h1 className="font-display text-5xl leading-[0.98] text-cream md:text-6xl">
-              AI workflow audit for service businesses buried in admin
+            <h1 className="max-w-4xl font-display text-5xl leading-[0.98] text-cream md:text-7xl">
+              Practical AI systems for messy business workflows
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-cream-muted">
-              Map one painful workflow across emails, forms, PDFs, photos,
-              quotes, spreadsheets, and follow-up. Then decide what to
-              automate, what to redesign, and what should stay human.
+            <p className="mt-7 max-w-2xl text-lg leading-8 text-cream-muted">
+              I help owner-led businesses turn inboxes, spreadsheets, PDFs,
+              calls, and follow-up into systems people actually use.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Button href="#audit-form">Request a workflow audit</Button>
-              <BookingConversionLink
-                href={BOOKING_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center border border-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-accent transition-all duration-200 hover:bg-[#EFF6FF] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
-              >
-                Book a fit call
-              </BookingConversionLink>
-            </div>
-            <p className="mt-6 max-w-xl text-sm leading-6 text-cream-muted">
-              Built by Duncan Anderson, an AI engineer and data scientist who
-              ships production systems around real operating workflows.
-            </p>
-          </div>
-
-          <aside className="border border-border bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-            <p className="font-mono text-xs uppercase tracking-[0.25em] text-accent">
-              What you get back
-            </p>
-            <div className="mt-6 space-y-5">
-              {auditDeliverables.map((item) => (
-                <div key={item} className="flex gap-3">
-                  <div className="mt-2 h-2 w-2 shrink-0 bg-accent" />
-                  <p className="text-sm leading-6 text-cream-muted">{item}</p>
-                </div>
-              ))}
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section className="bg-surface px-6 py-16 md:py-24">
-        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-2">
-          <div className="border border-border bg-white p-6">
-            <SectionHeader
-              eyebrow="Good first workflow"
-              title="Frequent, measurable, and easy to review"
-              body="The first build should be close to a real operating leak, not a vague AI experiment."
-            />
-            <div className="mt-8">
-              <BulletList items={goodFitSignals} />
-            </div>
-          </div>
-          <div className="border border-border bg-white p-6">
-            <SectionHeader
-              eyebrow="Not the right fit"
-              title="Some work should stay manual or be redesigned first"
-              body="A useful audit should say no when the workflow is too rare, too risky, or too unclear."
-            />
-            <div className="mt-8">
-              <BulletList items={notFitSignals} />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="workflow-examples" className="bg-background px-6 py-16 md:py-24">
-        <div className="mx-auto max-w-6xl">
-          <SectionHeader
-            eyebrow="Three ways this usually pays back"
-            title="Pick the operating workflow before picking the AI tool"
-            body="These are the repeatable workflow systems I would rather sell than broad AI consulting. Each starts with a focused audit and can become a managed implementation."
-          />
-          <div className="mt-10">
-            <WorkflowOfferCards />
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-surface px-6 py-16 md:py-24">
-        <div className="mx-auto max-w-6xl">
-          <SectionHeader
-            eyebrow="Specific workflows"
-            title="Start where the admin pain is already obvious"
-            body="The strongest first project is usually close to revenue, deadlines, follow-up, or document-heavy admin."
-          />
-          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {featuredWorkflows.map((vertical) => (
+            <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
+              <Button href="#audit-form">Send the workflow</Button>
               <a
-                key={vertical.slug}
-                href={`${localePrefix}/ai-workflow-audit/${vertical.slug}`}
-                className="border border-border bg-white p-5 transition-colors hover:border-accent"
+                href="#proof"
+                className="text-sm font-medium uppercase tracking-wide text-accent underline decoration-border underline-offset-4 transition-colors hover:text-accent-hover"
               >
-                <p className="font-mono text-xs uppercase tracking-[0.2em] text-accent">
-                  {vertical.market}
-                </p>
-                <h3 className="mt-3 font-display text-2xl text-cream">
-                  {vertical.shortTitle}
-                </h3>
-                <p className="mt-3 text-sm leading-6 text-cream-muted">
-                  {vertical.metaDescription}
-                </p>
+                See proof
               </a>
-            ))}
-          </div>
-          <div className="mt-10 border-t border-border pt-8">
-            <p className="font-mono text-xs uppercase tracking-[0.25em] text-cream-dim">
-              Other admin-heavy workflows
-            </p>
-            <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {secondaryWorkflows.map((vertical) => (
-                <a
-                  key={vertical.slug}
-                  href={`${localePrefix}/ai-workflow-audit/${vertical.slug}`}
-                  className="text-sm leading-6 text-cream-muted underline decoration-border underline-offset-4 transition-colors hover:text-accent"
-                >
-                  {vertical.shortTitle}
-                </a>
-              ))}
             </div>
           </div>
+          <OperationsMap />
         </div>
       </section>
 
-      <section id="admin-queue" className="bg-background px-6 py-16 md:py-24">
-        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.85fr_1.15fr]">
-          <SectionHeader
-            eyebrow="Fallback offer"
-            title="If your work arrives everywhere, start with an admin queue"
-            body="When there is no clean system of record, the first win is often a queue: what came in, who owns it, what is missing, how old it is, and what should happen next."
+      <section className="border-y border-border bg-white px-6 py-16 md:py-20">
+        <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-3">
+          {workflowAreas.map((area) => (
+            <article key={area.title} className="border-l border-border pl-5">
+              <h2 className="font-display text-3xl text-cream">
+                {area.title}
+              </h2>
+              <p className="mt-4 max-w-sm text-sm leading-6 text-cream-muted">
+                {area.body}
+              </p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="proof" className="bg-background px-6 py-20 md:py-28">
+        <div className="mx-auto max-w-6xl">
+          <SectionHeading
+            title="Proof over promises"
+            body="The credibility here comes from shipped systems: products, automations, and client workflows that have to keep working after the first demo."
           />
-          <div className="grid gap-4 md:grid-cols-2">
-            {WORKFLOW_OFFER_PATHS[2].bestFor.concat([
-              "Shared inbox triage",
-              "Missing-info detection",
-              "Draft replies for review",
-            ]).map((item) => (
-              <div key={item} className="border-l-2 border-accent bg-white p-5">
-                <p className="text-sm leading-6 text-cream-muted">{item}</p>
-              </div>
+          <div className="mt-12 grid gap-4 md:grid-cols-3">
+            {proofItems.map((item) => (
+              <article key={item.title} className="border-t border-border pt-5">
+                <h3 className="font-display text-2xl text-cream">
+                  {item.title}
+                </h3>
+                <p className="mt-4 text-sm leading-6 text-cream-muted">
+                  {item.body}
+                </p>
+              </article>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section id="examples" className="bg-surface px-6 py-16 md:py-24">
-        <div className="mx-auto max-w-6xl">
-          <SectionHeader
-            eyebrow="Proof"
-            title="Production systems built around real operational work"
-            body="The credibility here is not AI novelty. It is building systems that move evidence, data, decisions, billing, analytics, and follow-up through production workflows."
-          />
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="mt-14 grid gap-6 md:grid-cols-3">
             {proofProjects.map((project) => (
-              <article
+              <a
                 key={project.slug}
-                className="border border-border bg-white p-6"
+                href={`${localePrefix}/projects/${project.slug}`}
+                className="group border border-border bg-white p-5 transition-colors hover:border-accent"
               >
-                <p className="font-mono text-xs uppercase tracking-[0.2em] text-accent">
+                <p className="font-mono text-xs uppercase tracking-[0.22em] text-cream-dim">
                   {project.clientType}
                 </p>
                 <h3 className="mt-4 font-display text-2xl text-cream">
@@ -273,36 +209,49 @@ export default async function AiWorkflowAuditPage({
                 <p className="mt-4 text-sm leading-6 text-cream-muted">
                   {project.result}
                 </p>
-              </article>
+                <span className="mt-5 inline-block text-sm font-medium text-accent group-hover:text-accent-hover">
+                  Read case study
+                </span>
+              </a>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-background px-6 py-16 md:py-24">
-        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.85fr_1.15fr]">
-          <div>
-            <SectionHeader
-              eyebrow="Request the audit"
-              title="Send the workflow that is costing time, deals, or deadline confidence"
-              body="Specifics help: current tools, weekly volume, what breaks, and what should remain human."
-            />
-            <div className="mt-8 border-l-2 border-accent pl-5 text-sm leading-6 text-cream-muted">
-              This is not a broad AI transformation program, a chatbot demo, or
-              a promise to automate everything. If the workflow is too rare,
-              too risky, or too unclear, I will say so.
-            </div>
+      <section id="method" className="bg-white px-6 py-20 md:py-28">
+        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.75fr_1fr]">
+          <SectionHeading
+            title="A small method for real operations"
+            body="Most useful systems start by making the current work visible. Automation comes after the workflow makes sense."
+          />
+          <div className="grid gap-0 border-y border-border">
+            {methodSteps.map(([title, body], index) => (
+              <div
+                key={title}
+                className="grid gap-4 border-b border-border py-6 last:border-b-0 md:grid-cols-[100px_1fr]"
+              >
+                <p className="font-mono text-xs uppercase tracking-[0.22em] text-accent">
+                  0{index + 1}
+                </p>
+                <div>
+                  <h3 className="font-display text-2xl text-cream">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-cream-muted">
+                    {body}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-          <AiWorkflowAuditForm />
         </div>
       </section>
 
-      <section className="bg-background px-6 py-12">
-        <div className="mx-auto max-w-6xl text-xs leading-6 text-cream-dim">
-          Form details are used to respond to your request and understand the
-          source of the inquiry. Advertising click IDs and campaign parameters
-          may be included with the request so campaign performance can be
-          measured.
+      <section className="bg-background px-6 py-20 md:py-28">
+        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[0.75fr_1fr] lg:items-start">
+          <SectionHeading
+            title="Send one messy workflow"
+            body="A good starting point is something that repeats every week, moves through too many tools, and still depends on someone remembering the next step."
+          />
+          <AiWorkflowAuditForm />
         </div>
       </section>
     </>

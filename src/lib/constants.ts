@@ -1,9 +1,9 @@
 export const SITE = {
   name: "Duncan Anderson",
-  title: "Duncan Anderson — AI Workflow Automation for Service Businesses",
+  title: "Duncan Anderson — Practical AI Systems for Messy Business Workflows",
   description:
-    "Review-first AI workflow automation for service businesses dealing with emails, PDFs, forms, quotes, photos, spreadsheets, and repeated follow-up.",
-  tagline: "Review-first AI workflow automation.",
+    "Practical AI systems for businesses that run on inboxes, spreadsheets, PDFs, calls, and follow-up.",
+  tagline: "Practical AI systems for messy workflows.",
   url: "https://duncananderson.ca",
 };
 
@@ -11,9 +11,9 @@ export const BOOKING_URL =
   "https://cal.com/duncan-anderson-sdo5hp/ai-automation-discovery-call";
 
 export const NAV_LINKS = [
-  { label: "Workflow Audit", href: "/ai-workflow-audit" },
-  { label: "Projects", href: "/#projects" },
-  { label: "About", href: "/#about" },
+  { label: "Work", href: "/#projects" },
+  { label: "Method", href: "/ai-workflow-audit#method" },
+  { label: "Contact", href: "/ai-workflow-audit#audit-form" },
 ];
 
 export interface Project {

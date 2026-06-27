@@ -7,9 +7,9 @@ import { SITE } from "@/lib/constants";
 import Button from "@/components/ui/Button";
 
 const NAV_KEYS = [
-  { key: "workflowAudit", href: "/ai-workflow-audit" },
-  { key: "projects", href: "/#projects" },
-  { key: "about", href: "/#about" },
+  { key: "work", href: "/#projects" },
+  { key: "method", href: "/ai-workflow-audit#method" },
+  { key: "contact", href: "/ai-workflow-audit#audit-form" },
 ] as const;
 
 export default function Header() {
