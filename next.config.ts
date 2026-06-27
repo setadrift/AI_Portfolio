@@ -4,6 +4,14 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/api/portal/admin/leads/run": [
+      "./config/reddit-lead-monitor.json",
+      "./scripts/publish-lead-digest.mjs",
+      "./scripts/reddit-lead-monitor.mjs",
+    ],
+    "/portal/admin/leads": ["./config/reddit-lead-monitor.json"],
+  },
   async headers() {
     return [
       {

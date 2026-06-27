@@ -8,6 +8,10 @@ const PUBLISHED_DIGEST_PATH = "admin/leads/latest.json";
 
 export interface RedditLead {
   score: string;
+  source: string;
+  sourceLabel: string;
+  sourceKind: LeadSourceId;
+  sourceDate: string;
   subreddit: string;
   title: string;
   url: string;
@@ -29,11 +33,22 @@ export interface LeadDigest {
   leads: RedditLead[];
 }
 
+export type LeadSourceId = "reddit" | "automation";
+
+export interface LeadSourceDigest {
+  id: LeadSourceId;
+  label: string;
+  description: string;
+  digest: LeadDigest | null;
+  status: LeadRunStatus | null;
+}
+
 export interface LeadRunStatus {
   ok: boolean;
   generatedAt: string;
   successfulFeeds: number;
   totalFeeds: number;
+  ingestionMode?: "oauth" | "rss";
   fetchedPosts: number;
   candidatesScored: number;
   leadsIncluded: number;
@@ -49,39 +64,77 @@ export interface LeadRunStatus {
 export interface LeadDashboardData {
   digest: LeadDigest | null;
   status: LeadRunStatus | null;
+  sources: LeadSourceDigest[];
   channels: LeadChannel[];
 }
 
 export interface LeadChannel {
   id: string;
   label: string;
-  feed: string;
+  subreddit: string;
+  feed?: string;
 }
 
 export async function readLeadDashboardData(): Promise<LeadDashboardData> {
-  const [published, localDigest, localStatus, channels] = await Promise.all([
-    readPublishedLeadDigest(),
-    readLatestLocalLeadDigest(),
+  const [publishedSources, localRedditDigest, localAutomationDigest, localStatus, channels] = await Promise.all([
+    readPublishedLeadSources(),
+    readLatestLocalRedditDigest(),
+    readLocalAutomationLeadDigest(),
     readLatestLocalRunStatus(),
     readLeadChannels(),
   ]);
 
-  const digest = published?.digest ?? localDigest;
-  const status = published?.status ?? localStatus;
+  const redditSource = publishedSources.find((source) => source.id === "reddit") ?? {
+    id: "reddit" as const,
+    label: "Reddit monitor",
+    description: "Leads from the configured Reddit scan.",
+    digest: localRedditDigest,
+    status: localStatus,
+  };
+  const automationSource = publishedSources.find((source) => source.id === "automation") ?? {
+    id: "automation" as const,
+    label: "Codex automation",
+    description: "Broader public-web leads from the AI consulting research automation.",
+    digest: localAutomationDigest,
+    status: null,
+  };
+  const sources = [redditSource, automationSource];
+  const digest = redditSource.digest ?? localRedditDigest;
+  const status = redditSource.status ?? localStatus;
 
-  return { digest, status, channels };
+  return { digest, status, sources, channels };
 }
 
 export async function readLeadChannels(): Promise<LeadChannel[]> {
   try {
     const configPath = path.join(process.cwd(), "config", "reddit-lead-monitor.json");
     const raw = await readFile(configPath, "utf8");
-    const config = JSON.parse(raw) as { feeds?: string[] };
+    const config = JSON.parse(raw) as {
+      channels?: Array<{ id?: string; label?: string; subreddit?: string; feed?: string; url?: string }>;
+      feeds?: string[];
+    };
+
+    if (config.channels?.length) {
+      return config.channels
+        .map((channel) => {
+          const feed = channel.feed ?? channel.url;
+          const subreddit = channel.subreddit ?? feed?.match(/\/r\/([^/]+)/i)?.[1] ?? "";
+          return {
+            id: slug(channel.id ?? subreddit),
+            label: channel.label ?? `r/${subreddit}`,
+            subreddit,
+            feed,
+          };
+        })
+        .filter((channel) => channel.subreddit);
+    }
+
     return (config.feeds ?? []).map((feed) => {
       const subreddit = feed.match(/\/r\/([^/]+)/i)?.[1] ?? feed;
       return {
-        id: subreddit,
+        id: slug(subreddit),
         label: `r/${subreddit}`,
+        subreddit,
         feed,
       };
     });
@@ -96,6 +149,22 @@ interface PublishedLeadDigest {
   status: LeadRunStatus | null;
 }
 
+interface PublishedLeadSource {
+  id: LeadSourceId;
+  label: string;
+  description: string;
+  fileName: string;
+  markdown: string;
+  status: LeadRunStatus | null;
+}
+
+interface PublishedLeadBundle {
+  sources?: PublishedLeadSource[];
+  fileName?: string;
+  markdown?: string;
+  status?: LeadRunStatus | null;
+}
+
 export async function publishLeadDigest(payload: PublishedLeadDigest) {
   await put(PUBLISHED_DIGEST_PATH, JSON.stringify(payload, null, 2), {
     access: "private",
@@ -105,39 +174,63 @@ export async function publishLeadDigest(payload: PublishedLeadDigest) {
   });
 }
 
-async function readPublishedLeadDigest(): Promise<{
-  digest: LeadDigest;
-  status: LeadRunStatus | null;
-} | null> {
+async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
   try {
     const result = await get(PUBLISHED_DIGEST_PATH, {
       access: "private",
       useCache: false,
     });
-    if (!result || result.statusCode !== 200) return null;
+    if (!result || result.statusCode !== 200) return [];
 
     const raw = await streamToText(result.stream);
-    const payload = JSON.parse(raw) as PublishedLeadDigest;
-    if (!payload.fileName || !payload.markdown) return null;
+    const payload = JSON.parse(raw) as PublishedLeadBundle;
+    const publishedSources = payload.sources?.length
+      ? payload.sources
+      : payload.fileName && payload.markdown
+        ? [
+            {
+              id: "reddit" as const,
+              label: "Reddit monitor",
+              description: "Leads from the configured Reddit scan.",
+              fileName: payload.fileName,
+              markdown: payload.markdown,
+              status: payload.status ?? null,
+            },
+          ]
+        : [];
 
-    const digest = parseDigest(payload.fileName, payload.markdown);
-    if (!isUsableDigest(digest)) return null;
-
-    return {
-      digest,
-      status: payload.status ?? null,
-    };
+    return publishedSources
+      .map((source) => ({
+        id: source.id,
+        label: source.label,
+        description: source.description,
+        digest: parseDigest(source.fileName, source.markdown, source.id),
+        status: source.status ?? null,
+      }))
+      .filter((source) => isUsableDigest(source.digest));
   } catch {
-    return null;
+    return [];
   }
 }
 
 export async function readLatestLeadDigest(): Promise<LeadDigest | null> {
-  return (await readPublishedLeadDigest())?.digest ?? readLatestLocalLeadDigest();
+  return (await readPublishedLeadSources()).find((source) => source.id === "reddit")?.digest ?? readLatestLocalRedditDigest();
 }
 
-async function readLatestLocalLeadDigest(): Promise<LeadDigest | null> {
+async function readLatestLocalRedditDigest(): Promise<LeadDigest | null> {
   try {
+    const status = await readLatestLocalRunStatus();
+    if (status?.outputPath) {
+      try {
+        const fileName = path.basename(status.outputPath);
+        const markdown = await readFile(status.outputPath, "utf8");
+        const digest = parseDigest(fileName, markdown, "reddit");
+        if (isUsableDigest(digest)) return digest;
+      } catch {
+        // Fall through to latest dated digest.
+      }
+    }
+
     const files = (await readdir(DIGEST_DIR))
       .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file))
       .sort()
@@ -145,11 +238,52 @@ async function readLatestLocalLeadDigest(): Promise<LeadDigest | null> {
 
     for (const fileName of files) {
       const markdown = await readFile(path.join(DIGEST_DIR, fileName), "utf8");
-      const digest = parseDigest(fileName, markdown);
+      const digest = parseDigest(fileName, markdown, "reddit");
       if (isUsableDigest(digest)) return digest;
     }
 
     return null;
+  } catch {
+    return null;
+  }
+}
+
+async function readLocalAutomationLeadDigest(): Promise<LeadDigest | null> {
+  try {
+    const status = await readLatestLocalRunStatus();
+    const redditFileName = status?.outputPath ? path.basename(status.outputPath) : "";
+    const files = (await readdir(DIGEST_DIR))
+      .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file) && file !== redditFileName)
+      .sort()
+      .reverse();
+    const seen = new Set<string>();
+    const leads: RedditLead[] = [];
+    let newestGeneratedAt = "";
+
+    for (const fileName of files) {
+      const markdown = await readFile(path.join(DIGEST_DIR, fileName), "utf8");
+      const digest = parseDigest(fileName, markdown, "automation");
+      newestGeneratedAt ||= digest.generatedAt;
+      for (const lead of digest.leads) {
+        if (!lead.score.startsWith("4") && !lead.score.startsWith("5")) continue;
+        const key = lead.url || `${lead.sourceLabel}:${lead.title}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        leads.push(lead);
+      }
+    }
+
+    if (!leads.length) return null;
+
+    return {
+      fileName: "codex-automation-leads.md",
+      generatedAt: newestGeneratedAt,
+      feedsChecked: files.length.toString(),
+      candidatesIncluded: leads.length.toString(),
+      rejectedCount: "0",
+      feedErrors: [],
+      leads,
+    };
   } catch {
     return null;
   }
@@ -164,7 +298,7 @@ async function readLatestLocalRunStatus(): Promise<LeadRunStatus | null> {
   }
 }
 
-function parseDigest(fileName: string, markdown: string): LeadDigest {
+function parseDigest(fileName: string, markdown: string, sourceKind: LeadSourceId): LeadDigest {
   return {
     fileName,
     generatedAt: metadataValue(markdown, "Generated"),
@@ -172,20 +306,26 @@ function parseDigest(fileName: string, markdown: string): LeadDigest {
     candidatesIncluded: metadataValue(markdown, "Candidates included"),
     rejectedCount: metadataValue(markdown, "Filtered/rejected before digest"),
     feedErrors: parseFeedErrors(markdown),
-    leads: parseLeads(markdown),
+    leads: parseLeads(markdown, sourceKind, dateFromFileName(fileName)),
   };
 }
 
-function parseLeads(markdown: string): RedditLead[] {
-  const blocks = markdown.split(/\n(?=### \d\/5 - r\/)/g);
+function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: string): RedditLead[] {
+  const blocks = markdown.split(/\n(?=### [1-5]\/5 - )/g);
   return blocks
     .filter((block) => block.startsWith("### "))
     .map((block) => {
-      const heading = block.match(/^### ([1-5]\/5) - r\/([^ ]+) - (.+)$/m);
+      const heading = block.match(/^### ([1-5]\/5) - (.+?) - (.+)$/m);
+      const sourceLabel = heading?.[2]?.trim() ?? "";
+      const subreddit = sourceLabel.replace(/^r\//i, "");
 
       return {
         score: heading?.[1] ?? "",
-        subreddit: heading?.[2] ?? "",
+        source: sourceLabel,
+        sourceLabel,
+        sourceKind,
+        sourceDate,
+        subreddit,
         title: heading?.[3] ?? "Untitled lead",
         url: bulletValue(block, "URL"),
         author: bulletValue(block, "Author"),
@@ -217,6 +357,10 @@ function isUsableDigest(digest: LeadDigest) {
   return errorCount < Math.ceil(feedsChecked / 2);
 }
 
+function dateFromFileName(fileName: string) {
+  return fileName.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
+}
+
 function metadataValue(markdown: string, label: string) {
   const match = markdown.match(new RegExp(`^${escapeRegExp(label)}: (.+)$`, "m"));
   return match?.[1]?.trim() ?? "";
@@ -238,6 +382,14 @@ function sectionQuote(block: string, label: string) {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function slug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 async function streamToText(stream: ReadableStream<Uint8Array>) {
