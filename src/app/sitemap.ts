@@ -24,6 +24,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     });
 
+    pages.push({
+      url: `${SITE.url}${prefix}/ai-consulting-small-business`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    });
+
     for (const vertical of WORKFLOW_VERTICALS) {
       pages.push({
         url: `${SITE.url}${prefix}/ai-workflow-audit/${vertical.slug}`,
