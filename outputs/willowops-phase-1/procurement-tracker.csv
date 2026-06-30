@@ -1,0 +1,4 @@
+Project,Room,Supplier,Item,Status,Client Approval,PO Status,Invoice Status,Expected Delivery,Blocked Reason
+Shah House,Entrance hall,Heritage Lighting,Statement pendant and wall lights,Delayed,Approved,Acknowledged,Invoiced,2026-07-18,Supplier revised delivery date by 12 days
+Brooks Study,Study,Atelier Fabrics,Window treatment fabric,Proposed,Pending,Not started,Not invoiced,2026-07-29,Awaiting client approval
+Reeves Residence,Kitchen,Stone & Surface Ltd.,Honed stone worktop sample set,Proposed,Not required,Not started,Not invoiced,2026-07-16,

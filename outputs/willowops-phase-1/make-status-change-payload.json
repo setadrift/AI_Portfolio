@@ -1,0 +1,10 @@
+{
+  "board": "Client Enquiries",
+  "itemId": "monday_item_123",
+  "projectId": "project_reeves",
+  "projectName": "Reeves Residence",
+  "previousStatus": "New",
+  "newStatus": "Qualified",
+  "changedAt": "2026-06-30T14:00:00Z",
+  "changedBy": "Operations"
+}

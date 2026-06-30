@@ -1,0 +1,10 @@
+{
+  "projectId": "project_reeves",
+  "statusChange": {
+    "board": "Client Enquiries",
+    "previousStatus": "New",
+    "newStatus": "Qualified",
+    "changedAt": "2026-06-30T14:00:00Z",
+    "changedBy": "Operations"
+  }
+}

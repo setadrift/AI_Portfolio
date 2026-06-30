@@ -1,0 +1,132 @@
+{
+  "info": {
+    "_postman_id": "0f0f88b0-dad9-4a21-a879-willowops0001",
+    "name": "WillowOps Phase 1 Prototype",
+    "description": "Local API requests for the WillowOps Phase 1 prototype: Make scenario, AI brief, Outlook draft dry run, Studio Designer CSV adapter, Xero mock, WhatsApp draft, and leadership report.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Dashboard data",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/willowops/dashboard-data"
+      }
+    },
+    {
+      "name": "Fast Make scenario - qualified enquiry",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"board\": \"Client Enquiries\",\n  \"itemId\": \"monday_item_123\",\n  \"projectId\": \"project_reeves\",\n  \"projectName\": \"Reeves Residence\",\n  \"previousStatus\": \"New\",\n  \"newStatus\": \"Qualified\",\n  \"changedAt\": \"2026-06-30T14:00:00Z\",\n  \"changedBy\": \"Operations\"\n}"
+        },
+        "url": "{{baseUrl}}/api/willowops/scenarios/qualified-enquiry"
+      }
+    },
+    {
+      "name": "AI discovery brief",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectId\": \"project_reeves\",\n  \"statusChange\": {\n    \"board\": \"Client Enquiries\",\n    \"previousStatus\": \"New\",\n    \"newStatus\": \"Qualified\",\n    \"changedAt\": \"2026-06-30T14:00:00Z\",\n    \"changedBy\": \"Operations\"\n  }\n}"
+        },
+        "url": "{{baseUrl}}/api/willowops/ai/discovery-brief"
+      }
+    },
+    {
+      "name": "Microsoft 365 Outlook draft dry run",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectId\": \"project_reeves\",\n  \"mode\": \"draft\"\n}"
+        },
+        "url": "{{baseUrl}}/api/willowops/microsoft365/outlook-draft"
+      }
+    },
+    {
+      "name": "Studio Designer CSV import",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"csv\": \"Project,Room,Supplier,Item,Status,Client Approval,PO Status,Invoice Status,Expected Delivery,Blocked Reason\\nShah House,Entrance hall,Heritage Lighting,Statement pendant and wall lights,Delayed,Approved,Acknowledged,Invoiced,2026-07-18,Supplier revised delivery date by 12 days\\nBrooks Study,Study,Atelier Fabrics,Window treatment fabric,Proposed,Pending,Not started,Not invoiced,2026-07-29,Awaiting client approval\\nReeves Residence,Kitchen,Stone & Surface Ltd.,Honed stone worktop sample set,Proposed,Not required,Not started,Not invoiced,2026-07-16,\"\n}"
+        },
+        "url": "{{baseUrl}}/api/willowops/studio-designer/import"
+      }
+    },
+    {
+      "name": "Xero invoice overdue event",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"eventType\": \"invoice_overdue\",\n  \"invoiceId\": \"xero_invoice_123\",\n  \"invoiceNumber\": \"INV-1042\",\n  \"projectId\": \"project_brooks\",\n  \"projectName\": \"Brooks Study\",\n  \"contactName\": \"Amelia Brooks\",\n  \"total\": 12000,\n  \"amountPaid\": 0,\n  \"amountDue\": 12000,\n  \"currency\": \"GBP\",\n  \"dueDate\": \"2026-06-24\",\n  \"status\": \"AUTHORISED\"\n}"
+        },
+        "url": "{{baseUrl}}/api/willowops/xero/invoice-event"
+      }
+    },
+    {
+      "name": "WhatsApp supplier delay draft",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectId\": \"project_shah\",\n  \"itemId\": \"item_shah_lighting\",\n  \"audience\": \"supplier\",\n  \"reason\": \"supplier_delay\"\n}"
+        },
+        "url": "{{baseUrl}}/api/willowops/whatsapp/message-draft"
+      }
+    },
+    {
+      "name": "Weekly leadership report",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/willowops/reports/leadership-weekly"
+      }
+    }
+  ]
+}
