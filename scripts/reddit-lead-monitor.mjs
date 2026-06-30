@@ -59,6 +59,37 @@ const positiveTerms = [
   "data cleanup",
 ];
 
+const communityPainTerms = [
+  "job boards are not",
+  "job boards aren't",
+  "job boards not",
+  "not bringing in anyone",
+  "need help finding",
+  "can't find",
+  "cant find",
+  "need someone who knows",
+  "network of",
+  "remote recruiting",
+  "busy season",
+  "can't keep track",
+  "cant keep track",
+  "buried in emails",
+  "missed follow up",
+  "missed follow-up",
+  "too many messages",
+  "too many calls",
+  "missed calls",
+  "scheduling mess",
+  "intake is chaotic",
+  "intake is messy",
+  "intake is broken",
+  "need a better system",
+  "follow up with applicants",
+  "screening applicants",
+  "quote requests",
+  "customer messages",
+];
+
 const buyingIntentTerms = [
   "hire",
   "hire someone",
@@ -77,6 +108,7 @@ const buyingIntentTerms = [
   "need someone",
   "looking for someone",
   "can someone help",
+  "need help finding",
   "need to automate",
   "automate it",
   "need a solution",
@@ -184,6 +216,8 @@ const allowedCategories = new Set([
   "reporting_automation",
   "document_pdf_automation",
   "spreadsheet_internal_tools",
+  "staffing_recruiting",
+  "operations_intake",
   "other",
 ]);
 
@@ -202,7 +236,10 @@ async function main() {
   const feedResults = [];
   const posts = [];
 
-  const channels = limitChannels(normalizeChannels(config));
+  const scanConfig = selectedScanConfig(config);
+  const channels = limitChannels(normalizeChannels(scanConfig));
+  const searchQueries = limitSearchQueries(scanConfig.searchQueries ?? []);
+  const totalConfiguredFeeds = channels.length + searchQueries.length;
   const requiresOauth = (config.ingestionMode ?? "oauth") === "oauth";
   const redditToken = await getRedditOAuthToken(env, { required: requiresOauth });
   const useOauth = Boolean(redditToken);
@@ -212,8 +249,9 @@ async function main() {
       ok: false,
       generatedAt: new Date().toISOString(),
       successfulFeeds: 0,
-      totalFeeds: channels.length,
+      totalFeeds: totalConfiguredFeeds,
       ingestionMode: "oauth",
+      scanMode: scanConfig.scanMode?.id ?? "legacy-config",
       fetchedPosts: 0,
       candidatesScored: 0,
       leadsIncluded: 0,
@@ -224,7 +262,11 @@ async function main() {
         url: `oauth:/r/${channel.subreddit}`,
         status: "missing_oauth_credentials",
         error: "Missing Reddit OAuth credentials.",
-      })),
+      })).concat(searchQueries.map((query) => ({
+        url: `reddit-search:${query}`,
+        status: "missing_oauth_credentials",
+        error: "Missing Reddit OAuth credentials.",
+      }))),
     });
     console.log(
       "Skipped Reddit lead scan: missing REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, or REDDIT_USER_AGENT.",
@@ -244,7 +286,6 @@ async function main() {
       await sleep(config.requestDelayMs ?? 1500);
     }
   }
-  const searchQueries = limitSearchQueries(config.searchQueries ?? []);
   for (const [index, query] of searchQueries.entries()) {
     const result = await fetchSearchQuery(query, {
       token: redditToken,
@@ -273,8 +314,8 @@ async function main() {
   const includedLeads = scored.filter((lead) => lead.score >= config.minScore);
   const successfulFeeds = feedResults.filter((result) => result.ok).length;
   const minSuccessfulFeeds = Math.min(
-    config.minSuccessfulFeeds ?? Math.min(3, channels.length),
-    channels.length,
+    scanConfig.minSuccessfulFeeds ?? Math.min(3, totalConfiguredFeeds),
+    totalConfiguredFeeds,
   );
   const hasLeads = includedLeads.length > 0;
   const hasEnoughCoverage = successfulFeeds >= minSuccessfulFeeds;
@@ -286,6 +327,7 @@ async function main() {
     rejectedCount: freshPosts.length - filtered.length,
     feedResults,
     config,
+    scanMode: scanConfig.scanMode,
     partialCoverage,
   });
 
@@ -297,6 +339,7 @@ async function main() {
     successfulFeeds,
     totalFeeds: feedResults.length,
     ingestionMode: useOauth ? "oauth" : "rss",
+    scanMode: scanConfig.scanMode?.id ?? "legacy-config",
     fetchedPosts: posts.length,
     candidatesScored: filtered.length,
     leadsIncluded: includedLeads.length,
@@ -351,6 +394,36 @@ async function loadDotEnv(filePath) {
 
 async function writeStatus(status) {
   await writeFile(STATUS_PATH, `${JSON.stringify(status, null, 2)}\n`, "utf8");
+}
+
+function selectedScanConfig(config) {
+  const requestedMode = process.env.REDDIT_SCAN_MODE || "";
+  const scanModes = Array.isArray(config.scanModes) ? config.scanModes : [];
+  const scanMode = requestedMode
+    ? scanModes.find((mode) => slug(mode.id || mode.label) === slug(requestedMode))
+    : scanModes[0] ?? null;
+
+  if (!scanMode) {
+    return {
+      ...config,
+      scanMode: null,
+      channels: config.channels ?? [],
+      searchQueries: config.searchQueries ?? [],
+    };
+  }
+
+  return {
+    ...config,
+    ...scanMode,
+    scanMode: {
+      id: slug(scanMode.id || scanMode.label),
+      label: scanMode.label || scanMode.id || "Selected scan mode",
+      description: scanMode.description || "",
+    },
+    channels: scanMode.channels ?? config.channels ?? [],
+    searchQueries: scanMode.searchQueries ?? config.searchQueries ?? [],
+    minSuccessfulFeeds: scanMode.minSuccessfulFeeds ?? config.minSuccessfulFeeds,
+  };
 }
 
 function normalizeChannels(config) {
@@ -433,6 +506,7 @@ async function fetchSearchQuery(query, options) {
     t: "month",
     limit: String(options.limit),
     type: "link",
+    restrict_sr: "false",
     raw_json: "1",
   });
   const url = `${REDDIT_OAUTH_HOST}/search?${params.toString()}`;
@@ -663,15 +737,22 @@ function parseFeed(xml, feedUrl) {
 function matchPost(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const matchedKeywords = termsInText(text, positiveTerms);
+  const communityPainMatches = termsInText(text, communityPainTerms);
   const buyingIntentMatches = termsInText(text, buyingIntentTerms);
   const negativeMatches = termsInText(text, negativeTerms);
   const hardNegativeMatches = termsInText(text, hardNegativeTerms);
 
-  return { matchedKeywords, buyingIntentMatches, negativeMatches, hardNegativeMatches };
+  return {
+    matchedKeywords,
+    communityPainMatches,
+    buyingIntentMatches,
+    negativeMatches,
+    hardNegativeMatches,
+  };
 }
 
 function shouldKeepPost(post) {
-  if (post.matchedKeywords.length === 0) return false;
+  if (post.matchedKeywords.length === 0 && post.communityPainMatches.length === 0) return false;
   if (post.hardNegativeMatches.length > 0) return false;
   if (/\bfor hire\b/i.test(post.title)) return false;
   if (isRoleSeekerPost(post)) return false;
@@ -686,6 +767,7 @@ function candidatePriority(post) {
   let priority = 0;
   priority += post.buyingIntentMatches.length * 8;
   priority += Math.min(post.matchedKeywords.length, 6) * 2;
+  priority += Math.min(post.communityPainMatches.length, 5) * 4;
   if (hasExplicitPaidProject(post)) priority += 35;
   if (hasSpecificWorkflowPain(post)) priority += 20;
   if (hasBusinessContext(post)) priority += 10;
@@ -725,6 +807,7 @@ async function scorePosts(posts, config, apiKey) {
 function scoreDeterministically(post) {
   let score = 2;
   if (post.matchedKeywords.length >= 2) score += 1;
+  if (post.communityPainMatches.length > 0) score += 1;
   if (post.buyingIntentMatches.length > 0) score += 1;
   if (post.negativeMatches.length > 0) score -= 1;
   score = Math.max(1, Math.min(5, score));
@@ -734,7 +817,7 @@ function scoreDeterministically(post) {
     score,
     category: categorize(post),
     recommendedAction: score >= 5 ? "dm" : score >= 4 ? "comment" : "watch",
-    scoreReason: `Matched ${post.matchedKeywords.join(", ")}${
+    scoreReason: `Matched ${[...post.matchedKeywords, ...post.communityPainMatches].join(", ")}${
       post.buyingIntentMatches.length
         ? ` with buying intent: ${post.buyingIntentMatches.join(", ")}`
         : ""
@@ -752,6 +835,7 @@ async function scoreWithLlm(post, config, apiKey) {
     publishedAt: post.publishedAt,
     url: post.url,
     matchedKeywords: post.matchedKeywords,
+    communityPainMatches: post.communityPainMatches,
     buyingIntentMatches: post.buyingIntentMatches,
     negativeMatches: post.negativeMatches,
   };
@@ -768,7 +852,7 @@ async function scoreWithLlm(post, config, apiKey) {
         {
           role: "system",
           content:
-            "You score Reddit posts for a freelance AI automation consultant. Return strict JSON only. Do not use markdown. The consultant builds practical workflow automations, internal tools, CRM automations, reporting pipelines, and document/PDF automation for small businesses. Be strict. Score 5 only when the post explicitly asks to hire/pay someone or describes a very specific implementation project with clear business stakes. Score 4 only for a specific recurring business workflow pain with likely buyer intent, e.g. messy CRM follow-up, manual spreadsheet/reporting/bookkeeping, client onboarding, lead routing, order/inventory workflows, PDFs/documents, or data cleanup. Score 3 for advice/tool recommendation posts, public-reply opportunities, or workflow curiosity without clear buying intent. Score 1-2 for broad discussion, market research, networking, sellers, builders asking for feedback, agencies, course promoters, or vague AI curiosity. Do not score a post 4+ just because it mentions automation, AI, CRM, Zapier, Make, Airtable, Notion, or spreadsheets. If recommendedAction is ignore, score must be 1 or 2. Suggested replies must be brief, practical, and Reddit-native. Do not say 'I can help' unless the post clearly asks for paid help. Do not include a website URL in public comments. Do not overclaim platform-specific expertise.",
+            "You score Reddit posts for a freelance AI automation consultant. Return strict JSON only. Do not use markdown. The consultant builds practical workflow automations, internal tools, CRM automations, reporting pipelines, document/PDF automation, lightweight intake systems, and recruiting or scheduling operations for small businesses. Be strict. Score 5 only when the post explicitly asks to hire/pay someone or describes a very specific implementation project with clear business stakes. Score 4 only for a specific recurring business workflow pain with likely buyer intent, e.g. messy CRM follow-up, manual spreadsheet/reporting/bookkeeping, client onboarding, applicant/recruiting follow-up, staff scheduling, lead routing, order/inventory workflows, PDFs/documents, customer intake, or data cleanup. Score 3 for advice/tool recommendation posts, public-reply opportunities, or workflow curiosity without clear buying intent. Score 1-2 for broad discussion, market research, networking, sellers, builders asking for feedback, agencies, course promoters, or vague AI curiosity. Do not score a post 4+ just because it mentions automation, AI, CRM, Zapier, Make, Airtable, Notion, or spreadsheets. If recommendedAction is ignore, score must be 1 or 2. Suggested replies must be brief, practical, and Reddit-native. Do not say 'I can help' unless the post clearly asks for paid help. Do not include a website URL in public comments. Do not overclaim platform-specific expertise.",
         },
         {
           role: "user",
@@ -792,6 +876,8 @@ async function scoreWithLlm(post, config, apiKey) {
                   "reporting_automation",
                   "document_pdf_automation",
                   "spreadsheet_internal_tools",
+                  "staffing_recruiting",
+                  "operations_intake",
                   "other",
                 ],
               },
@@ -890,7 +976,7 @@ function normalizeLlmScore(post, parsed) {
   };
 }
 
-function buildDigest({ date, leads, rejectedCount, feedResults, config, partialCoverage }) {
+function buildDigest({ date, leads, rejectedCount, feedResults, config, scanMode, partialCoverage }) {
   const sorted = [...leads].sort((a, b) => b.score - a.score);
   const best = sorted.filter((lead) => lead.score >= 4);
   const maybe = sorted.filter((lead) => lead.score === 3);
@@ -901,6 +987,7 @@ function buildDigest({ date, leads, rejectedCount, feedResults, config, partialC
     "",
     `Generated: ${new Date().toISOString()}`,
     `Feeds checked: ${feedResults.length}`,
+    `Scan mode: ${scanMode?.label ?? "Legacy config"}`,
     `Candidates included: ${best.length}`,
     `Review/watch candidates: ${maybe.length}`,
     `Filtered/rejected before digest: ${rejectedCount}`,
@@ -961,6 +1048,12 @@ function formatLead(lead) {
 
 function categorize(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
+  if (/(recruit|recruiting|applicant|candidate|job boards?|staffing|hire|hiring|nurses?|contractors?|screening applicants|busy season)/i.test(text)) {
+    return "staffing_recruiting";
+  }
+  if (/(intake|scheduling|appointments?|missed calls?|customer messages?|quote requests?|dispatch|can't keep track|cant keep track|buried in emails)/i.test(text)) {
+    return "operations_intake";
+  }
   if (/(crm|lead|drip|sms|email sequence|follow[- ]up|gohighlevel|rei reply|hubspot|zoho)/i.test(text)) {
     return "crm_lead_followup";
   }
@@ -989,7 +1082,7 @@ function hasExplicitPaidProject(post) {
   const explicitHire = /hire|paid help|open to paid help|need someone|need to hire|developer|freelancer/.test(
     text,
   );
-  const projectWork = /build|develop|software|automation|automate|workflow|crm|pdf|report|spreadsheet|excel|internal tool/.test(
+  const projectWork = /build|develop|software|automation|automate|workflow|crm|pdf|report|spreadsheet|excel|internal tool|recruiting|staffing|scheduling|intake|applicants?|follow up|follow-up/.test(
     text,
   );
   return explicitHire && projectWork;
@@ -997,14 +1090,14 @@ function hasExplicitPaidProject(post) {
 
 function hasSpecificWorkflowPain(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /manual|copy.?paste|spreadsheet|google sheets|excel|crm|follow[- ]?up|invoice|receipt|pdf|report|dashboard|bookkeeping|reconciliation|onboarding|offboarding|intake|form submissions?|lead routing|pipeline|inventory|orders?|fulfillment|client portal|data cleanup|api|zapier|make|n8n|airtable|notion|hubspot|pipedrive|zoho|quickbooks|xero|power bi|looker|data entry|every day|every week|every month|takes forever|too slow|mess|chaotic|stuck|can't figure|cant figure|desperate/.test(
+  return /manual|copy.?paste|spreadsheet|google sheets|excel|crm|follow[- ]?up|invoice|receipt|pdf|report|dashboard|bookkeeping|reconciliation|onboarding|offboarding|intake|form submissions?|lead routing|pipeline|inventory|orders?|fulfillment|client portal|data cleanup|api|zapier|make|n8n|airtable|notion|hubspot|pipedrive|zoho|quickbooks|xero|power bi|looker|data entry|every day|every week|every month|takes forever|too slow|mess|chaotic|stuck|can't figure|cant figure|desperate|job boards?|not bringing in anyone|need help finding|can't find|cant find|recruiting|staffing|applicants?|candidates?|screening|scheduling|busy season|missed calls?|customer messages?|quote requests?|buried in emails|can't keep track|cant keep track/.test(
     text,
   );
 }
 
 function hasBusinessContext(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /business|company|agency|client|customer|lead|sales|team|contractor|freelancer|employee|shopify|store|ecommerce|bookkeeping|accounting|real estate|realtor|msp|service business|consultancy|consulting|startup|founder|ops|operations|revenue|orders?|invoices?|prospects?|pipeline|warehouse|inventory|tickets?/.test(
+  return /business|company|agency|client|customer|lead|sales|team|contractor|freelancer|employee|shopify|store|ecommerce|bookkeeping|accounting|real estate|realtor|msp|service business|consultancy|consulting|startup|founder|ops|operations|revenue|orders?|invoices?|prospects?|pipeline|warehouse|inventory|tickets?|staff|staffing|recruit|recruiting|applicants?|candidates?|nurses?|drivers?|dispatch|appointments?/.test(
     text,
   );
 }
@@ -1076,7 +1169,7 @@ function hasBestLeadSignal(post) {
   if (isRoleSeekerPost(post) || isEmploymentPost(post) || isMarketResearchPost(post)) return false;
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const strongPain =
-    /\b(struggling|struggle|problem|pain|painful|mess|messy|manual|copy.?paste|takes forever|too slow|stuck|can't figure|cant figure|desperate|chaotic|broken|overwhelmed|moving off|switching from|migrate|migration|setup|set up|integrate|integration|reconciliation|manual reporting|difficult reporting|reporting issue|reporting problem)\b/.test(
+    /\b(struggling|struggle|problem|pain|painful|mess|messy|manual|copy.?paste|takes forever|too slow|stuck|can't figure|cant figure|desperate|chaotic|broken|overwhelmed|moving off|switching from|migrate|migration|setup|set up|integrate|integration|reconciliation|manual reporting|difficult reporting|reporting issue|reporting problem|job boards? not|not bringing in anyone|can't find|cant find|need help finding|busy season|missed calls?|too many messages|buried in emails|can't keep track|cant keep track|screening applicants|scheduling mess)\b/.test(
       text,
     );
   const genericAdviceTitle =
