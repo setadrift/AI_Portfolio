@@ -1,0 +1,4 @@
+Source System,Event Type,Project,Status,Started At,Finished At,Retry Count,Human Review,Error Message
+Make.com,qualified_enquiry_to_discovery_brief,Reeves Residence,Success,2026-06-30T09:12:00Z,2026-06-30T09:12:09Z,0,Yes,
+Studio Designer,procurement_delay_import,Shah House,Needs Review,2026-06-30T10:05:00Z,2026-06-30T10:05:04Z,0,Yes,
+Xero,invoice_overdue,Brooks Study,Success,2026-06-30T11:24:00Z,2026-06-30T11:24:03Z,0,No,
