@@ -6,6 +6,8 @@ const REDDIT_DIGEST_DIR = outputDir("REDDIT_LEAD_OUTPUT_DIR", "outputs/reddit-le
 const AUTOMATION_DIGEST_DIR = outputDir("AUTOMATION_LEAD_OUTPUT_DIR", "outputs/ai-consulting-leads");
 const PUBLISHED_DIGEST_PATH = "admin/leads/latest.json";
 const PUBLISHED_AUTOMATION_DIGEST_PATH = "admin/leads/automation/latest.json";
+const AUTOMATION_LEAD_MAX_AGE_DAYS = 7;
+const AUTOMATION_LEAD_MAX_AGE_MS = AUTOMATION_LEAD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
 
 export interface RedditLead {
   score: string;
@@ -469,22 +471,35 @@ async function buildAggregateAutomationMarkdown(outputDir: string) {
     throw new Error(`No dated automation digest found in ${outputDir}`);
   }
 
-  const blocks: string[] = [];
+  const blocks: Array<{ block: string; dedupeKey: string; sourceDate: string }> = [];
   let generatedAt = "";
   let feedsChecked = 0;
   let rejectedCount = 0;
   const feedErrors: string[] = [];
+  const newestAllowedDate = new Date();
 
-  for (const file of files) {
+  for (const file of [...files].reverse()) {
     const markdown = await readFile(path.join(outputDir, file), "utf8");
     generatedAt ||= metadataValue(markdown, "Generated");
     feedsChecked += numberValue(markdown, "Feeds checked");
     rejectedCount += numberValue(markdown, "Filtered/rejected before digest");
     feedErrors.push(...parseFeedErrorsWithSource(markdown, file));
     for (const block of leadBlocks(markdown)) {
-      blocks.push(withSourceDate(block.trim(), dateFromFileName(file)));
+      const explicitSourceDate = leadSourceDate(block);
+      const displaySourceDate = explicitSourceDate || dateFromFileName(file);
+      const normalized = withSourceDate(block.trim(), displaySourceDate);
+      blocks.push({
+        block: normalized,
+        dedupeKey: leadDedupeKey(normalized),
+        sourceDate: explicitSourceDate,
+      });
     }
   }
+
+  const filteredBlocks = dedupeLeadBlocks(
+    blocks.filter((entry) => isRecentLeadDate(entry.sourceDate, newestAllowedDate)),
+  );
+  rejectedCount += blocks.length - filteredBlocks.length;
 
   return {
     fileName: "codex-automation-leads.md",
@@ -493,14 +508,15 @@ async function buildAggregateAutomationMarkdown(outputDir: string) {
       "",
       `Generated: ${generatedAt || new Date().toISOString()}`,
       `Feeds checked: ${feedsChecked || files.length}`,
-      `Candidates included: ${blocks.length}`,
+      `Candidates included: ${filteredBlocks.length}`,
       `Filtered/rejected before digest: ${rejectedCount}`,
       "Minimum score: 4",
+      `Maximum lead age: ${AUTOMATION_LEAD_MAX_AGE_DAYS} days`,
       "Partial coverage: no",
       "",
       "## Best Leads",
       "",
-      blocks.length ? blocks.join("\n\n") : "No leads found.",
+      filteredBlocks.length ? filteredBlocks.map((entry) => entry.block).join("\n\n") : "No leads found.",
       "",
       "## Feed Errors",
       "",
@@ -524,7 +540,13 @@ function aggregateAutomationStatus(status: LeadRunStatus | null, markdown: strin
 function leadBlocks(markdown: string) {
   return markdown
     .split(/\n(?=### [1-5]\/5 - )/g)
-    .filter((block) => block.startsWith("### "));
+    .filter((block) => block.startsWith("### "))
+    .map((block) => block.split(/\n(?=## )/)[0]?.trim() ?? "")
+    .filter(Boolean);
+}
+
+function leadSourceDate(block: string) {
+  return bulletValue(block, "Source date");
 }
 
 function withSourceDate(block: string, sourceDate: string) {
@@ -536,6 +558,67 @@ function withSourceDate(block: string, sourceDate: string) {
   }
   lines.splice(insertAt, 0, `- Source date: ${sourceDate}`);
   return lines.join("\n");
+}
+
+function dedupeLeadBlocks(blocks: Array<{ block: string; dedupeKey: string; sourceDate: string }>) {
+  const seen = new Set<string>();
+  const deduped: Array<{ block: string; dedupeKey: string; sourceDate: string }> = [];
+  for (const block of blocks) {
+    if (seen.has(block.dedupeKey)) continue;
+    seen.add(block.dedupeKey);
+    deduped.push(block);
+  }
+  return deduped;
+}
+
+function leadDedupeKey(block: string) {
+  const url = bulletValue(block, "URL");
+  if (url) return `url:${normalizeLeadUrl(url)}`;
+
+  const heading = block.match(/^### [1-5]\/5 - (.+?) - (.+)$/m);
+  const source = heading?.[1] ?? "";
+  const title = heading?.[2] ?? block.split("\n")[0] ?? "";
+  return `title:${normalizeComparable(`${source} ${title}`)}`;
+}
+
+function normalizeLeadUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    parsed.search = "";
+    parsed.hostname = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+    parsed.pathname = parsed.pathname.replace(/\/+$/g, "");
+    return parsed.toString().toLowerCase();
+  } catch {
+    return normalizeComparable(url);
+  }
+}
+
+function normalizeComparable(value: string) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function isRecentLeadDate(sourceDate: string, now = new Date()) {
+  const parsed = parseLeadDate(sourceDate);
+  if (!parsed) return false;
+  const ageMs = startOfUtcDay(now).getTime() - parsed.getTime();
+  return ageMs >= 0 && ageMs <= AUTOMATION_LEAD_MAX_AGE_MS;
+}
+
+function parseLeadDate(value: string) {
+  const match = String(value || "").match(/\d{4}-\d{2}-\d{2}/);
+  if (!match) return null;
+  const parsed = new Date(`${match[0]}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function startOfUtcDay(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 }
 
 function numberValue(markdown: string, label: string) {
@@ -571,14 +654,19 @@ async function readPublishedLeadSource(pathname: string): Promise<(LeadSourceDig
 }
 
 function parseDigest(fileName: string, markdown: string, sourceKind: LeadSourceId): LeadDigest {
+  const leads = parseLeads(markdown, sourceKind, dateFromFileName(fileName));
+  const normalizedLeads = sourceKind === "automation" ? normalizeAutomationLeads(leads) : leads;
   return {
     fileName,
     generatedAt: metadataValue(markdown, "Generated"),
     feedsChecked: metadataValue(markdown, "Feeds checked"),
-    candidatesIncluded: metadataValue(markdown, "Candidates included"),
+    candidatesIncluded:
+      sourceKind === "automation"
+        ? normalizedLeads.length.toString()
+        : metadataValue(markdown, "Candidates included"),
     rejectedCount: metadataValue(markdown, "Filtered/rejected before digest"),
     feedErrors: parseFeedErrors(markdown),
-    leads: parseLeads(markdown, sourceKind, dateFromFileName(fileName)),
+    leads: normalizedLeads,
   };
 }
 
@@ -586,6 +674,7 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
   const blocks = markdown.split(/\n(?=### [1-5]\/5 - )/g);
   return blocks
     .filter((block) => block.startsWith("### "))
+    .map((block) => block.split(/\n(?=## )/)[0]?.trim() ?? "")
     .map((block) => {
       const heading = block.match(/^### ([1-5]\/5) - (.+?) - (.+)$/m);
       const sourceLabel = heading?.[2]?.trim() ?? "";
@@ -608,6 +697,26 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         suggestedDm: sectionQuote(block, "Suggested DM"),
       };
     });
+}
+
+function normalizeAutomationLeads(leads: RedditLead[]) {
+  const seen = new Set<string>();
+  const normalized: RedditLead[] = [];
+
+  for (const lead of [...leads].sort((a, b) => b.sourceDate.localeCompare(a.sourceDate))) {
+    if (!isRecentLeadDate(lead.sourceDate)) continue;
+    const dedupeKey = parsedLeadDedupeKey(lead);
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    normalized.push(lead);
+  }
+
+  return normalized;
+}
+
+function parsedLeadDedupeKey(lead: RedditLead) {
+  if (lead.url) return `url:${normalizeLeadUrl(lead.url)}`;
+  return `title:${normalizeComparable(`${lead.sourceLabel} ${lead.title}`)}`;
 }
 
 function parseFeedErrors(markdown: string) {
