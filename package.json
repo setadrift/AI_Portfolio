@@ -8,6 +8,7 @@
     "start": "next start",
     "leads:reddit": "node scripts/reddit-lead-monitor.mjs",
     "leads:publish": "node scripts/publish-lead-digest.mjs",
+    "leads:publish:automation": "node scripts/publish-automation-lead-digest.mjs",
     "lint": "eslint",
     "google-ads:smoke": "scripts/google_ads_python.sh scripts/google_ads_smoke.py",
     "google-ads:create-customer": "scripts/google_ads_python.sh scripts/google_ads_create_ai_consulting_customer.py",
