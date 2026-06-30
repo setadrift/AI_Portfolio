@@ -195,8 +195,8 @@ export default function LeadsDashboard({
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-[#141414] text-[#f3f0e8]">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 lg:h-[calc(100vh-3.5rem)] lg:px-5">
-        <header className="rounded-lg border border-white/10 bg-[#1d1d1d] p-4">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-5 lg:px-6 xl:px-8">
+        <header className="rounded-lg border border-white/10 bg-[#1d1d1d] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-white/45">
@@ -257,7 +257,7 @@ export default function LeadsDashboard({
             ))}
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
             <Metric label="Total" value={rows.length.toString()} />
             <Metric label="Actionable" value={counts.actionable.toString()} />
             <Metric label="Review" value={counts.review.toString()} />
@@ -288,9 +288,9 @@ export default function LeadsDashboard({
           </div>
         </header>
 
-        <main className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_390px]">
-          <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-white/10 bg-[#202020]">
-            <div className="border-b border-white/10 p-3">
+        <main className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
+          <section className="min-w-0 rounded-lg border border-white/10 bg-[#202020]">
+            <div className="border-b border-white/10 p-4">
               <div className="flex flex-wrap gap-2">
                 {QUEUES.map((queue) => (
                   <button
@@ -312,12 +312,12 @@ export default function LeadsDashboard({
                 ))}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="mt-4 grid gap-2 md:grid-cols-[minmax(280px,1fr)_160px_auto]">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search title, reason, source..."
-                  className="h-10 min-w-[260px] flex-1 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/30"
+                  className="h-10 w-full rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/30"
                 />
                 <select
                   value={sortBy}
@@ -332,14 +332,14 @@ export default function LeadsDashboard({
                 <button
                   type="button"
                   onClick={() => downloadCsv(selectedLeads.length ? selectedLeads : visibleRows)}
-                  className="h-10 rounded-md border border-white/10 px-3 text-sm text-white/70 hover:bg-white/5"
+                  className="h-10 rounded-md border border-white/10 px-4 text-sm text-white/70 hover:bg-white/5"
                 >
                   CSV
                 </button>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-white/45">
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+                <span className="mr-1 text-white/45">
                   {selectedIds.size
                     ? `${selectedIds.size} selected`
                     : `${visibleRows.length} visible in ${currentQueue.label}`}
@@ -362,7 +362,7 @@ export default function LeadsDashboard({
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="overflow-x-auto">
               {visibleRows.length === 0 ? (
                 <div className="flex h-full min-h-[360px] items-center justify-center px-6 text-center">
                   <div>
@@ -373,7 +373,7 @@ export default function LeadsDashboard({
                   </div>
                 </div>
               ) : (
-                <table className="min-w-[980px] text-left text-sm">
+                <table className="w-full min-w-[1120px] text-left text-sm">
                   <thead className="sticky top-0 z-10 bg-[#202020] text-xs uppercase tracking-[0.12em] text-white/40">
                     <tr className="border-b border-white/10">
                       <th className="w-10 px-3 py-3">
@@ -392,12 +392,12 @@ export default function LeadsDashboard({
                           }}
                         />
                       </th>
-                      <th className="px-3 py-3">Lead</th>
-                      <th className="px-3 py-3">Source</th>
-                      <th className="px-3 py-3">Type</th>
-                      <th className="px-3 py-3">Action</th>
-                      <th className="px-3 py-3">Score</th>
-                      <th className="px-3 py-3 text-right">Work</th>
+                      <th className="w-[42%] px-4 py-3">Lead</th>
+                      <th className="w-[16%] px-4 py-3">Source</th>
+                      <th className="w-[16%] px-4 py-3">Type</th>
+                      <th className="w-[150px] px-4 py-3">Action</th>
+                      <th className="w-[80px] px-4 py-3">Score</th>
+                      <th className="w-[190px] px-4 py-3 text-right">Work</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -423,17 +423,17 @@ export default function LeadsDashboard({
                             }}
                           />
                         </td>
-                        <td className="max-w-[380px] px-3 py-3">
-                          <div className="truncate font-medium">{lead.title}</div>
-                          <div className="line-clamp-2 text-xs leading-5 text-white/45">
+                        <td className="px-4 py-4 align-top">
+                          <div className="font-medium leading-5">{lead.title}</div>
+                          <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/45">
                             {lead.reason}
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-white/65">{lead.sourceLabel}</td>
-                        <td className="px-3 py-3 capitalize text-white/65">
+                        <td className="px-4 py-4 align-top text-white/65">{lead.sourceLabel}</td>
+                        <td className="px-4 py-4 align-top capitalize text-white/65">
                           {formatCategory(lead.category)}
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-4 align-top">
                           <select
                             value={lead.action}
                             onClick={(event) => event.stopPropagation()}
@@ -459,12 +459,12 @@ export default function LeadsDashboard({
                             ))}
                           </select>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-4 py-4 align-top">
                           <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs text-emerald-300">
                             {lead.score}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-right" onClick={(event) => event.stopPropagation()}>
+                        <td className="px-4 py-4 text-right align-top" onClick={(event) => event.stopPropagation()}>
                           {lead.queue !== "commented" ? (
                             <button
                               type="button"
@@ -528,7 +528,7 @@ function LeadDetail({
 }) {
   if (!lead) {
     return (
-      <aside className="rounded-lg border border-white/10 bg-[#202020] p-6 text-center">
+      <aside className="rounded-lg border border-white/10 bg-[#202020] p-6 text-center 2xl:sticky 2xl:top-5">
         <h2 className="text-base font-medium">No lead selected</h2>
         <p className="mt-2 text-sm text-white/45">Select a row to review the source and next action.</p>
       </aside>
@@ -536,7 +536,7 @@ function LeadDetail({
   }
 
   return (
-    <aside className="min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-[#202020] p-5">
+    <aside className="rounded-lg border border-white/10 bg-[#202020] p-5 2xl:sticky 2xl:top-5">
       <div className="flex flex-wrap items-center gap-2 text-xs text-white/45">
         <span>{lead.sourceLabel}</span>
         <span>{lead.author}</span>
