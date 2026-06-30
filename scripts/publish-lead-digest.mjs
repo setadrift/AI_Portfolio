@@ -27,6 +27,9 @@ async function main() {
   const fileName = path.basename(digestPath);
   const markdown = await readFile(digestPath, "utf8");
   const existingAutomationSource = await readPublishedAutomationSource();
+  if (!existingAutomationSource) {
+    console.warn("No existing automation source found while publishing lead bundle; using empty automation placeholder.");
+  }
   const payload = JSON.stringify(
     {
       sources: [
@@ -59,7 +62,28 @@ async function main() {
     cacheControlMaxAge: 60,
   });
 
-  console.log(`Published ${fileName} to Vercel Blob at ${PUBLISHED_DIGEST_PATH}`);
+  console.log(
+    JSON.stringify({
+      message: `Published ${fileName} to Vercel Blob at ${PUBLISHED_DIGEST_PATH}`,
+      path: PUBLISHED_DIGEST_PATH,
+      reddit: digestStats(markdown),
+      automation: existingAutomationSource ? digestStats(existingAutomationSource.markdown ?? "") : null,
+    }),
+  );
+}
+
+function digestStats(markdown) {
+  const bestLeadsSection = markdown
+    .split("\n## Maybe / Watch")[0]
+    .split("\n## Rejected")[0]
+    .split("\n## Feed Errors")[0];
+  return {
+    declaredCandidates: numberValue(markdown, "Candidates included"),
+    bestLeadRows: (bestLeadsSection.match(/^### [1-5]\/5 - /gm) ?? []).length,
+    totalHeadingRows: (markdown.match(/^### [1-5]\/5 - /gm) ?? []).length,
+    postedDates: (bestLeadsSection.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
+    unknownPostedDates: (bestLeadsSection.match(/^- Posted date: unknown/gm) ?? []).length,
+  };
 }
 
 function emptyAutomationMarkdown() {
@@ -116,6 +140,20 @@ async function readPublishedAutomationSourceAt(pathname) {
   } catch {
     return null;
   }
+}
+
+function numberValue(markdown, label) {
+  const parsed = Number.parseInt(metadataValue(markdown, label) || "0", 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function metadataValue(markdown, label) {
+  const match = markdown.match(new RegExp(`^${escapeRegExp(label)}: (.+)$`, "m"));
+  return match?.[1]?.trim() ?? "";
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function readStatus() {
