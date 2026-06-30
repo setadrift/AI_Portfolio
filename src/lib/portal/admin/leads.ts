@@ -2,8 +2,10 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { get, put } from "@vercel/blob";
 
-const DIGEST_DIR = path.join(process.cwd(), "outputs", "reddit-leads");
+const REDDIT_DIGEST_DIR = outputDir("REDDIT_LEAD_OUTPUT_DIR", "outputs/reddit-leads");
+const AUTOMATION_DIGEST_DIR = outputDir("AUTOMATION_LEAD_OUTPUT_DIR", "outputs/ai-consulting-leads");
 const PUBLISHED_DIGEST_PATH = "admin/leads/latest.json";
+const PUBLISHED_AUTOMATION_DIGEST_PATH = "admin/leads/automation/latest.json";
 
 export interface RedditLead {
   score: string;
@@ -75,8 +77,16 @@ export interface LeadChannel {
 }
 
 export async function readLeadDashboardData(): Promise<LeadDashboardData> {
-  const [publishedSources, localRedditDigest, localAutomationDigest, localStatus, channels] = await Promise.all([
+  const [
+    publishedSources,
+    publishedAutomationSource,
+    localRedditDigest,
+    localAutomationDigest,
+    localStatus,
+    channels,
+  ] = await Promise.all([
     readPublishedLeadSources(),
+    readPublishedAutomationSource(),
     readLatestLocalRedditDigest(),
     readLocalAutomationLeadDigest(),
     readLatestLocalRunStatus(),
@@ -90,7 +100,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     digest: localRedditDigest,
     status: localStatus,
   };
-  const automationSource = publishedSources.find((source) => source.id === "automation") ?? {
+  const automationSource = publishedAutomationSource ?? publishedSources.find((source) => source.id === "automation") ?? {
     id: "automation" as const,
     label: "Codex automation",
     description: "Broader public-web leads from the AI consulting research automation.",
@@ -173,17 +183,12 @@ export async function publishLeadDigest(payload: PublishedLeadDigest) {
   });
 }
 
-export async function publishLatestLeadDigest(outputDir = DIGEST_DIR) {
+export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
   const status = await readRunStatus(outputDir);
   const digestPath = await findLatestDigestPath(outputDir, status?.outputPath);
   const fileName = path.basename(digestPath);
   const markdown = await readFile(digestPath, "utf8");
   const existingAutomationSource = await readPublishedAutomationSource();
-  const automationMarkdown = await buildAutomationMarkdown(
-    outputDir,
-    fileName,
-    existingAutomationSource?.markdown,
-  );
 
   await put(
     PUBLISHED_DIGEST_PATH,
@@ -202,9 +207,9 @@ export async function publishLatestLeadDigest(outputDir = DIGEST_DIR) {
             id: "automation",
             label: "Codex automation",
             description: "Broader public-web leads from the AI consulting research automation.",
-            fileName: "codex-automation-leads.md",
-            markdown: automationMarkdown,
-            status: null,
+            fileName: existingAutomationSource?.digest?.fileName ?? "codex-automation-leads.md",
+            markdown: existingAutomationSource?.markdown ?? emptyAutomationMarkdown(),
+            status: existingAutomationSource?.status ?? null,
           },
         ],
       },
@@ -220,6 +225,28 @@ export async function publishLatestLeadDigest(outputDir = DIGEST_DIR) {
   );
 
   return `Published ${fileName} to Vercel Blob at ${PUBLISHED_DIGEST_PATH}`;
+}
+
+export async function publishLatestAutomationLeadDigest(outputDir = AUTOMATION_DIGEST_DIR) {
+  const status = await readRunStatus(outputDir);
+  const { fileName, markdown } = await buildAggregateAutomationMarkdown(outputDir);
+  const payload: PublishedLeadSource = {
+    id: "automation",
+    label: "Codex automation",
+    description: "Broader public-web leads from the AI consulting research automation.",
+    fileName,
+    markdown,
+    status: aggregateAutomationStatus(status, markdown),
+  };
+
+  await put(PUBLISHED_AUTOMATION_DIGEST_PATH, JSON.stringify(payload, null, 2), {
+    access: "private",
+    allowOverwrite: true,
+    contentType: "application/json",
+    cacheControlMaxAge: 60,
+  });
+
+  return `Published ${fileName} to Vercel Blob at ${PUBLISHED_AUTOMATION_DIGEST_PATH}`;
 }
 
 async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
@@ -261,7 +288,10 @@ async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
   }
 }
 
-async function readPublishedAutomationSource(): Promise<PublishedLeadSource | null> {
+async function readPublishedAutomationSource(): Promise<(LeadSourceDigest & { markdown: string }) | null> {
+  const dedicatedSource = await readPublishedLeadSource(PUBLISHED_AUTOMATION_DIGEST_PATH);
+  if (dedicatedSource) return dedicatedSource;
+
   try {
     const result = await get(PUBLISHED_DIGEST_PATH, {
       access: "private",
@@ -271,7 +301,17 @@ async function readPublishedAutomationSource(): Promise<PublishedLeadSource | nu
 
     const raw = await streamToText(result.stream);
     const payload = JSON.parse(raw) as PublishedLeadBundle;
-    return payload.sources?.find((source) => source.id === "automation") ?? null;
+    const source = payload.sources?.find((item) => item.id === "automation") ?? null;
+    if (!source) return null;
+
+    return {
+      id: source.id,
+      label: source.label,
+      description: source.description,
+      digest: parseDigest(source.fileName, source.markdown, source.id),
+      markdown: source.markdown,
+      status: source.status ?? null,
+    };
   } catch {
     return null;
   }
@@ -295,13 +335,13 @@ async function readLatestLocalRedditDigest(): Promise<LeadDigest | null> {
       }
     }
 
-    const files = (await readdir(DIGEST_DIR))
+    const files = (await readdir(REDDIT_DIGEST_DIR))
       .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file))
       .sort()
       .reverse();
 
     for (const fileName of files) {
-      const markdown = await readFile(path.join(DIGEST_DIR, fileName), "utf8");
+      const markdown = await readFile(path.join(REDDIT_DIGEST_DIR, fileName), "utf8");
       const digest = parseDigest(fileName, markdown, "reddit");
       if (isUsableDigest(digest)) return digest;
     }
@@ -314,47 +354,16 @@ async function readLatestLocalRedditDigest(): Promise<LeadDigest | null> {
 
 async function readLocalAutomationLeadDigest(): Promise<LeadDigest | null> {
   try {
-    const status = await readLatestLocalRunStatus();
-    const redditFileName = status?.outputPath ? path.basename(status.outputPath) : "";
-    const files = (await readdir(DIGEST_DIR))
-      .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file) && file !== redditFileName)
-      .sort()
-      .reverse();
-    const seen = new Set<string>();
-    const leads: RedditLead[] = [];
-    let newestGeneratedAt = "";
-
-    for (const fileName of files) {
-      const markdown = await readFile(path.join(DIGEST_DIR, fileName), "utf8");
-      const digest = parseDigest(fileName, markdown, "automation");
-      newestGeneratedAt ||= digest.generatedAt;
-      for (const lead of digest.leads) {
-        if (!lead.score.startsWith("4") && !lead.score.startsWith("5")) continue;
-        const key = lead.url || `${lead.sourceLabel}:${lead.title}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        leads.push(lead);
-      }
-    }
-
-    if (!leads.length) return null;
-
-    return {
-      fileName: "codex-automation-leads.md",
-      generatedAt: newestGeneratedAt,
-      feedsChecked: files.length.toString(),
-      candidatesIncluded: leads.length.toString(),
-      rejectedCount: "0",
-      feedErrors: [],
-      leads,
-    };
+    const { fileName, markdown } = await buildAggregateAutomationMarkdown(AUTOMATION_DIGEST_DIR);
+    const digest = parseDigest(fileName, markdown, "automation");
+    return isUsableDigest(digest) ? digest : null;
   } catch {
     return null;
   }
 }
 
 async function readLatestLocalRunStatus(): Promise<LeadRunStatus | null> {
-  return readRunStatus(DIGEST_DIR);
+  return readRunStatus(REDDIT_DIGEST_DIR);
 }
 
 async function readRunStatus(outputDir: string): Promise<LeadRunStatus | null> {
@@ -388,54 +397,136 @@ async function findLatestDigestPath(outputDir: string, statusOutputPath?: string
   return path.join(outputDir, files[0]);
 }
 
-async function buildAutomationMarkdown(
-  outputDir: string,
-  redditFileName: string,
-  fallbackMarkdown = "",
-) {
-  const files = (await readdir(outputDir))
-    .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file) && file !== redditFileName)
-    .sort()
-    .reverse();
-  const seen = new Set<string>();
-  const blocks: string[] = [];
-  let generatedAt = "";
-
-  for (const file of files) {
-    const markdown = await readFile(path.join(outputDir, file), "utf8");
-    generatedAt ||= metadataValue(markdown, "Generated");
-    for (const block of leadBlocks(markdown)) {
-      const heading = block.match(/^### ([1-5])\/5 - (.+?) - (.+)$/m);
-      if (!heading || !["4", "5"].includes(heading[1])) continue;
-      const url = bulletValue(block, "URL");
-      const key = url || `${heading[2]}:${heading[3]}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      blocks.push(block.trim());
-    }
-  }
-
-  if (!blocks.length && fallbackMarkdown) return fallbackMarkdown;
-
+function emptyAutomationMarkdown() {
   return [
     "# Codex Automation Lead Digest",
     "",
-    `Generated: ${generatedAt || new Date().toISOString()}`,
-    `Feeds checked: ${files.length}`,
-    `Candidates included: ${blocks.length}`,
+    `Generated: ${new Date().toISOString()}`,
+    "Feeds checked: 0",
+    "Candidates included: 0",
     "Filtered/rejected before digest: 0",
     "Minimum score: 4",
     "Partial coverage: no",
     "",
     "## Best Leads",
     "",
-    blocks.length ? blocks.join("\n\n") : "No 4+ leads found.",
+    "No automation digest has been published yet.",
     "",
     "## Feed Errors",
     "",
     "No feed errors.",
     "",
   ].join("\n");
+}
+
+async function buildAggregateAutomationMarkdown(outputDir: string) {
+  const files = (await readdir(outputDir))
+    .filter((file) => /^\d{4}-\d{2}-\d{2}\.md$/.test(file))
+    .sort();
+
+  if (!files.length) {
+    throw new Error(`No dated automation digest found in ${outputDir}`);
+  }
+
+  const blocks: string[] = [];
+  let generatedAt = "";
+  let feedsChecked = 0;
+  let rejectedCount = 0;
+  const feedErrors: string[] = [];
+
+  for (const file of files) {
+    const markdown = await readFile(path.join(outputDir, file), "utf8");
+    generatedAt ||= metadataValue(markdown, "Generated");
+    feedsChecked += numberValue(markdown, "Feeds checked");
+    rejectedCount += numberValue(markdown, "Filtered/rejected before digest");
+    feedErrors.push(...parseFeedErrorsWithSource(markdown, file));
+    for (const block of leadBlocks(markdown)) {
+      blocks.push(withSourceDate(block.trim(), dateFromFileName(file)));
+    }
+  }
+
+  return {
+    fileName: "codex-automation-leads.md",
+    markdown: [
+      "# Codex Automation Lead Digest",
+      "",
+      `Generated: ${generatedAt || new Date().toISOString()}`,
+      `Feeds checked: ${feedsChecked || files.length}`,
+      `Candidates included: ${blocks.length}`,
+      `Filtered/rejected before digest: ${rejectedCount}`,
+      "Minimum score: 4",
+      "Partial coverage: no",
+      "",
+      "## Best Leads",
+      "",
+      blocks.length ? blocks.join("\n\n") : "No leads found.",
+      "",
+      "## Feed Errors",
+      "",
+      feedErrors.length ? feedErrors.join("\n") : "No feed errors.",
+      "",
+    ].join("\n"),
+  };
+}
+
+function aggregateAutomationStatus(status: LeadRunStatus | null, markdown: string): LeadRunStatus | null {
+  if (!status) return null;
+
+  return {
+    ...status,
+    leadsIncluded: numberValue(markdown, "Candidates included"),
+    outputPath: "codex-automation-leads.md",
+    message: "Published aggregate Codex automation lead digest.",
+  };
+}
+
+function leadBlocks(markdown: string) {
+  return markdown
+    .split(/\n(?=### [1-5]\/5 - )/g)
+    .filter((block) => block.startsWith("### "));
+}
+
+function withSourceDate(block: string, sourceDate: string) {
+  if (/^- Source date: /m.test(block)) return block;
+  const lines = block.split("\n");
+  const insertAt = lines.findIndex((line, index) => index > 0 && line.startsWith("- "));
+  if (insertAt === -1) {
+    return `${lines[0]}\n- Source date: ${sourceDate}\n${lines.slice(1).join("\n")}`.trim();
+  }
+  lines.splice(insertAt, 0, `- Source date: ${sourceDate}`);
+  return lines.join("\n");
+}
+
+function numberValue(markdown: string, label: string) {
+  const parsed = Number.parseInt(metadataValue(markdown, label) || "0", 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseFeedErrorsWithSource(markdown: string, fileName: string) {
+  return parseFeedErrors(markdown).map((error) => `- ${fileName}: ${error}`);
+}
+
+async function readPublishedLeadSource(pathname: string): Promise<(LeadSourceDigest & { markdown: string }) | null> {
+  try {
+    const result = await get(pathname, {
+      access: "private",
+      useCache: false,
+    });
+    if (!result || result.statusCode !== 200) return null;
+
+    const raw = await streamToText(result.stream);
+    const source = JSON.parse(raw) as PublishedLeadSource;
+    return {
+      id: source.id,
+      label: source.label,
+      description: source.description,
+      digest: parseDigest(source.fileName, source.markdown, source.id),
+      markdown: source.markdown,
+      status: source.status ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function parseDigest(fileName: string, markdown: string, sourceKind: LeadSourceId): LeadDigest {
@@ -464,7 +555,7 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         source: sourceLabel,
         sourceLabel,
         sourceKind,
-        sourceDate,
+        sourceDate: bulletValue(block, "Source date") || sourceDate,
         subreddit,
         title: heading?.[3] ?? "Untitled lead",
         url: bulletValue(block, "URL"),
@@ -476,12 +567,6 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         suggestedDm: sectionQuote(block, "Suggested DM"),
       };
     });
-}
-
-function leadBlocks(markdown: string) {
-  return markdown
-    .split(/\n(?=### [1-5]\/5 - )/g)
-    .filter((block) => block.startsWith("### "));
 }
 
 function parseFeedErrors(markdown: string) {
@@ -536,6 +621,11 @@ function slug(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+function outputDir(envName: string, fallback: string) {
+  const value = process.env[envName] || fallback;
+  return path.isAbsolute(value) ? value : path.join(process.cwd(), value);
 }
 
 async function streamToText(stream: ReadableStream<Uint8Array>) {

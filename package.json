@@ -8,6 +8,7 @@
     "start": "next start",
     "leads:reddit": "node scripts/reddit-lead-monitor.mjs",
     "leads:publish": "node scripts/publish-lead-digest.mjs",
+    "leads:publish:automation": "node scripts/publish-automation-lead-digest.mjs",
     "willowops:monday:setup": "node scripts/willowops_monday_setup.mjs",
     "willowops:smoke": "bash scripts/willowops_phase1_smoke.sh",
     "willowops:tunnel": "bash scripts/willowops_tunnel.sh",
