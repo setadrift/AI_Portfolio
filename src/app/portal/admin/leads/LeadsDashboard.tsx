@@ -48,8 +48,8 @@ export default function LeadsDashboard({
   initialData: LeadDashboardData;
 }) {
   const router = useRouter();
-  const [selectedChannel, setSelectedChannel] = useState(
-    initialData.channels[0]?.id ?? "automation",
+  const [selectedScanMode, setSelectedScanMode] = useState(
+    initialData.scanModes[0]?.id ?? "broad-buyer-intent",
   );
   const [selectedSourceId, setSelectedSourceId] = useState<LeadSourceId>(
     initialData.sources[0]?.id ?? "reddit",
@@ -139,7 +139,7 @@ export default function LeadsDashboard({
       const response = await fetch("/api/portal/admin/leads/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel: selectedChannel }),
+        body: JSON.stringify({ mode: selectedScanMode }),
       });
       const result = (await response.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -204,20 +204,21 @@ export default function LeadsDashboard({
               </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight">Leads</h1>
               <p className="mt-1 text-sm text-white/50">
-                Switch between Codex research leads and the Reddit monitor, then work each source from one queue.
+                Switch between Codex research leads and broad Reddit scan modes, then work each source from one queue.
               </p>
             </div>
 
             {selectedSourceId === "reddit" ? (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <select
-                  value={selectedChannel}
-                  onChange={(event) => setSelectedChannel(event.target.value)}
+                  value={selectedScanMode}
+                  onChange={(event) => setSelectedScanMode(event.target.value)}
+                  title={initialData.scanModes.find((mode) => mode.id === selectedScanMode)?.description}
                   className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
                 >
-                  {initialData.channels.map((channel) => (
-                    <option key={channel.id} value={channel.id}>
-                      {channel.label}
+                  {initialData.scanModes.map((mode) => (
+                    <option key={mode.id} value={mode.id}>
+                      {mode.label}
                     </option>
                   ))}
                 </select>
@@ -271,7 +272,8 @@ export default function LeadsDashboard({
               <>
                 Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
                 {selectedStatus.totalFeeds} feeds, {selectedStatus.fetchedPosts} posts,{" "}
-                {selectedStatus.candidatesScored} scored, mode{" "}
+                {selectedStatus.candidatesScored} scored, scan{" "}
+                {selectedStatus.scanMode ?? selectedScanMode}, ingestion{" "}
                 {selectedStatus.ingestionMode ?? "unknown"}.
               </>
             ) : selectedSource?.digest ? (
@@ -366,7 +368,7 @@ export default function LeadsDashboard({
                   <div>
                     <h2 className="text-base font-medium">No leads match this view</h2>
                     <p className="mt-2 text-sm text-white/45">
-                      Run another channel scan or clear the search filter.
+                      Run another scan mode or clear the search filter.
                     </p>
                   </div>
                 </div>

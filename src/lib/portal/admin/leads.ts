@@ -50,6 +50,7 @@ export interface LeadRunStatus {
   successfulFeeds: number;
   totalFeeds: number;
   ingestionMode?: "oauth" | "rss";
+  scanMode?: string;
   fetchedPosts: number;
   candidatesScored: number;
   leadsIncluded: number;
@@ -67,6 +68,7 @@ export interface LeadDashboardData {
   status: LeadRunStatus | null;
   sources: LeadSourceDigest[];
   channels: LeadChannel[];
+  scanModes: LeadScanMode[];
 }
 
 export interface LeadChannel {
@@ -74,6 +76,12 @@ export interface LeadChannel {
   label: string;
   subreddit: string;
   feed?: string;
+}
+
+export interface LeadScanMode {
+  id: string;
+  label: string;
+  description: string;
 }
 
 export async function readLeadDashboardData(): Promise<LeadDashboardData> {
@@ -84,6 +92,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     localAutomationDigest,
     localStatus,
     channels,
+    scanModes,
   ] = await Promise.all([
     readPublishedLeadSources(),
     readPublishedAutomationSource(),
@@ -91,6 +100,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     readLocalAutomationLeadDigest(),
     readLatestLocalRunStatus(),
     readLeadChannels(),
+    readLeadScanModes(),
   ]);
 
   const redditSource = publishedSources.find((source) => source.id === "reddit") ?? {
@@ -111,7 +121,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
   const digest = redditSource.digest ?? localRedditDigest;
   const status = redditSource.status ?? localStatus;
 
-  return { digest, status, sources, channels };
+  return { digest, status, sources, channels, scanModes };
 }
 
 export async function readLeadChannels(): Promise<LeadChannel[]> {
@@ -147,6 +157,37 @@ export async function readLeadChannels(): Promise<LeadChannel[]> {
         feed,
       };
     });
+  } catch {
+    return [];
+  }
+}
+
+export async function readLeadScanModes(): Promise<LeadScanMode[]> {
+  try {
+    const configPath = path.join(process.cwd(), "config", "reddit-lead-monitor.json");
+    const raw = await readFile(configPath, "utf8");
+    const config = JSON.parse(raw) as {
+      scanModes?: Array<{ id?: string; label?: string; description?: string }>;
+      channels?: Array<{ id?: string; label?: string; subreddit?: string }>;
+    };
+
+    if (config.scanModes?.length) {
+      return config.scanModes
+        .map((mode) => ({
+          id: slug(mode.id ?? mode.label ?? ""),
+          label: mode.label ?? mode.id ?? "Scan mode",
+          description: mode.description ?? "",
+        }))
+        .filter((mode) => mode.id);
+    }
+
+    return [
+      {
+        id: "legacy-config",
+        label: "Legacy configured scan",
+        description: "Runs the channels and search queries defined at the top level of the Reddit lead monitor config.",
+      },
+    ];
   } catch {
     return [];
   }

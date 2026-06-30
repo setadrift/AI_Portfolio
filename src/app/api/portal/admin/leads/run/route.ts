@@ -2,7 +2,11 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { publishLatestLeadDigest, readLeadChannels } from "@/lib/portal/admin/leads";
+import {
+  publishLatestLeadDigest,
+  readLeadChannels,
+  readLeadScanModes,
+} from "@/lib/portal/admin/leads";
 import { PORTAL_COOKIE, verifySession } from "@/lib/portal/session";
 
 export const runtime = "nodejs";
@@ -25,30 +29,42 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = (await req.json().catch(() => null)) as { channel?: string } | null;
+  const body = (await req.json().catch(() => null)) as { channel?: string; mode?: string } | null;
   const channels = await readLeadChannels();
+  const scanModes = await readLeadScanModes();
+  const mode = body?.mode ?? scanModes[0]?.id ?? "";
   const channel = body?.channel ?? "all";
+  const selectedMode = mode ? scanModes.find((item) => item.id === mode) : null;
   const selected = channel === "all" ? null : channels.find((item) => item.id === channel);
+
+  if (mode && !selectedMode) {
+    return NextResponse.json({ error: "Unknown scan mode" }, { status: 400 });
+  }
 
   if (channel !== "all" && !selected) {
     return NextResponse.json({ error: "Unknown channel" }, { status: 400 });
   }
 
-  const result = await runLeadMonitor(selected?.id ?? null);
+  const result = await runLeadMonitor({
+    mode: selectedMode?.id ?? null,
+    channel: selected?.id ?? null,
+  });
   return NextResponse.json({
     ok: result.code === 0,
+    mode,
     channel,
     stdout: result.stdout,
     stderr: result.stderr,
   });
 }
 
-async function runLeadMonitor(channel: string | null) {
+async function runLeadMonitor({ mode, channel }: { mode: string | null; channel: string | null }) {
   const outputDir = process.env.VERCEL ? "/tmp/reddit-leads" : "outputs/reddit-leads";
   const shouldPublish = Boolean(process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN);
 
   const scanResult = await runScript("reddit-lead-monitor.mjs", {
     REDDIT_LEAD_OUTPUT_DIR: outputDir,
+    ...(mode ? { REDDIT_SCAN_MODE: mode } : {}),
     ...(channel ? { REDDIT_FEED_MATCH: channel } : {}),
   });
 
