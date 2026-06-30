@@ -181,6 +181,33 @@ export default function LeadsDashboard({
     }
   }
 
+  async function runAutomationScan() {
+    setIsRunning(true);
+    setRunMessage("");
+    try {
+      const response = await fetch("/api/portal/admin/leads/run-automation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || "Automation scan failed");
+      }
+
+      setRunMessage(result.message || "Codex automation leads loaded.");
+      router.refresh();
+    } catch (error) {
+      setRunMessage(error instanceof Error ? error.message : "Automation scan failed");
+    } finally {
+      setIsRunning(false);
+    }
+  }
+
   function updateLead(lead: RedditLead, patch: Partial<LeadState>) {
     const key = leadKey(lead);
     const nextState = {
@@ -294,7 +321,19 @@ export default function LeadsDashboard({
                   {isRunning ? "Scanning..." : "Run scan"}
                 </button>
               </div>
-            ) : null}
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={runAutomationScan}
+                  disabled={isRunning}
+                  className="h-10 rounded-md bg-[#f3f0e8] px-4 text-sm font-medium text-[#151515] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  title="Publishes the latest Codex automation digest from the configured worktree output directory."
+                >
+                  {isRunning ? "Loading..." : "Run automation scan"}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -333,13 +372,21 @@ export default function LeadsDashboard({
 
           <div className="mt-3 text-xs text-white/45">
             {selectedStatus ? (
-              <>
-                Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
-                {selectedStatus.totalFeeds} feeds, {selectedStatus.fetchedPosts} posts,{" "}
-                {selectedStatus.candidatesScored} scored, scan{" "}
-                {selectedStatus.scanMode ?? selectedScanMode}, ingestion{" "}
-                {selectedStatus.ingestionMode ?? "unknown"}.
-              </>
+              selectedSourceId === "reddit" ? (
+                <>
+                  Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
+                  {selectedStatus.totalFeeds} feeds, {selectedStatus.fetchedPosts} posts,{" "}
+                  {selectedStatus.candidatesScored} scored, scan{" "}
+                  {selectedStatus.scanMode ?? selectedScanMode}, ingestion{" "}
+                  {selectedStatus.ingestionMode ?? "unknown"}.
+                </>
+              ) : (
+                <>
+                  Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
+                  {selectedStatus.totalFeeds} sources, {selectedStatus.fetchedPosts} candidates,{" "}
+                  {selectedStatus.candidatesScored} scored, {selectedStatus.leadsIncluded} loaded.
+                </>
+              )
             ) : selectedSource?.digest ? (
               <>
                 Source: {selectedSource.description} Generated {selectedSource.digest.generatedAt || "unknown"},{" "}
@@ -352,7 +399,7 @@ export default function LeadsDashboard({
           </div>
           {selectedSource?.diagnostic ? (
             <div className="mt-2 text-xs text-white/40">
-              Parsed {selectedSource.diagnostic.parsedLeads} Best Leads rows from{" "}
+              Parsed {selectedSource.diagnostic.parsedLeads} displayed lead rows from{" "}
               {selectedSource.diagnostic.fileName || "unknown file"}; declared{" "}
               {selectedSource.diagnostic.declaredCandidates}, posted dates{" "}
               {selectedSource.diagnostic.postedDateCount}/
