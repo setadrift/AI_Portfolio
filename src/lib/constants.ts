@@ -77,4 +77,36 @@ export const PROJECTS: Project[] = [
       "The Lineup is a live paid product, not a demo. I built and continue to operate the full loop: data pipelines, ML models, odds ingestion, automated settlement, user dashboards, billing, email, analytics, growth experiments, and reliability monitoring. It is the clearest example of how I build AI and automation systems that connect models, operations, and business outcomes.",
     tech: ["Python", "FastAPI", "Next.js", "LightGBM", "PostgreSQL", "Redis", "Stripe", "RevenueCat"],
   },
+  {
+    slug: "alex-parker-property-ops",
+    clientType: "Property Operations",
+    title: "Alex Parker Property Ops Portal",
+    challenge:
+      "A rental operator needed a better way to capture turn-repair notes, receipt details, contractor handoffs, and Gmail follow-up without letting messy field work corrupt the live Airtable base.",
+    result:
+      "Built a private review-first portal with turn-repair capture, phone-friendly work views, contractor sharing, receipt extraction, and Gmail sweep setup.",
+    problem:
+      "The operating work lived across Airtable, field notes, repair photos, receipts, and Gmail. Airtable was still the right source of truth, but it was not the right surface for helpers on phones, contractor-ready summaries, or uncertain AI extraction. A useful system had to make field capture faster while keeping Alex in control before anything touched live records.",
+    solution:
+      "I built a private property operations portal around the existing Airtable workflow. The turn-repair command center supports capture sessions, staged review queues, phone-friendly material and contractor views, schedule-risk views, contractor share previews, and helper uploads. The receipt workflow extracts vendor, date, amount, property, and work description into an Airtable-ready review object. The Gmail sweep area packages a review-first workflow that can be adapted to Alex's own Gmail and Airtable connector setup.",
+    outcome:
+      "The prototype turned scattered repair and receipt work into a clear approval path. Alex can review structured outputs before promotion, use cleaner field workflows without giving every helper Airtable access, and evaluate which pieces are worth moving into live operations.",
+    tech: ["Next.js", "TypeScript", "Airtable", "AI Extraction", "Workflow Design"],
+  },
+  {
+    slug: "trauma-therapy-group-publisher",
+    clientType: "Healthcare Content Operations",
+    title: "Trauma Therapy Group Publisher",
+    challenge:
+      "A therapy practice needed a faster, safer way to turn Google Docs into polished WordPress blog drafts with SEO fields, brand-consistent imagery, and human review before publishing.",
+    result:
+      "Built a private publishing workspace that cleans Google Doc content, suggests SEO metadata, generates featured images, and creates WordPress drafts for review.",
+    problem:
+      "The content workflow had too many manual steps: copying from Google Docs, cleaning HTML, preserving headings and CTAs, preparing SEO metadata, generating a suitable image, uploading media, and assembling the WordPress draft. For a healthcare brand, the system also needed to stay review-first and avoid publishing anything automatically.",
+    solution:
+      "I built a private Trauma Therapy Group portal with a guided publishing wizard. The workflow accepts a shared Google Doc, extracts and cleans the article, structures sections, suggests focus keywords and metadata, generates image variants in the practice's visual style, uploads the selected image, and creates a WordPress Elementor draft with CTA and SEO fields prepared for review.",
+    outcome:
+      "The team gets a repeatable draft-creation system instead of a manual copy/paste process. Posts still land as drafts for human review, but the formatting, image, SEO, and WordPress assembly steps are handled consistently.",
+    tech: ["Next.js", "TypeScript", "WordPress REST API", "Elementor", "Image Generation", "SEO Automation"],
+  },
 ];

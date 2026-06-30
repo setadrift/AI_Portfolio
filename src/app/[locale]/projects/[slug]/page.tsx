@@ -9,6 +9,8 @@ const SLUG_TO_KEY: Record<string, string> = {
   "dispute-defender": "disputeDefender",
   "deal-engine": "dealEngine",
   "the-lineup": "theLineup",
+  "alex-parker-property-ops": "alexParkerPropertyOps",
+  "trauma-therapy-group-publisher": "traumaTherapyGroupPublisher",
 };
 
 export function generateStaticParams() {
