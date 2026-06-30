@@ -3,6 +3,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { put } from "@vercel/blob";
+import { persistAdminLeadBundleToSupabase } from "./lib/supabase-admin-leads.mjs";
 
 const OUTPUT_DIR = process.env.AUTOMATION_LEAD_OUTPUT_DIR || "outputs/ai-consulting-leads";
 const STATUS_PATH = path.join(OUTPUT_DIR, "latest-status.json");
@@ -26,27 +27,22 @@ async function main() {
   const status = await readStatus();
   const { fileName, markdown } = await buildAggregateDigest();
 
-  await put(
-    PUBLISHED_AUTOMATION_DIGEST_PATH,
-    JSON.stringify(
-      {
-        id: "automation",
-        label: "Codex automation",
-        description: "Broader public-web leads from the AI consulting research automation.",
-        fileName,
-        markdown,
-        status: aggregateStatus(status, markdown),
-      },
-      null,
-      2,
-    ),
-    {
-      access: "private",
-      allowOverwrite: true,
-      contentType: "application/json",
-      cacheControlMaxAge: 60,
-    },
-  );
+  const payload = {
+    id: "automation",
+    label: "Codex automation",
+    description: "Broader public-web leads from the AI consulting research automation.",
+    fileName,
+    markdown,
+    status: aggregateStatus(status, markdown),
+  };
+
+  await put(PUBLISHED_AUTOMATION_DIGEST_PATH, JSON.stringify(payload, null, 2), {
+    access: "private",
+    allowOverwrite: true,
+    contentType: "application/json",
+    cacheControlMaxAge: 60,
+  });
+  const supabaseResult = await persistAdminLeadBundleToSupabase(payload);
 
   console.log(
     JSON.stringify({
@@ -56,6 +52,7 @@ async function main() {
       parsedBestLeads: leadBlocks(markdown).length,
       postedDates: (markdown.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
       unknownPostedDates: (markdown.match(/^- Posted date: unknown/gm) ?? []).length,
+      supabase: supabaseResult,
     }),
   );
 }

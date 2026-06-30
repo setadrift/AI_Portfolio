@@ -1,6 +1,12 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { get, put } from "@vercel/blob";
+import {
+  leadKeyForDatabase,
+  persistLeadSourcesToDatabase,
+  readLeadSourcesFromDatabase,
+  readLeadStatesFromDatabase,
+} from "./lead-db";
 
 const REDDIT_DIGEST_DIR = outputDir("REDDIT_LEAD_OUTPUT_DIR", "outputs/reddit-leads");
 const AUTOMATION_DIGEST_DIR = outputDir("AUTOMATION_LEAD_OUTPUT_DIR", "outputs/ai-consulting-leads");
@@ -39,6 +45,15 @@ export interface LeadDigest {
 }
 
 export type LeadSourceId = "reddit" | "automation";
+export type LeadQueue = "actionable" | "review" | "community_reply" | "commented" | "dm_sent" | "dismissed";
+export type LeadAction = "new" | "opened" | "commented" | "dm_sent" | "converted" | "dismissed";
+
+export interface StoredLeadState {
+  queue: LeadQueue;
+  action: LeadAction;
+  notes: string;
+  updatedAt: string;
+}
 
 export interface LeadSourceDigest {
   id: LeadSourceId;
@@ -86,6 +101,7 @@ export interface LeadDashboardData {
   digest: LeadDigest | null;
   status: LeadRunStatus | null;
   sources: LeadSourceDigest[];
+  leadStates: Record<string, StoredLeadState>;
   channels: LeadChannel[];
   scanModes: LeadScanMode[];
 }
@@ -105,6 +121,7 @@ export interface LeadScanMode {
 
 export async function readLeadDashboardData(): Promise<LeadDashboardData> {
   const [
+    databaseSources,
     publishedSources,
     publishedAutomationSource,
     localRedditDigest,
@@ -113,6 +130,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     channels,
     scanModes,
   ] = await Promise.all([
+    readLeadSourcesFromDatabase(parsePublishedSource),
     readPublishedLeadSources(),
     readPublishedAutomationSource(),
     readLatestLocalRedditDigest(),
@@ -122,7 +140,8 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     readLeadScanModes(),
   ]);
 
-  const redditSource = publishedSources.find((source) => source.id === "reddit") ?? {
+  const allPublishedSources = [...databaseSources, ...publishedSources];
+  const redditSource = allPublishedSources.find((source) => source.id === "reddit") ?? {
     id: "reddit" as const,
     label: "Reddit monitor",
     description: "Leads from the configured Reddit scan.",
@@ -130,7 +149,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     status: localStatus,
     diagnostic: diagnosticForDigest("reddit", localRedditDigest, localStatus),
   };
-  const automationSource = publishedAutomationSource ?? publishedSources.find((source) => source.id === "automation") ?? {
+  const automationSource = databaseSources.find((source) => source.id === "automation") ?? publishedAutomationSource ?? publishedSources.find((source) => source.id === "automation") ?? {
     id: "automation" as const,
     label: "Codex automation",
     description: "Broader public-web leads from the AI consulting research automation.",
@@ -141,10 +160,11 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
   const sources = [redditSource, automationSource];
   const digest = redditSource.digest ?? localRedditDigest;
   const status = redditSource.status ?? localStatus;
+  const leadStates = await readLeadStatesFromDatabase(sources);
 
   logLeadSourceDiagnostics(sources);
 
-  return { digest, status, sources, channels, scanModes };
+  return { digest, status, sources, leadStates, channels, scanModes };
 }
 
 export async function readLeadChannels(): Promise<LeadChannel[]> {
@@ -253,6 +273,17 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
   const fileName = path.basename(digestPath);
   const markdown = await readFile(digestPath, "utf8");
   const existingAutomationSource = await readPublishedAutomationSource();
+  const redditDiagnostic = diagnosticForSource("reddit", fileName, markdown, parseDigest(fileName, markdown, "reddit"), status);
+  const redditSource = {
+    id: "reddit" as const,
+    label: "Reddit monitor",
+    description: "Leads from the configured Reddit scan.",
+    fileName,
+    markdown,
+    status,
+    diagnostic: redditDiagnostic,
+    digest: parseDigest(fileName, markdown, "reddit"),
+  };
   if (!existingAutomationSource) {
     console.warn("Publishing lead digest without an existing automation source; using empty automation placeholder.");
   }
@@ -293,9 +324,27 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
 
   console.info("Published admin lead bundle", {
     path: PUBLISHED_DIGEST_PATH,
-    reddit: diagnosticForSource("reddit", fileName, markdown, parseDigest(fileName, markdown, "reddit"), status),
+    reddit: redditDiagnostic,
     automation: existingAutomationSource?.diagnostic ?? null,
   });
+
+  await persistLeadSourcesToDatabase(
+    [
+      redditSource,
+      existingAutomationSource
+        ? {
+            id: existingAutomationSource.id,
+            label: existingAutomationSource.label,
+            description: existingAutomationSource.description,
+            fileName: existingAutomationSource.digest?.fileName ?? "codex-automation-leads.md",
+            markdown: existingAutomationSource.markdown,
+            status: existingAutomationSource.status,
+            diagnostic: existingAutomationSource.diagnostic,
+            digest: existingAutomationSource.digest ?? parseDigest("codex-automation-leads.md", existingAutomationSource.markdown, "automation"),
+          }
+        : null,
+    ].filter((source): source is NonNullable<typeof source> => Boolean(source)),
+  );
 
   return `Published ${fileName} to Vercel Blob at ${PUBLISHED_DIGEST_PATH}`;
 }
@@ -303,6 +352,8 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
 export async function publishLatestAutomationLeadDigest(outputDir = AUTOMATION_DIGEST_DIR) {
   const status = await readRunStatus(outputDir);
   const { fileName, markdown } = await buildAggregateAutomationMarkdown(outputDir);
+  const digest = parseDigest(fileName, markdown, "automation");
+  const diagnostic = diagnosticForSource("automation", fileName, markdown, digest, aggregateAutomationStatus(status, markdown));
   const payload: PublishedLeadSource = {
     id: "automation",
     label: "Codex automation",
@@ -321,8 +372,21 @@ export async function publishLatestAutomationLeadDigest(outputDir = AUTOMATION_D
 
   console.info("Published automation lead source", {
     path: PUBLISHED_AUTOMATION_DIGEST_PATH,
-    diagnostic: diagnosticForSource("automation", fileName, markdown, parseDigest(fileName, markdown, "automation"), payload.status),
+    diagnostic,
   });
+
+  await persistLeadSourcesToDatabase([
+    {
+      id: payload.id,
+      label: payload.label,
+      description: payload.description,
+      fileName,
+      markdown,
+      status: payload.status,
+      diagnostic,
+      digest,
+    },
+  ]);
 
   return `Published ${fileName} to Vercel Blob at ${PUBLISHED_AUTOMATION_DIGEST_PATH}`;
 }
@@ -353,15 +417,7 @@ async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
         : [];
 
     return publishedSources.map((source) => {
-      const digest = parseDigest(source.fileName, source.markdown, source.id);
-      return {
-        id: source.id,
-        label: source.label,
-        description: source.description,
-        digest,
-        status: source.status ?? null,
-        diagnostic: diagnosticForSource(source.id, source.fileName, source.markdown, digest, source.status ?? null),
-      };
+      return parsePublishedSource(source);
     });
   } catch (error) {
     console.warn("Failed to read published lead bundle", {
@@ -370,6 +426,25 @@ async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
     });
     return [];
   }
+}
+
+function parsePublishedSource(source: {
+  id: LeadSourceId;
+  label: string;
+  description: string;
+  fileName: string;
+  markdown: string;
+  status: LeadRunStatus | null;
+}): LeadSourceDigest {
+  const digest = parseDigest(source.fileName, source.markdown, source.id);
+  return {
+    id: source.id,
+    label: source.label,
+    description: source.description,
+    digest,
+    status: source.status ?? null,
+    diagnostic: diagnosticForSource(source.id, source.fileName, source.markdown, digest, source.status ?? null),
+  };
 }
 
 async function readPublishedAutomationSource(): Promise<(LeadSourceDigest & { markdown: string }) | null> {
@@ -414,6 +489,10 @@ async function readPublishedAutomationSource(): Promise<(LeadSourceDigest & { ma
 
 export async function readLatestLeadDigest(): Promise<LeadDigest | null> {
   return (await readPublishedLeadSources()).find((source) => source.id === "reddit")?.digest ?? readLatestLocalRedditDigest();
+}
+
+export function leadStateStorageKey(lead: RedditLead) {
+  return leadKeyForDatabase(lead);
 }
 
 async function readLatestLocalRedditDigest(): Promise<LeadDigest | null> {
