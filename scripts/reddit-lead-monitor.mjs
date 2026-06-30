@@ -1024,6 +1024,7 @@ function formatLead(lead) {
   return [
     `### ${lead.score}/5 - r/${lead.subreddit} - ${lead.title}`,
     "",
+    `- Posted date: ${dateOnly(lead.publishedAt) || "unknown"}`,
     `- URL: ${lead.url}`,
     `- Author: ${lead.author}`,
     `- Category: ${lead.category}`,
@@ -1044,6 +1045,13 @@ function formatLead(lead) {
       lead.title,
     )} | Not yet |  |  | New | ${escapeTable(lead.scoreReason || "")} |`,
   ].join("\n");
+}
+
+function dateOnly(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
 }
 
 function categorize(post) {

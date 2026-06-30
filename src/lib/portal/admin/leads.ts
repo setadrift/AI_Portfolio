@@ -15,6 +15,8 @@ export interface RedditLead {
   sourceLabel: string;
   sourceKind: LeadSourceId;
   sourceDate: string;
+  postedDate: string;
+  discoveredDate: string;
   subreddit: string;
   title: string;
   url: string;
@@ -44,6 +46,21 @@ export interface LeadSourceDigest {
   description: string;
   digest: LeadDigest | null;
   status: LeadRunStatus | null;
+  diagnostic: LeadSourceDiagnostic;
+}
+
+export interface LeadSourceDiagnostic {
+  source: LeadSourceId;
+  fileName: string;
+  declaredCandidates: number;
+  parsedLeads: number;
+  bestLeadBlocks: number;
+  totalHeadingBlocks: number;
+  postedDateCount: number;
+  unknownPostedDateCount: number;
+  feedErrors: number;
+  usable: boolean;
+  warning: string;
 }
 
 export interface LeadRunStatus {
@@ -111,6 +128,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     description: "Leads from the configured Reddit scan.",
     digest: localRedditDigest,
     status: localStatus,
+    diagnostic: diagnosticForDigest("reddit", localRedditDigest, localStatus),
   };
   const automationSource = publishedAutomationSource ?? publishedSources.find((source) => source.id === "automation") ?? {
     id: "automation" as const,
@@ -118,10 +136,13 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     description: "Broader public-web leads from the AI consulting research automation.",
     digest: localAutomationDigest,
     status: null,
+    diagnostic: diagnosticForDigest("automation", localAutomationDigest, null),
   };
   const sources = [redditSource, automationSource];
   const digest = redditSource.digest ?? localRedditDigest;
   const status = redditSource.status ?? localStatus;
+
+  logLeadSourceDiagnostics(sources);
 
   return { digest, status, sources, channels, scanModes };
 }
@@ -232,6 +253,9 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
   const fileName = path.basename(digestPath);
   const markdown = await readFile(digestPath, "utf8");
   const existingAutomationSource = await readPublishedAutomationSource();
+  if (!existingAutomationSource) {
+    console.warn("Publishing lead digest without an existing automation source; using empty automation placeholder.");
+  }
 
   await put(
     PUBLISHED_DIGEST_PATH,
@@ -267,6 +291,12 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
     },
   );
 
+  console.info("Published admin lead bundle", {
+    path: PUBLISHED_DIGEST_PATH,
+    reddit: diagnosticForSource("reddit", fileName, markdown, parseDigest(fileName, markdown, "reddit"), status),
+    automation: existingAutomationSource?.diagnostic ?? null,
+  });
+
   return `Published ${fileName} to Vercel Blob at ${PUBLISHED_DIGEST_PATH}`;
 }
 
@@ -287,6 +317,11 @@ export async function publishLatestAutomationLeadDigest(outputDir = AUTOMATION_D
     allowOverwrite: true,
     contentType: "application/json",
     cacheControlMaxAge: 60,
+  });
+
+  console.info("Published automation lead source", {
+    path: PUBLISHED_AUTOMATION_DIGEST_PATH,
+    diagnostic: diagnosticForSource("automation", fileName, markdown, parseDigest(fileName, markdown, "automation"), payload.status),
   });
 
   return `Published ${fileName} to Vercel Blob at ${PUBLISHED_AUTOMATION_DIGEST_PATH}`;
@@ -317,16 +352,22 @@ async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
           ]
         : [];
 
-    return publishedSources
-      .map((source) => ({
+    return publishedSources.map((source) => {
+      const digest = parseDigest(source.fileName, source.markdown, source.id);
+      return {
         id: source.id,
         label: source.label,
         description: source.description,
-        digest: parseDigest(source.fileName, source.markdown, source.id),
+        digest,
         status: source.status ?? null,
-      }))
-      .filter((source) => isUsableDigest(source.digest));
-  } catch {
+        diagnostic: diagnosticForSource(source.id, source.fileName, source.markdown, digest, source.status ?? null),
+      };
+    });
+  } catch (error) {
+    console.warn("Failed to read published lead bundle", {
+      path: PUBLISHED_DIGEST_PATH,
+      error: error instanceof Error ? error.message : "unknown error",
+    });
     return [];
   }
 }
@@ -354,8 +395,19 @@ async function readPublishedAutomationSource(): Promise<(LeadSourceDigest & { ma
       digest: parseDigest(source.fileName, source.markdown, source.id),
       markdown: source.markdown,
       status: source.status ?? null,
+      diagnostic: diagnosticForSource(
+        source.id,
+        source.fileName,
+        source.markdown,
+        parseDigest(source.fileName, source.markdown, source.id),
+        source.status ?? null,
+      ),
     };
-  } catch {
+  } catch (error) {
+    console.warn("Failed to read automation source from combined lead bundle", {
+      path: PUBLISHED_DIGEST_PATH,
+      error: error instanceof Error ? error.message : "unknown error",
+    });
     return null;
   }
 }
@@ -390,7 +442,14 @@ async function readLatestLocalRedditDigest(): Promise<LeadDigest | null> {
     }
 
     return null;
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return null;
+    }
+    console.warn("Failed to read local Reddit lead digest", {
+      path: REDDIT_DIGEST_DIR,
+      error: error instanceof Error ? error.message : "unknown error",
+    });
     return null;
   }
 }
@@ -485,13 +544,12 @@ async function buildAggregateAutomationMarkdown(outputDir: string) {
     rejectedCount += numberValue(markdown, "Filtered/rejected before digest");
     feedErrors.push(...parseFeedErrorsWithSource(markdown, file));
     for (const block of leadBlocks(markdown)) {
-      const explicitSourceDate = leadSourceDate(block);
-      const displaySourceDate = explicitSourceDate || dateFromFileName(file);
-      const normalized = withSourceDate(block.trim(), displaySourceDate);
+      const explicitLeadDate = leadFreshnessDate(block);
+      const normalized = withDiscoveryDate(block.trim(), dateFromFileName(file));
       blocks.push({
         block: normalized,
         dedupeKey: leadDedupeKey(normalized),
-        sourceDate: explicitSourceDate,
+        sourceDate: explicitLeadDate,
       });
     }
   }
@@ -538,25 +596,46 @@ function aggregateAutomationStatus(status: LeadRunStatus | null, markdown: strin
 }
 
 function leadBlocks(markdown: string) {
-  return markdown
+  const bestLeadsSection = markdown
+    .split("\n## Maybe / Watch")[0]
+    .split("\n## Rejected")[0]
+    .split("\n## Feed Errors")[0];
+
+  return bestLeadsSection
     .split(/\n(?=### [1-5]\/5 - )/g)
     .filter((block) => block.startsWith("### "))
     .map((block) => block.split(/\n(?=## )/)[0]?.trim() ?? "")
     .filter(Boolean);
 }
 
-function leadSourceDate(block: string) {
-  return bulletValue(block, "Source date");
+function leadFreshnessDate(block: string) {
+  return (
+    bulletValue(block, "Posted date") ||
+    bulletValue(block, "Post date") ||
+    bulletValue(block, "Published date") ||
+    bulletValue(block, "Published at") ||
+    bulletValue(block, "Source date")
+  );
 }
 
-function withSourceDate(block: string, sourceDate: string) {
-  if (/^- Source date: /m.test(block)) return block;
+function withDiscoveryDate(block: string, discoveredDate: string) {
   const lines = block.split("\n");
+  const missingPostedDate =
+    !/^- Posted date: /m.test(block) &&
+    !/^- Post date: /m.test(block) &&
+    !/^- Published date: /m.test(block) &&
+    !/^- Published at: /m.test(block);
+  const missingDiscoveryDate = !/^- Discovered date: /m.test(block);
   const insertAt = lines.findIndex((line, index) => index > 0 && line.startsWith("- "));
+  const dateLines = [
+    missingPostedDate ? "- Posted date: unknown" : "",
+    missingDiscoveryDate ? `- Discovered date: ${discoveredDate}` : "",
+  ].filter(Boolean);
+  if (!dateLines.length) return block;
   if (insertAt === -1) {
-    return `${lines[0]}\n- Source date: ${sourceDate}\n${lines.slice(1).join("\n")}`.trim();
+    return `${lines[0]}\n${dateLines.join("\n")}\n${lines.slice(1).join("\n")}`.trim();
   }
-  lines.splice(insertAt, 0, `- Source date: ${sourceDate}`);
+  lines.splice(insertAt, 0, ...dateLines);
   return lines.join("\n");
 }
 
@@ -640,15 +719,21 @@ async function readPublishedLeadSource(pathname: string): Promise<(LeadSourceDig
 
     const raw = await streamToText(result.stream);
     const source = JSON.parse(raw) as PublishedLeadSource;
+    const digest = parseDigest(source.fileName, source.markdown, source.id);
     return {
       id: source.id,
       label: source.label,
       description: source.description,
-      digest: parseDigest(source.fileName, source.markdown, source.id),
+      digest,
       markdown: source.markdown,
       status: source.status ?? null,
+      diagnostic: diagnosticForSource(source.id, source.fileName, source.markdown, digest, source.status ?? null),
     };
-  } catch {
+  } catch (error) {
+    console.warn("Failed to read published lead source", {
+      path: pathname,
+      error: error instanceof Error ? error.message : "unknown error",
+    });
     return null;
   }
 }
@@ -671,21 +756,32 @@ function parseDigest(fileName: string, markdown: string, sourceKind: LeadSourceI
 }
 
 function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: string): RedditLead[] {
-  const blocks = markdown.split(/\n(?=### [1-5]\/5 - )/g);
-  return blocks
-    .filter((block) => block.startsWith("### "))
-    .map((block) => block.split(/\n(?=## )/)[0]?.trim() ?? "")
+  return leadBlocks(markdown)
     .map((block) => {
       const heading = block.match(/^### ([1-5]\/5) - (.+?) - (.+)$/m);
       const sourceLabel = heading?.[2]?.trim() ?? "";
       const subreddit = sourceLabel.replace(/^r\//i, "");
+      const postedDate = normalizeDateOnly(
+        bulletValue(block, "Posted date") ||
+          bulletValue(block, "Post date") ||
+          bulletValue(block, "Published date") ||
+          bulletValue(block, "Published at") ||
+          (sourceKind === "reddit" ? bulletValue(block, "Source date") || sourceDate : ""),
+      );
+      const discoveredDate = normalizeDateOnly(
+        bulletValue(block, "Discovered date") ||
+          bulletValue(block, "Found date") ||
+          (sourceKind === "automation" ? bulletValue(block, "Source date") || sourceDate : sourceDate),
+      );
 
       return {
         score: heading?.[1] ?? "",
         source: sourceLabel,
         sourceLabel,
         sourceKind,
-        sourceDate: bulletValue(block, "Source date") || sourceDate,
+        sourceDate: postedDate || discoveredDate,
+        postedDate,
+        discoveredDate,
         subreddit,
         title: heading?.[3] ?? "Untitled lead",
         url: bulletValue(block, "URL"),
@@ -738,8 +834,94 @@ function isUsableDigest(digest: LeadDigest) {
   return errorCount < Math.ceil(feedsChecked / 2);
 }
 
+function diagnosticForDigest(
+  source: LeadSourceId,
+  digest: LeadDigest | null,
+  status: LeadRunStatus | null,
+): LeadSourceDiagnostic {
+  const parsedLeads = digest?.leads.length ?? 0;
+  const declaredCandidates = Number.parseInt(digest?.candidatesIncluded || "0", 10) || 0;
+  const feedErrors = digest?.feedErrors.length ?? status?.feedErrors.length ?? 0;
+  const usable = digest ? isUsableDigest(digest) : false;
+  return {
+    source,
+    fileName: digest?.fileName ?? "",
+    declaredCandidates,
+    parsedLeads,
+    bestLeadBlocks: parsedLeads,
+    totalHeadingBlocks: parsedLeads,
+    postedDateCount: digest?.leads.filter((lead) => lead.postedDate).length ?? 0,
+    unknownPostedDateCount: digest?.leads.filter((lead) => !lead.postedDate).length ?? 0,
+    feedErrors,
+    usable,
+    warning: diagnosticWarning({ declaredCandidates, parsedLeads, feedErrors, usable }),
+  };
+}
+
+function diagnosticForSource(
+  source: LeadSourceId,
+  fileName: string,
+  markdown: string,
+  digest: LeadDigest,
+  status: LeadRunStatus | null,
+): LeadSourceDiagnostic {
+  const declaredCandidates = Number.parseInt(digest.candidatesIncluded || "0", 10) || 0;
+  const bestLeadBlocks = leadBlocks(markdown).length;
+  const totalHeadingBlocks = (markdown.match(/^### [1-5]\/5 - /gm) ?? []).length;
+  const parsedLeads = digest.leads.length;
+  const feedErrors = digest.feedErrors.length || status?.feedErrors.length || 0;
+  const usable = isUsableDigest(digest);
+  return {
+    source,
+    fileName,
+    declaredCandidates,
+    parsedLeads,
+    bestLeadBlocks,
+    totalHeadingBlocks,
+    postedDateCount: digest.leads.filter((lead) => lead.postedDate).length,
+    unknownPostedDateCount: digest.leads.filter((lead) => !lead.postedDate).length,
+    feedErrors,
+    usable,
+    warning: diagnosticWarning({ declaredCandidates, parsedLeads, feedErrors, usable }),
+  };
+}
+
+function diagnosticWarning({
+  declaredCandidates,
+  parsedLeads,
+  feedErrors,
+  usable,
+}: {
+  declaredCandidates: number;
+  parsedLeads: number;
+  feedErrors: number;
+  usable: boolean;
+}) {
+  if (declaredCandidates !== parsedLeads) {
+    return `Declared ${declaredCandidates} candidates but parsed ${parsedLeads} Best Leads rows.`;
+  }
+  if (!usable) return "Digest is not usable.";
+  if (feedErrors > 0) return `${feedErrors} feed errors reported.`;
+  return "";
+}
+
+function logLeadSourceDiagnostics(sources: LeadSourceDigest[]) {
+  const summary = sources.map((source) => source.diagnostic);
+  const hasWarning = summary.some((diagnostic) => diagnostic.warning);
+  const log = hasWarning ? console.warn : console.info;
+  log("Admin lead source diagnostics", summary);
+}
+
 function dateFromFileName(fileName: string) {
   return fileName.match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? "";
+}
+
+function normalizeDateOnly(value: string) {
+  if (!value || value === "unknown") return "";
+  const exact = value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  if (exact) return exact;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
 }
 
 function metadataValue(markdown: string, label: string) {

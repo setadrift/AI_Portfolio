@@ -48,7 +48,16 @@ async function main() {
     },
   );
 
-  console.log(`Published ${fileName} to Vercel Blob at ${PUBLISHED_AUTOMATION_DIGEST_PATH}`);
+  console.log(
+    JSON.stringify({
+      message: `Published ${fileName} to Vercel Blob at ${PUBLISHED_AUTOMATION_DIGEST_PATH}`,
+      path: PUBLISHED_AUTOMATION_DIGEST_PATH,
+      declaredCandidates: numberValue(markdown, "Candidates included"),
+      parsedBestLeads: leadBlocks(markdown).length,
+      postedDates: (markdown.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
+      unknownPostedDates: (markdown.match(/^- Posted date: unknown/gm) ?? []).length,
+    }),
+  );
 }
 
 async function readStatus() {
@@ -83,13 +92,12 @@ async function buildAggregateDigest() {
     rejectedCount += numberValue(markdown, "Filtered/rejected before digest");
     feedErrors.push(...parseFeedErrors(markdown, file));
     for (const block of leadBlocks(markdown)) {
-      const explicitSourceDate = leadSourceDate(block);
-      const displaySourceDate = explicitSourceDate || file.slice(0, 10);
-      const normalized = withSourceDate(block.trim(), displaySourceDate);
+      const explicitLeadDate = leadFreshnessDate(block);
+      const normalized = withDiscoveryDate(block.trim(), file.slice(0, 10));
       blocks.push({
         block: normalized,
         dedupeKey: leadDedupeKey(normalized),
-        sourceDate: explicitSourceDate,
+        sourceDate: explicitLeadDate,
       });
     }
   }
@@ -125,23 +133,44 @@ async function buildAggregateDigest() {
 }
 
 function leadBlocks(markdown) {
-  return markdown
+  const bestLeadsSection = markdown
+    .split("\n## Maybe / Watch")[0]
+    .split("\n## Rejected")[0]
+    .split("\n## Feed Errors")[0];
+
+  return bestLeadsSection
     .split(/\n(?=### [1-5]\/5 - )/g)
     .filter((block) => block.startsWith("### "))
     .map((block) => block.split(/\n(?=## )/)[0]?.trim() ?? "")
     .filter(Boolean);
 }
 
-function leadSourceDate(block) {
-  return bulletValue(block, "Source date");
+function leadFreshnessDate(block) {
+  return (
+    bulletValue(block, "Posted date") ||
+    bulletValue(block, "Post date") ||
+    bulletValue(block, "Published date") ||
+    bulletValue(block, "Published at") ||
+    bulletValue(block, "Source date")
+  );
 }
 
-function withSourceDate(block, sourceDate) {
-  if (/^- Source date: /m.test(block)) return block;
+function withDiscoveryDate(block, discoveredDate) {
   const lines = block.split("\n");
+  const missingPostedDate =
+    !/^- Posted date: /m.test(block) &&
+    !/^- Post date: /m.test(block) &&
+    !/^- Published date: /m.test(block) &&
+    !/^- Published at: /m.test(block);
+  const missingDiscoveryDate = !/^- Discovered date: /m.test(block);
   const insertAt = lines.findIndex((line, index) => index > 0 && line.startsWith("- "));
-  if (insertAt === -1) return `${lines[0]}\n- Source date: ${sourceDate}\n${lines.slice(1).join("\n")}`.trim();
-  lines.splice(insertAt, 0, `- Source date: ${sourceDate}`);
+  const dateLines = [
+    missingPostedDate ? "- Posted date: unknown" : "",
+    missingDiscoveryDate ? `- Discovered date: ${discoveredDate}` : "",
+  ].filter(Boolean);
+  if (!dateLines.length) return block;
+  if (insertAt === -1) return `${lines[0]}\n${dateLines.join("\n")}\n${lines.slice(1).join("\n")}`.trim();
+  lines.splice(insertAt, 0, ...dateLines);
   return lines.join("\n");
 }
 

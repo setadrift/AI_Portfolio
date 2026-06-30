@@ -10,7 +10,7 @@ import type {
 
 type LeadQueue = "actionable" | "review" | "community_reply" | "commented" | "dm_sent" | "dismissed";
 type LeadAction = "new" | "opened" | "commented" | "dm_sent" | "converted" | "dismissed";
-type SortField = "score" | "source" | "title" | "action";
+type SortField = "score" | "posted" | "source" | "title" | "action";
 
 interface LeadState {
   queue: LeadQueue;
@@ -52,14 +52,14 @@ export default function LeadsDashboard({
     initialData.scanModes[0]?.id ?? "broad-buyer-intent",
   );
   const [selectedSourceId, setSelectedSourceId] = useState<LeadSourceId>(
-    initialData.sources[0]?.id ?? "reddit",
+    preferredSource(initialData)?.id ?? "reddit",
   );
   const [selectedQueue, setSelectedQueue] = useState<LeadQueue>("actionable");
   const [selectedLeadUrl, setSelectedLeadUrl] = useState(
-    initialData.sources[0]?.digest?.leads[0]?.url ?? initialData.digest?.leads[0]?.url ?? "",
+    preferredSource(initialData)?.digest?.leads[0]?.url ?? initialData.digest?.leads[0]?.url ?? "",
   );
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState<SortField>("score");
+  const [sortBy, setSortBy] = useState<SortField>("posted");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [leadState, setLeadState] = useState<Record<string, LeadState>>({});
   const [isRunning, setIsRunning] = useState(false);
@@ -77,6 +77,28 @@ export default function LeadsDashboard({
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(leadState));
   }, [leadState]);
+
+  useEffect(() => {
+    const currentSource = initialData.sources.find((source) => source.id === selectedSourceId);
+    const nextSource =
+      currentSource && (currentSource.digest?.leads.length ?? 0) > 0
+        ? currentSource
+        : preferredSource(initialData);
+
+    if (!nextSource) return;
+    if (nextSource.id !== selectedSourceId) {
+      setSelectedSourceId(nextSource.id);
+      setSelectedQueue("actionable");
+      setSelectedIds(new Set());
+      setSelectedLeadUrl(nextSource.digest?.leads[0]?.url ?? "");
+      return;
+    }
+
+    const leads = nextSource.digest?.leads ?? [];
+    if (leads.length > 0 && selectedLeadUrl && !leads.some((lead) => lead.url === selectedLeadUrl)) {
+      setSelectedLeadUrl(leads[0]?.url ?? "");
+    }
+  }, [initialData, selectedLeadUrl, selectedSourceId]);
 
   const selectedSource =
     initialData.sources.find((source) => source.id === selectedSourceId) ??
@@ -253,6 +275,7 @@ export default function LeadsDashboard({
                 title={source.description}
               >
                 {source.label} {source.digest?.leads.length ?? 0}
+                {source.diagnostic.warning ? " !" : ""}
               </button>
             ))}
           </div>
@@ -286,6 +309,25 @@ export default function LeadsDashboard({
             )}
             {runMessage ? <span className="ml-2 text-white/70">{runMessage}</span> : null}
           </div>
+          {selectedSource?.diagnostic ? (
+            <div className="mt-2 text-xs text-white/40">
+              Parsed {selectedSource.diagnostic.parsedLeads} Best Leads rows from{" "}
+              {selectedSource.diagnostic.fileName || "unknown file"}; declared{" "}
+              {selectedSource.diagnostic.declaredCandidates}, posted dates{" "}
+              {selectedSource.diagnostic.postedDateCount}/
+              {selectedSource.diagnostic.parsedLeads}
+              {selectedSource.diagnostic.totalHeadingBlocks !==
+              selectedSource.diagnostic.bestLeadBlocks
+                ? `, ignored ${
+                    selectedSource.diagnostic.totalHeadingBlocks -
+                    selectedSource.diagnostic.bestLeadBlocks
+                  } non-Best Leads rows`
+                : ""}
+              {selectedSource.diagnostic.warning ? (
+                <span className="ml-2 text-amber-300/80">{selectedSource.diagnostic.warning}</span>
+              ) : null}
+            </div>
+          ) : null}
         </header>
 
         <main className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -325,6 +367,7 @@ export default function LeadsDashboard({
                   className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
                 >
                   <option value="score">Score</option>
+                  <option value="posted">Posted date</option>
                   <option value="source">Source</option>
                   <option value="title">Title</option>
                   <option value="action">Action</option>
@@ -394,6 +437,7 @@ export default function LeadsDashboard({
                       </th>
                       <th className="w-[42%] px-4 py-3">Lead</th>
                       <th className="w-[16%] px-4 py-3">Source</th>
+                      <th className="w-[120px] px-4 py-3">Posted</th>
                       <th className="w-[16%] px-4 py-3">Type</th>
                       <th className="w-[150px] px-4 py-3">Action</th>
                       <th className="w-[80px] px-4 py-3">Score</th>
@@ -430,6 +474,9 @@ export default function LeadsDashboard({
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top text-white/65">{lead.sourceLabel}</td>
+                        <td className="px-4 py-4 align-top text-white/65">
+                          {lead.postedDate || <span className="text-amber-300/80">unknown</span>}
+                        </td>
                         <td className="px-4 py-4 align-top capitalize text-white/65">
                           {formatCategory(lead.category)}
                         </td>
@@ -540,7 +587,8 @@ function LeadDetail({
       <div className="flex flex-wrap items-center gap-2 text-xs text-white/45">
         <span>{lead.sourceLabel}</span>
         <span>{lead.author}</span>
-        {lead.sourceDate ? <span>{lead.sourceDate}</span> : null}
+        <span>posted {lead.postedDate || "unknown"}</span>
+        {lead.discoveredDate ? <span>found {lead.discoveredDate}</span> : null}
         <span>{formatCategory(lead.category)}</span>
       </div>
       <h2 className="mt-2 text-xl font-semibold leading-7">{lead.title}</h2>
@@ -548,6 +596,7 @@ function LeadDetail({
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <DetailStat label="Score" value={lead.score} />
+        <DetailStat label="Posted" value={lead.postedDate || "unknown"} />
         <DetailStat label="Recommended" value={formatAction(lead.recommendedAction)} />
         <DetailStat label="Queue" value={formatQueue(lead.queue)} />
         <DetailStat label="Action" value={formatAction(lead.action)} />
@@ -635,6 +684,15 @@ type EnrichedLead = RedditLead &
     numericScore: number;
   };
 
+function preferredSource(data: LeadDashboardData) {
+  return (
+    data.sources.find((source) => source.id === "automation" && (source.digest?.leads.length ?? 0) > 0) ??
+    data.sources.find((source) => (source.digest?.leads.length ?? 0) > 0) ??
+    data.sources[0] ??
+    null
+  );
+}
+
 function enrichLead(lead: RedditLead, state?: LeadState): EnrichedLead {
   const queue = queueForLead(lead, state);
   return {
@@ -659,9 +717,14 @@ function queueForLead(lead: RedditLead, state?: LeadState): LeadQueue {
 
 function sortRows(a: EnrichedLead, b: EnrichedLead, sortBy: SortField) {
   if (sortBy === "score") return b.numericScore - a.numericScore || a.title.localeCompare(b.title);
+  if (sortBy === "posted") return dateSortKey(b.postedDate) - dateSortKey(a.postedDate) || b.numericScore - a.numericScore;
   if (sortBy === "source") return a.sourceLabel.localeCompare(b.sourceLabel);
   if (sortBy === "action") return a.action.localeCompare(b.action);
   return a.title.localeCompare(b.title);
+}
+
+function dateSortKey(date: string) {
+  return date ? new Date(`${date}T00:00:00Z`).getTime() || 0 : 0;
 }
 
 function leadKey(lead: RedditLead) {
@@ -682,13 +745,27 @@ function formatAction(value: string) {
 
 function downloadCsv(leads: EnrichedLead[]) {
   const rows = [
-    ["queue", "action", "score", "source", "source_date", "author", "title", "category", "reason", "url", "notes"],
+    [
+      "queue",
+      "action",
+      "score",
+      "source",
+      "posted_date",
+      "discovered_date",
+      "author",
+      "title",
+      "category",
+      "reason",
+      "url",
+      "notes",
+    ],
     ...leads.map((lead) => [
       lead.queue,
       lead.action,
       lead.score,
       lead.sourceLabel,
-      lead.sourceDate,
+      lead.postedDate,
+      lead.discoveredDate,
       lead.author,
       lead.title,
       lead.category,
