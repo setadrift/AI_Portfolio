@@ -55,7 +55,7 @@ async function persistSourceLeads(supabase, source) {
 }
 
 function parseLeads(markdown, sourceId) {
-  return leadBlocks(markdown).map((block) => {
+  return leadBlocks(markdown, { includeWatch: sourceId === "reddit" }).map((block) => {
     const heading = block.match(/^### ([1-5]\/5) - (.+?) - (.+)$/m);
     const sourceLabel = heading?.[2]?.trim() ?? "";
     const lead = {
@@ -110,12 +110,13 @@ function parseLeads(markdown, sourceId) {
 
 function sourceDiagnostic(source) {
   const markdown = source.markdown ?? "";
+  const parsedRows = leadBlocks(markdown, { includeWatch: source.id === "reddit" }).length;
   const bestRows = leadBlocks(markdown).length;
   return {
     source: source.id,
     fileName: source.fileName ?? "",
     declaredCandidates: numberValue(markdown, "Candidates included"),
-    parsedLeads: bestRows,
+    parsedLeads: parsedRows,
     bestLeadBlocks: bestRows,
     totalHeadingBlocks: (markdown.match(/^### [1-5]\/5 - /gm) ?? []).length,
     postedDateCount: (leadBlocks(markdown).join("\n").match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
@@ -126,13 +127,12 @@ function sourceDiagnostic(source) {
   };
 }
 
-function leadBlocks(markdown) {
-  const bestLeadsSection = markdown
-    .split("\n## Maybe / Watch")[0]
+function leadBlocks(markdown, options = {}) {
+  const leadSection = (options.includeWatch ? markdown : markdown.split("\n## Maybe / Watch")[0])
     .split("\n## Rejected")[0]
     .split("\n## Feed Errors")[0];
 
-  return bestLeadsSection
+  return leadSection
     .split(/\n(?=### [1-5]\/5 - )/g)
     .filter((block) => block.startsWith("### "))
     .map((block) => block.split(/\n(?=## )/)[0]?.trim() ?? "")

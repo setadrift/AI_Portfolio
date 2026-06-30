@@ -674,13 +674,12 @@ function aggregateAutomationStatus(status: LeadRunStatus | null, markdown: strin
   };
 }
 
-function leadBlocks(markdown: string) {
-  const bestLeadsSection = markdown
-    .split("\n## Maybe / Watch")[0]
+function leadBlocks(markdown: string, options: { includeWatch?: boolean } = {}) {
+  const leadSection = (options.includeWatch ? markdown : markdown.split("\n## Maybe / Watch")[0])
     .split("\n## Rejected")[0]
     .split("\n## Feed Errors")[0];
 
-  return bestLeadsSection
+  return leadSection
     .split(/\n(?=### [1-5]\/5 - )/g)
     .filter((block) => block.startsWith("### "))
     .map((block) => block.split(/\n(?=## )/)[0]?.trim() ?? "")
@@ -835,7 +834,7 @@ function parseDigest(fileName: string, markdown: string, sourceKind: LeadSourceI
 }
 
 function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: string): RedditLead[] {
-  return leadBlocks(markdown)
+  return leadBlocks(markdown, { includeWatch: sourceKind === "reddit" })
     .map((block) => {
       const heading = block.match(/^### ([1-5]\/5) - (.+?) - (.+)$/m);
       const sourceLabel = heading?.[2]?.trim() ?? "";
