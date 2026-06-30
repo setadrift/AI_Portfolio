@@ -3,6 +3,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { get, put } from "@vercel/blob";
+import { persistAdminLeadBundleToSupabase } from "./lib/supabase-admin-leads.mjs";
 
 const OUTPUT_DIR = process.env.REDDIT_LEAD_OUTPUT_DIR || "outputs/reddit-leads";
 const STATUS_PATH = path.join(OUTPUT_DIR, "latest-status.json");
@@ -30,37 +31,34 @@ async function main() {
   if (!existingAutomationSource) {
     console.warn("No existing automation source found while publishing lead bundle; using empty automation placeholder.");
   }
-  const payload = JSON.stringify(
-    {
-      sources: [
-        {
-          id: "reddit",
-          label: "Reddit monitor",
-          description: "Leads from the configured Reddit scan.",
-          fileName,
-          markdown,
-          status,
-        },
-        {
-          id: "automation",
-          label: "Codex automation",
-          description: "Broader public-web leads from the AI consulting research automation.",
-          fileName: existingAutomationSource?.fileName ?? "codex-automation-leads.md",
-          markdown: existingAutomationSource?.markdown ?? emptyAutomationMarkdown(),
-          status: existingAutomationSource?.status ?? null,
-        },
-      ],
-    },
-    null,
-    2,
-  );
+  const payload = {
+    sources: [
+      {
+        id: "reddit",
+        label: "Reddit monitor",
+        description: "Leads from the configured Reddit scan.",
+        fileName,
+        markdown,
+        status,
+      },
+      {
+        id: "automation",
+        label: "Codex automation",
+        description: "Broader public-web leads from the AI consulting research automation.",
+        fileName: existingAutomationSource?.fileName ?? "codex-automation-leads.md",
+        markdown: existingAutomationSource?.markdown ?? emptyAutomationMarkdown(),
+        status: existingAutomationSource?.status ?? null,
+      },
+    ],
+  };
 
-  await put(PUBLISHED_DIGEST_PATH, payload, {
+  await put(PUBLISHED_DIGEST_PATH, JSON.stringify(payload, null, 2), {
     access: "private",
     allowOverwrite: true,
     contentType: "application/json",
     cacheControlMaxAge: 60,
   });
+  const supabaseResult = await persistAdminLeadBundleToSupabase(payload);
 
   console.log(
     JSON.stringify({
@@ -68,6 +66,7 @@ async function main() {
       path: PUBLISHED_DIGEST_PATH,
       reddit: digestStats(markdown),
       automation: existingAutomationSource ? digestStats(existingAutomationSource.markdown ?? "") : null,
+      supabase: supabaseResult,
     }),
   );
 }

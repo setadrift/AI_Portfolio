@@ -4,20 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
   LeadDashboardData,
+  LeadAction,
+  LeadQueue,
   LeadSourceId,
   RedditLead,
+  StoredLeadState,
 } from "@/lib/portal/admin/leads";
 
-type LeadQueue = "actionable" | "review" | "community_reply" | "commented" | "dm_sent" | "dismissed";
-type LeadAction = "new" | "opened" | "commented" | "dm_sent" | "converted" | "dismissed";
 type SortField = "score" | "posted" | "source" | "title" | "action";
 
-interface LeadState {
-  queue: LeadQueue;
-  action: LeadAction;
-  notes: string;
-  updatedAt: string;
-}
+type LeadState = StoredLeadState;
 
 const STORAGE_KEY = "ai-portfolio-admin-lead-state-v1";
 
@@ -61,18 +57,20 @@ export default function LeadsDashboard({
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortField>("posted");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [leadState, setLeadState] = useState<Record<string, LeadState>>({});
+  const [leadState, setLeadState] = useState<Record<string, LeadState>>(initialData.leadStates);
   const [isRunning, setIsRunning] = useState(false);
   const [runMessage, setRunMessage] = useState("");
 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setLeadState(JSON.parse(raw) as Record<string, LeadState>);
+      if (raw) {
+        setLeadState((current) => mergeLeadStates(JSON.parse(raw) as Record<string, LeadState>, current));
+      }
     } catch {
-      setLeadState({});
+      setLeadState(initialData.leadStates);
     }
-  }, []);
+  }, [initialData.leadStates]);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(leadState));
@@ -185,34 +183,77 @@ export default function LeadsDashboard({
 
   function updateLead(lead: RedditLead, patch: Partial<LeadState>) {
     const key = leadKey(lead);
+    const nextState = {
+      queue: queueForLead(lead, leadState[key]),
+      action: leadState[key]?.action ?? "new",
+      notes: leadState[key]?.notes ?? "",
+      updatedAt: new Date().toISOString(),
+      ...patch,
+    };
+
     setLeadState((current) => ({
       ...current,
-      [key]: {
-        queue: queueForLead(lead, current[key]),
-        action: current[key]?.action ?? "new",
-        notes: current[key]?.notes ?? "",
-        updatedAt: new Date().toISOString(),
-        ...patch,
-      },
+      [key]: nextState,
     }));
+    void persistLeadStateUpdates([
+      {
+        lead,
+        state: nextState,
+      },
+    ]);
   }
 
   function bulkMove(queue: LeadQueue, action?: LeadAction) {
     const nextSelected = selectedLeads.length ? selectedLeads : visibleRows;
+    const updates = nextSelected.map((lead) => {
+      const key = leadKey(lead);
+      return {
+        lead,
+        state: {
+          queue,
+          action: action ?? leadState[key]?.action ?? (queue === "dismissed" ? "dismissed" : "new"),
+          notes: leadState[key]?.notes ?? "",
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    });
+
     setLeadState((current) => {
       const next = { ...current };
-      for (const lead of nextSelected) {
-        const key = leadKey(lead);
-        next[key] = {
-          queue,
-          action: action ?? current[key]?.action ?? (queue === "dismissed" ? "dismissed" : "new"),
-          notes: current[key]?.notes ?? "",
-          updatedAt: new Date().toISOString(),
-        };
+      for (const update of updates) {
+        next[leadKey(update.lead)] = update.state;
       }
       return next;
     });
     setSelectedIds(new Set());
+    void persistLeadStateUpdates(updates);
+  }
+
+  async function persistLeadStateUpdates(
+    updates: Array<{ lead: RedditLead; state: LeadState }>,
+  ) {
+    try {
+      const response = await fetch("/api/portal/admin/leads/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: updates.map(({ lead, state }) => ({
+            sourceId: lead.sourceKind,
+            leadKey: leadKey(lead),
+            queue: state.queue,
+            action: state.action,
+            notes: state.notes,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as { error?: string };
+        setRunMessage(result.error ?? "Lead state saved locally, but Supabase persistence failed.");
+      }
+    } catch {
+      setRunMessage("Lead state saved locally, but Supabase persistence failed.");
+    }
   }
 
   return (
@@ -691,6 +732,25 @@ function preferredSource(data: LeadDashboardData) {
     data.sources[0] ??
     null
   );
+}
+
+function mergeLeadStates(
+  localState: Record<string, LeadState>,
+  databaseState: Record<string, LeadState>,
+) {
+  const merged = { ...localState };
+  for (const [key, databaseValue] of Object.entries(databaseState)) {
+    const localValue = merged[key];
+    if (!localValue || dateValue(databaseValue.updatedAt) >= dateValue(localValue.updatedAt)) {
+      merged[key] = databaseValue;
+    }
+  }
+  return merged;
+}
+
+function dateValue(value: string) {
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 function enrichLead(lead: RedditLead, state?: LeadState): EnrichedLead {
