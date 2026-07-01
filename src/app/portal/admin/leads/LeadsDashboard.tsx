@@ -330,7 +330,7 @@ export default function LeadsDashboard({
                   className="h-10 rounded-md bg-[#f3f0e8] px-4 text-sm font-medium text-[#151515] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                   title="Publishes the latest Codex automation digest from the configured worktree output directory."
                 >
-                  {isRunning ? "Loading..." : "Run automation scan"}
+                  {isRunning ? "Loading..." : "Load automation digest"}
                 </button>
               </div>
             )}
