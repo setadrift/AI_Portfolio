@@ -130,7 +130,13 @@ export default async function AiWorkflowAuditPage({
   setRequestLocale(locale);
 
   const proofProjects = PROJECTS.filter((project) =>
-    ["dispute-defender", "deal-engine", "the-lineup"].includes(project.slug),
+    [
+      "dispute-defender",
+      "deal-engine",
+      "the-lineup",
+      "alex-parker-property-ops",
+      "trauma-therapy-group-publisher",
+    ].includes(project.slug),
   );
   const localePrefix = locale === "en" ? "/en" : `/${locale}`;
 
