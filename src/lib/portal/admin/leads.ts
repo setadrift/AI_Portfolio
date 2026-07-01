@@ -391,6 +391,28 @@ export async function publishLatestAutomationLeadDigest(outputDir = AUTOMATION_D
   return `Published ${fileName} to Vercel Blob at ${PUBLISHED_AUTOMATION_DIGEST_PATH}`;
 }
 
+export async function reloadPublishedAutomationLeadSource() {
+  const existingAutomationSource = await readPublishedAutomationSource();
+  if (!existingAutomationSource?.digest) {
+    throw new Error("No published Codex automation lead source found.");
+  }
+
+  await persistLeadSourcesToDatabase([
+    {
+      id: existingAutomationSource.id,
+      label: existingAutomationSource.label,
+      description: existingAutomationSource.description,
+      fileName: existingAutomationSource.digest.fileName,
+      markdown: existingAutomationSource.markdown,
+      status: existingAutomationSource.status,
+      diagnostic: existingAutomationSource.diagnostic,
+      digest: existingAutomationSource.digest,
+    },
+  ]);
+
+  return `Reloaded ${existingAutomationSource.digest.fileName} from Vercel Blob into Supabase.`;
+}
+
 async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
   try {
     const result = await get(PUBLISHED_DIGEST_PATH, {
