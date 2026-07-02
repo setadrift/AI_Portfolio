@@ -172,9 +172,9 @@ function leadBlocks(markdown, options = {}) {
 
 async function createAdminClient() {
   const env = {
-    ...process.env,
     ...(await loadDotEnv(".env")),
     ...(await loadDotEnv(".env.local")),
+    ...process.env,
   };
   const adminKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY;
   if (!env.SUPABASE_URL || !adminKey) return null;

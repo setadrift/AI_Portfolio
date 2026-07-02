@@ -192,7 +192,7 @@ export default function LeadsDashboard({
       };
 
       if (!response.ok || !result.ok) {
-        throw new Error(result.error || result.stderr || "Scan failed");
+        throw new Error(result.error || result.stderr || `Scan request failed (${response.status})`);
       }
 
       setRunMessage(result.stdout?.trim() || "Scan complete.");
