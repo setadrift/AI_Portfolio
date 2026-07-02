@@ -120,19 +120,42 @@ function sourceDiagnostic(source) {
   const markdown = source.markdown ?? "";
   const parsedRows = leadBlocks(markdown, { includeWatch: source.id === "reddit" }).length;
   const bestRows = leadBlocks(markdown).length;
+  const postedDateRows = leadBlocks(markdown, { includeWatch: source.id === "reddit" }).join("\n");
+  const declaredCandidates = numberValue(markdown, "Candidates included");
+  const feedsChecked = numberValue(markdown, "Feeds checked");
+  const feedErrors = feedErrorCount(markdown);
+  const usable = bestRows > 0 || feedsChecked > 0;
   return {
     source: source.id,
     fileName: source.fileName ?? "",
-    declaredCandidates: numberValue(markdown, "Candidates included"),
+    declaredCandidates,
     parsedLeads: parsedRows,
     bestLeadBlocks: bestRows,
     totalHeadingBlocks: (markdown.match(/^### [1-5]\/5 - /gm) ?? []).length,
-    postedDateCount: (leadBlocks(markdown).join("\n").match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
-    unknownPostedDateCount: (leadBlocks(markdown).join("\n").match(/^- Posted date: unknown/gm) ?? []).length,
-    feedErrors: 0,
-    usable: bestRows > 0 || numberValue(markdown, "Feeds checked") > 0,
-    warning: "",
+    postedDateCount: (postedDateRows.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
+    unknownPostedDateCount: (postedDateRows.match(/^- Posted date: unknown/gm) ?? []).length,
+    feedErrors,
+    usable,
+    warning: diagnosticWarning({ declaredCandidates, bestRows, feedErrors, usable }),
   };
+}
+
+function diagnosticWarning({ declaredCandidates, bestRows, feedErrors, usable }) {
+  if (declaredCandidates !== bestRows) {
+    return `Declared ${declaredCandidates} candidates but parsed ${bestRows} Best Leads rows.`;
+  }
+  if (!usable) return "Digest is not usable.";
+  if (feedErrors > 0) return `${feedErrors} feed errors reported.`;
+  return "";
+}
+
+function feedErrorCount(markdown) {
+  const section = markdown.split("## Feed Errors")[1] ?? "";
+  return section
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- "))
+    .length;
 }
 
 function leadBlocks(markdown, options = {}) {
