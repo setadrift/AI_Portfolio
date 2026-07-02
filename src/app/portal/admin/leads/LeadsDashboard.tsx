@@ -104,7 +104,10 @@ export default function LeadsDashboard({
     null;
 
   const rows = useMemo(
-    () => (selectedSource?.digest?.leads ?? []).map((lead) => enrichLead(lead, leadState[leadKey(lead)])),
+    () =>
+      (selectedSource?.digest?.leads ?? []).map((lead) =>
+        enrichLead(lead, leadState[stateKey(lead)] ?? leadState[leadKey(lead)]),
+      ),
     [selectedSource?.digest?.leads, leadState],
   );
 
@@ -149,7 +152,7 @@ export default function LeadsDashboard({
     visibleRows[0] ??
     null;
 
-  const selectedLeads = rows.filter((lead) => selectedIds.has(leadKey(lead)));
+  const selectedLeads = rows.filter((lead) => selectedIds.has(stateKey(lead)));
   const currentQueue = QUEUES.find((queue) => queue.value === selectedQueue) ?? QUEUES[0];
   const selectedStatus =
     selectedSource?.id === "reddit" ? selectedSource.status ?? initialData.status : selectedSource?.status ?? null;
@@ -211,11 +214,12 @@ export default function LeadsDashboard({
   }
 
   function updateLead(lead: RedditLead, patch: Partial<LeadState>) {
-    const key = leadKey(lead);
+    const key = stateKey(lead);
+    const currentState = leadState[key] ?? leadState[leadKey(lead)];
     const nextState = {
-      queue: queueForLead(lead, leadState[key]),
-      action: leadState[key]?.action ?? "new",
-      notes: leadState[key]?.notes ?? "",
+      queue: queueForLead(lead, currentState),
+      action: currentState?.action ?? "new",
+      notes: currentState?.notes ?? "",
       updatedAt: new Date().toISOString(),
       ...patch,
     };
@@ -235,13 +239,14 @@ export default function LeadsDashboard({
   function bulkMove(queue: LeadQueue, action?: LeadAction) {
     const nextSelected = selectedLeads.length ? selectedLeads : visibleRows;
     const updates = nextSelected.map((lead) => {
-      const key = leadKey(lead);
+      const key = stateKey(lead);
+      const currentState = leadState[key] ?? leadState[leadKey(lead)];
       return {
         lead,
         state: {
           queue,
-          action: action ?? leadState[key]?.action ?? (queue === "dismissed" ? "dismissed" : "new"),
-          notes: leadState[key]?.notes ?? "",
+          action: action ?? currentState?.action ?? (queue === "dismissed" ? "dismissed" : "new"),
+          notes: currentState?.notes ?? "",
           updatedAt: new Date().toISOString(),
         },
       };
@@ -250,7 +255,7 @@ export default function LeadsDashboard({
     setLeadState((current) => {
       const next = { ...current };
       for (const update of updates) {
-        next[leadKey(update.lead)] = update.state;
+        next[stateKey(update.lead)] = update.state;
       }
       return next;
     });
@@ -514,12 +519,12 @@ export default function LeadsDashboard({
                           type="checkbox"
                           checked={
                             visibleRows.length > 0 &&
-                            visibleRows.every((lead) => selectedIds.has(leadKey(lead)))
+                            visibleRows.every((lead) => selectedIds.has(stateKey(lead)))
                           }
                           onChange={(event) => {
                             setSelectedIds(
                               event.target.checked
-                                ? new Set(visibleRows.map((lead) => leadKey(lead)))
+                                ? new Set(visibleRows.map((lead) => stateKey(lead)))
                                 : new Set(),
                             );
                           }}
@@ -537,7 +542,7 @@ export default function LeadsDashboard({
                   <tbody>
                     {visibleRows.map((lead) => (
                       <tr
-                        key={leadKey(lead)}
+                        key={stateKey(lead)}
                         className={`cursor-pointer border-b border-white/10 ${
                           selectedLead?.url === lead.url ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
                         }`}
@@ -546,12 +551,12 @@ export default function LeadsDashboard({
                         <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
                           <input
                             type="checkbox"
-                            checked={selectedIds.has(leadKey(lead))}
+                            checked={selectedIds.has(stateKey(lead))}
                             onChange={(event) => {
                               setSelectedIds((current) => {
                                 const next = new Set(current);
-                                if (event.target.checked) next.add(leadKey(lead));
-                                else next.delete(leadKey(lead));
+                                if (event.target.checked) next.add(stateKey(lead));
+                                else next.delete(stateKey(lead));
                                 return next;
                               });
                             }}
@@ -851,6 +856,10 @@ function dateSortKey(date: string) {
 
 function leadKey(lead: RedditLead) {
   return lead.url || `${lead.subreddit}:${lead.title}`;
+}
+
+function stateKey(lead: RedditLead) {
+  return `${lead.sourceKind}:${leadKey(lead)}`;
 }
 
 function formatCategory(value: string) {

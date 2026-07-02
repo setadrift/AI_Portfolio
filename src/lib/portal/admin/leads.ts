@@ -6,6 +6,8 @@ import {
   persistLeadSourcesToDatabase,
   readLeadSourcesFromDatabase,
   readLeadStatesFromDatabase,
+  readStoredLeadsFromDatabase,
+  stateStorageKey,
 } from "./lead-db";
 
 const REDDIT_DIGEST_DIR = outputDir("REDDIT_LEAD_OUTPUT_DIR", "outputs/reddit-leads");
@@ -163,10 +165,12 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
   const digest = redditSource.digest ?? localRedditDigest;
   const status = redditSource.status ?? localStatus;
   const leadStates = await readLeadStatesFromDatabase(sources);
+  const storedLeads = await readStoredLeadsFromDatabase(sources.map((source) => source.id));
+  const sourcesWithStoredLeads = mergeStoredStateLeads(sources, storedLeads, leadStates);
 
-  logLeadSourceDiagnostics(sources);
+  logLeadSourceDiagnostics(sourcesWithStoredLeads);
 
-  return { digest, status, sources, leadStates, channels, scanModes };
+  return { digest, status, sources: sourcesWithStoredLeads, leadStates, channels, scanModes };
 }
 
 export async function readLeadChannels(): Promise<LeadChannel[]> {
@@ -516,7 +520,34 @@ export async function readLatestLeadDigest(): Promise<LeadDigest | null> {
 }
 
 export function leadStateStorageKey(lead: RedditLead) {
-  return leadKeyForDatabase(lead);
+  return stateStorageKey(lead.sourceKind, leadKeyForDatabase(lead));
+}
+
+function mergeStoredStateLeads(
+  sources: LeadSourceDigest[],
+  storedLeads: Partial<Record<LeadSourceId, RedditLead[]>>,
+  leadStates: Record<string, StoredLeadState>,
+) {
+  return sources.map((source) => {
+    const digest = source.digest;
+    if (!digest) return source;
+
+    const existingKeys = new Set(digest.leads.map((lead) => leadKeyForDatabase(lead)));
+    const historicalLeads = (storedLeads[source.id] ?? []).filter((lead) => {
+      const leadKey = leadKeyForDatabase(lead);
+      return !existingKeys.has(leadKey) && Boolean(leadStates[stateStorageKey(source.id, leadKey)]);
+    });
+
+    if (historicalLeads.length === 0) return source;
+
+    return {
+      ...source,
+      digest: {
+        ...digest,
+        leads: [...digest.leads, ...historicalLeads],
+      },
+    };
+  });
 }
 
 async function readLatestLocalRedditDigest(): Promise<LeadDigest | null> {
