@@ -55,6 +55,8 @@ export default function LeadsDashboard({
     preferredSource(initialData)?.digest?.leads[0]?.url ?? initialData.digest?.leads[0]?.url ?? "",
   );
   const [search, setSearch] = useState("");
+  const [leadTypeFilter, setLeadTypeFilter] = useState("all");
+  const [postureFilter, setPostureFilter] = useState("all");
   const [sortBy, setSortBy] = useState<SortField>("posted");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [leadState, setLeadState] = useState<Record<string, LeadState>>(initialData.leadStates);
@@ -121,10 +123,21 @@ export default function LeadsDashboard({
     );
   }, [rows]);
 
+  const leadTypeOptions = useMemo(
+    () => filterOptions(rows, (lead) => lead.leadType || lead.category || "other"),
+    [rows],
+  );
+  const postureOptions = useMemo(
+    () => filterOptions(rows, (lead) => lead.outreachPosture || "watch"),
+    [rows],
+  );
+
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return rows
       .filter((lead) => lead.queue === selectedQueue)
+      .filter((lead) => leadTypeFilter === "all" || (lead.leadType || lead.category || "other") === leadTypeFilter)
+      .filter((lead) => postureFilter === "all" || (lead.outreachPosture || "watch") === postureFilter)
       .filter((lead) => {
         if (!needle) return true;
         return [
@@ -150,11 +163,10 @@ export default function LeadsDashboard({
           .includes(needle);
       })
       .sort((a, b) => sortRows(a, b, sortBy));
-  }, [rows, search, selectedQueue, sortBy]);
+  }, [leadTypeFilter, postureFilter, rows, search, selectedQueue, sortBy]);
 
   const selectedLead =
     visibleRows.find((lead) => lead.url === selectedLeadUrl) ??
-    rows.find((lead) => lead.url === selectedLeadUrl) ??
     visibleRows[0] ??
     null;
 
@@ -357,6 +369,8 @@ export default function LeadsDashboard({
                 onClick={() => {
                   setSelectedSourceId(source.id);
                   setSelectedQueue("actionable");
+                  setLeadTypeFilter("all");
+                  setPostureFilter("all");
                   setSelectedIds(new Set());
                   setSelectedLeadUrl(source.digest?.leads[0]?.url ?? "");
                 }}
@@ -455,13 +469,43 @@ export default function LeadsDashboard({
                 ))}
               </div>
 
-              <div className="mt-4 grid gap-2 md:grid-cols-[minmax(280px,1fr)_160px_auto]">
+              <div className="mt-4 grid gap-2 md:grid-cols-[minmax(240px,1fr)_180px_160px_160px_auto]">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search title, reason, source..."
                   className="h-10 w-full rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/30"
                 />
+                <select
+                  value={leadTypeFilter}
+                  onChange={(event) => {
+                    setLeadTypeFilter(event.target.value);
+                    setSelectedIds(new Set());
+                  }}
+                  className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
+                >
+                  <option value="all">All lead types</option>
+                  {leadTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} {option.count}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={postureFilter}
+                  onChange={(event) => {
+                    setPostureFilter(event.target.value);
+                    setSelectedIds(new Set());
+                  }}
+                  className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
+                >
+                  <option value="all">All postures</option>
+                  {postureOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {formatAction(option.value)} {option.count}
+                    </option>
+                  ))}
+                </select>
                 <select
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value as SortField)}
@@ -840,6 +884,23 @@ function mergeLeadStates(
 function dateValue(value: string) {
   const parsed = new Date(value).getTime();
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function filterOptions(leads: RedditLead[], valueForLead: (lead: RedditLead) => string) {
+  const counts = new Map<string, number>();
+  for (const lead of leads) {
+    const value = valueForLead(lead);
+    if (!value) continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || formatCategory(a[0]).localeCompare(formatCategory(b[0])))
+    .map(([value, count]) => ({
+      value,
+      count,
+      label: formatCategory(value),
+    }));
 }
 
 function enrichLead(lead: RedditLead, state?: LeadState): EnrichedLead {
