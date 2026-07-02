@@ -1,10 +1,210 @@
 {
   "ingestionMode": "oauth",
+  "archetypePacks": [
+    {
+      "id": "service-project-profitability",
+      "label": "Service project profitability",
+      "vertical": "local_service_ops",
+      "failureMode": "job_costing_visibility",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" },
+        { "id": "freelance", "label": "Freelance", "subreddit": "freelance" }
+      ],
+      "searchQueries": [
+        "\"outgrown spreadsheets\" OR \"outgrowing spreadsheets\"",
+        "\"project profitability\" spreadsheet",
+        "\"budgets\" \"progress\" \"who's working on what\"",
+        "title:\"keep track\" selftext:profitability",
+        "title:\"tracking\" selftext:budget"
+      ],
+      "positiveSignals": ["spreadsheet", "budget", "progress", "profitability", "client projects", "jobs", "projects"],
+      "painSignals": ["outgrown", "harder to get a quick view", "can't keep track", "cant keep track", "still in progress", "margin", "cost to complete"],
+      "rejectSignals": ["template", "course", "market research"]
+    },
+    {
+      "id": "daily-team-tasking",
+      "label": "Daily team tasking",
+      "vertical": "local_service_ops",
+      "failureMode": "recurring_task_visibility",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "smallbusinessowner", "label": "Small Business Owner", "subreddit": "smallbusinessowner" },
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" }
+      ],
+      "searchQueries": [
+        "\"whiteboard\" \"tasks\" \"employees\"",
+        "\"daily recurring tasks\" employees",
+        "\"who is doing what\" tasks",
+        "\"task list\" \"photo\" \"end of the day\"",
+        "\"3 departments\" tasks"
+      ],
+      "positiveSignals": ["whiteboard", "tasks", "checklist", "employees", "departments", "photo", "daily"],
+      "painSignals": ["too clunky", "memory", "keeps forgetting", "hard to track", "every day", "recurring"],
+      "rejectSignals": ["personal productivity", "student", "habit tracker"]
+    },
+    {
+      "id": "sop-client-onboarding",
+      "label": "SOP and client onboarding",
+      "vertical": "agency_ops",
+      "failureMode": "knowledge_capture_onboarding",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" },
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "freelance", "label": "Freelance", "subreddit": "freelance" },
+        { "id": "entrepreneur", "label": "Entrepreneur", "subreddit": "Entrepreneur" }
+      ],
+      "searchQueries": [
+        "\"reinventing the wheel\" \"client onboarding\"",
+        "\"SOP\" \"client onboarding\"",
+        "\"first hire\" onboarding SOP",
+        "\"write down how I do it\"",
+        "\"systematize\" \"client onboarding\""
+      ],
+      "positiveSignals": ["sop", "client onboarding", "process", "first hire", "systematize", "delegation"],
+      "painSignals": ["reinventing the wheel", "never wrote down", "not predictable", "every project", "handoff"],
+      "rejectSignals": ["course", "template", "newsletter"]
+    },
+    {
+      "id": "recruiting-handoff-drift",
+      "label": "Recruiting handoff drift",
+      "vertical": "recruiting_staffing",
+      "failureMode": "intake_screening_handoff",
+      "defaultOutreachPosture": "dm_if_engaged",
+      "channels": [
+        { "id": "recruiting", "label": "Recruiting", "subreddit": "recruiting" },
+        { "id": "humanresources", "label": "Human Resources", "subreddit": "humanresources" },
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" }
+      ],
+      "searchQueries": [
+        "subreddit:recruiting \"intake call\"",
+        "subreddit:recruiting \"brief drift\"",
+        "subreddit:recruiting \"handoff\"",
+        "\"10 hours\" \"intake\" \"outreach\"",
+        "\"screening applicants\" \"takes forever\"",
+        "\"hundreds of applications\" screening",
+        "\"ATS\" \"manual\" scorecard",
+        "\"candidate follow up\" manual"
+      ],
+      "positiveSignals": ["intake call", "outreach", "screening", "applicants", "candidate", "ats", "scorecard", "handoff"],
+      "painSignals": ["10 hours", "takes forever", "brief drift", "manual", "hundreds", "noise", "buried"],
+      "rejectSignals": ["resume", "job seeker", "open to work", "hire me"]
+    },
+    {
+      "id": "tax-document-intake",
+      "label": "Tax document intake",
+      "vertical": "tax_accounting",
+      "failureMode": "document_intake",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "taxpros", "label": "Tax Pros", "subreddit": "taxpros" },
+        { "id": "taxhelp", "label": "Tax Help", "subreddit": "taxhelp" },
+        { "id": "accounting", "label": "Accounting", "subreddit": "Accounting" },
+        { "id": "bookkeeping", "label": "Bookkeeping", "subreddit": "bookkeeping" },
+        { "id": "bookkeeping-business", "label": "Bookkeeping Business", "subreddit": "Bookkeeping_Business" }
+      ],
+      "searchQueries": [
+        "subreddit:taxpros \"client documents\"",
+        "subreddit:taxpros \"split\" \"rename\"",
+        "subreddit:taxpros \"K-1\" \"fund admin\"",
+        "subreddit:Bookkeeping \"receipts\" \"scan\"",
+        "\"single pdf\" \"split\" \"rename\" \"client documents\"",
+        "\"loose box\" receipts spreadsheet"
+      ],
+      "positiveSignals": ["client documents", "pdf", "split", "rename", "ocr", "k-1", "pbc", "receipts", "scan", "bookkeeping"],
+      "painSignals": ["late", "busy season", "manual", "flooding", "chasing", "amended return", "extension", "loose box"],
+      "rejectSignals": ["personal tax question", "refund", "irs notice"]
+    },
+    {
+      "id": "invoice-payment-reconciliation",
+      "label": "Invoice payment reconciliation",
+      "vertical": "finance_ops",
+      "failureMode": "invoice_reconciliation",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "bookkeeping", "label": "Bookkeeping", "subreddit": "bookkeeping" },
+        { "id": "accounting", "label": "Accounting", "subreddit": "Accounting" }
+      ],
+      "searchQueries": [
+        "\"manually matching\" invoices bank payments",
+        "\"invoice tracking\" \"spreadsheet\" \"payments\"",
+        "\"bank transactions\" invoices receipts",
+        "\"customer pays\" \"multiple payments\" invoice",
+        "\"matching invoices\" \"bank\" \"spreadsheet\""
+      ],
+      "positiveSignals": ["invoice", "payment", "bank", "reconciliation", "receipts", "spreadsheet", "quickbooks", "xero"],
+      "painSignals": ["manually matching", "manual", "takes forever", "missing reference", "multiple payments", "month end"],
+      "rejectSignals": ["home budget", "personal finance"]
+    },
+    {
+      "id": "crm-source-of-truth",
+      "label": "CRM source of truth",
+      "vertical": "crm_sales_ops",
+      "failureMode": "crm_migration_followup",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "crm", "label": "CRM", "subreddit": "CRM" },
+        { "id": "crm-software", "label": "CRM Software", "subreddit": "CRMSoftware" },
+        { "id": "which-crm", "label": "Which CRM", "subreddit": "WhichCRM" },
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" }
+      ],
+      "searchQueries": [
+        "subreddit:CRM \"consultancy\"",
+        "subreddit:CRM \"donor\"",
+        "subreddit:CRM \"SMS\"",
+        "subreddit:CRM \"Xero\"",
+        "\"CRM\" \"follow up\" \"spreadsheet\"",
+        "\"client source of truth\" CRM",
+        "\"moving from spreadsheet\" CRM"
+      ],
+      "positiveSignals": ["crm", "source of truth", "follow up", "sms", "donor", "pipeline", "spreadsheet", "hubspot", "pipedrive", "zoho"],
+      "painSignals": ["moving from spreadsheet", "adoption", "messy", "too many tools", "manual follow up", "lost leads"],
+      "rejectSignals": ["best crm", "affiliate", "vendor"]
+    },
+    {
+      "id": "local-service-revenue-leak",
+      "label": "Local service revenue leakage",
+      "vertical": "local_service_ops",
+      "failureMode": "lead_followup_scheduling",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" },
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "contractor", "label": "Contractor", "subreddit": "Contractor" },
+        { "id": "hvacadvice", "label": "HVAC Advice", "subreddit": "hvacadvice" }
+      ],
+      "searchQueries": [
+        "\"missed calls\" leads business",
+        "\"quote requests\" \"follow up\" manual",
+        "\"too many customer messages\"",
+        "\"dispatch\" spreadsheet",
+        "\"scheduling appointments\" mess",
+        "\"can't keep up\" \"leads\" \"business\""
+      ],
+      "positiveSignals": ["missed calls", "quote requests", "follow up", "customer messages", "dispatch", "scheduling", "leads"],
+      "painSignals": ["can't keep up", "manual", "too many", "mess", "lost", "slow", "busy season"],
+      "rejectSignals": ["lead gen agency", "cold email", "seo agency"]
+    }
+  ],
   "scanModes": [
     {
       "id": "broad-buyer-intent",
       "label": "Broad buyer intent",
       "description": "Global Reddit searches for people describing urgent business pain, hiring intent, or manual operations problems across any community.",
+      "archetypePackIds": [
+        "service-project-profitability",
+        "daily-team-tasking",
+        "sop-client-onboarding",
+        "recruiting-handoff-drift",
+        "tax-document-intake",
+        "invoice-payment-reconciliation",
+        "crm-source-of-truth",
+        "local-service-revenue-leak"
+      ],
       "channels": [
         { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
         { "id": "smallbusinessowner", "label": "Small Business Owner", "subreddit": "smallbusinessowner" },
@@ -35,6 +235,9 @@
       "id": "staffing-recruiting",
       "label": "Staffing and recruiting",
       "description": "Global and community scans for businesses trying to find, screen, schedule, or follow up with workers and contractors.",
+      "archetypePackIds": [
+        "recruiting-handoff-drift"
+      ],
       "channels": [
         { "id": "recruiting", "label": "Recruiting", "subreddit": "recruiting" },
         { "id": "humanresources", "label": "Human Resources", "subreddit": "humanresources" },
@@ -59,6 +262,13 @@
       "id": "local-service-ops",
       "label": "Local service ops",
       "description": "Community and trade-adjacent searches for local operators with scheduling, intake, follow-up, quote, or customer-message problems.",
+      "archetypePackIds": [
+        "service-project-profitability",
+        "daily-team-tasking",
+        "sop-client-onboarding",
+        "invoice-payment-reconciliation",
+        "local-service-revenue-leak"
+      ],
       "channels": [
         { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" },
         { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
@@ -83,6 +293,11 @@
       "id": "tool-specific-automation",
       "label": "Tool-specific automation",
       "description": "The original targeted scan across automation, CRM, spreadsheet, ecommerce, bookkeeping, and no-code communities.",
+      "archetypePackIds": [
+        "tax-document-intake",
+        "invoice-payment-reconciliation",
+        "crm-source-of-truth"
+      ],
       "channels": [
         { "id": "automation", "label": "Automation", "subreddit": "automation" },
         { "id": "airtable", "label": "Airtable", "subreddit": "Airtable" },
@@ -173,6 +388,14 @@
   "useLlm": true,
   "llmModel": "gpt-4.1-mini",
   "maxLlmCandidates": 60,
+  "maxCandidatesPerSource": 12,
+  "maxCandidatesPerLeadType": 10,
+  "minCommentFirstCandidates": 15,
+  "maxToolSpecificCandidatesOutsideToolMode": 12,
+  "commentContextEnabled": true,
+  "commentContextCandidateLimit": 15,
+  "commentLimitPerPost": 20,
+  "commentSort": "top",
   "requestDelayMs": 750,
   "minSuccessfulFeeds": 12
 }

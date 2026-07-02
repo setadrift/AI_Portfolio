@@ -222,9 +222,29 @@ const allowedCategories = new Set([
 ]);
 
 const allowedActions = new Set(["ignore", "watch", "comment", "dm_if_engaged", "dm"]);
+const allowedOutreachPostures = new Set(["ignore", "watch", "comment_first", "dm_if_engaged", "dm_now"]);
+const toolSpecificSubreddits = new Set([
+  "airtable",
+  "automation",
+  "crm",
+  "crmsoftware",
+  "googlesheets",
+  "make",
+  "marketingautomation",
+  "nocode",
+  "notion",
+  "shopify",
+  "zapier",
+]);
 
 async function main() {
   const config = await loadConfig();
+  if (process.argv.includes("--score-fixtures")) {
+    await runFixtureScoring(config);
+    return;
+  }
+
+  const scanConfig = selectedScanConfig(config);
   const env = {
     ...process.env,
     ...(await loadDotEnv(".env.local")),
@@ -236,7 +256,6 @@ async function main() {
   const feedResults = [];
   const posts = [];
 
-  const scanConfig = selectedScanConfig(config);
   const channels = limitChannels(normalizeChannels(scanConfig));
   const searchQueries = limitSearchQueries(scanConfig.searchQueries ?? []);
   const totalConfiguredFeeds = channels.length + searchQueries.length;
@@ -304,11 +323,25 @@ async function main() {
     return now - new Date(post.publishedAt).getTime() <= maxAgeMs;
   });
 
-  const filtered = freshPosts
-    .map((post) => ({ ...post, ...matchPost(post) }))
+  const matchedPosts = freshPosts
+    .map((post) => ({ ...post, ...matchPost(post, scanConfig) }));
+  const preScoringRejected = matchedPosts.filter((post) => !shouldKeepPost(post));
+  const eligiblePosts = matchedPosts
     .filter((post) => shouldKeepPost(post))
-    .sort((a, b) => candidatePriority(b) - candidatePriority(a))
-    .slice(0, config.maxLlmCandidates ?? 25);
+    .sort((a, b) => candidatePriority(b) - candidatePriority(a));
+  let filtered = selectCandidatePortfolio(eligiblePosts, scanConfig, config);
+  const portfolioRejectedCount = Math.max(0, freshPosts.length - filtered.length - preScoringRejected.length);
+
+  if (useOauth && config.commentContextEnabled !== false) {
+    filtered = await enrichCandidatesWithCommentContext(filtered, {
+      token: redditToken,
+      limit: config.commentLimitPerPost ?? 20,
+      candidateLimit: config.commentContextCandidateLimit ?? 15,
+      sort: config.commentSort || "top",
+      userAgent: env.REDDIT_USER_AGENT || DEFAULT_USER_AGENT,
+      requestDelayMs: config.requestDelayMs ?? 1500,
+    });
+  }
 
   const scored = await scorePosts(filtered, config, env.OPENAI_API_KEY);
   const includedLeads = scored.filter((lead) => lead.score >= config.minScore);
@@ -328,6 +361,7 @@ async function main() {
     feedResults,
     config,
     scanMode: scanConfig.scanMode,
+    rejectionSummary: rejectionReasonSummary(preScoringRejected, portfolioRejectedCount),
     partialCoverage,
   });
 
@@ -344,6 +378,7 @@ async function main() {
     candidatesScored: filtered.length,
     leadsIncluded: includedLeads.length,
     outputPath: shouldWriteDigest ? outputPath : "",
+    queryDiagnostics: queryDiagnostics(feedResults),
     message: partialCoverage
       ? `Partial digest updated with ${scored.length} lead(s); only ${successfulFeeds}/${feedResults.length} feeds succeeded.`
       : shouldWriteDigest
@@ -379,6 +414,122 @@ async function loadConfig() {
   return JSON.parse(raw);
 }
 
+async function runFixtureScoring(config) {
+  const fixturePath = process.env.REDDIT_SCANNER_FIXTURE_PATH ||
+    path.join("scripts", "fixtures", "reddit-lead-scanner-quality.json");
+  const raw = await readFile(fixturePath, "utf8");
+  const payload = JSON.parse(raw);
+  const fixtures = Array.isArray(payload) ? payload : payload.fixtures;
+  if (!Array.isArray(fixtures) || fixtures.length === 0) {
+    throw new Error(`No Reddit scanner fixtures found in ${fixturePath}.`);
+  }
+
+  const scanConfig = selectedScanConfig(config);
+  const failures = [];
+  const scoredLeads = [];
+  const rows = fixtures.map((fixture) => {
+    const post = {
+      title: fixture.title,
+      summary: fixture.summary,
+      author: fixture.author || "fixture_user",
+      subreddit: fixture.subreddit || "smallbusiness",
+      url: fixture.url || `https://www.reddit.com/r/${fixture.subreddit || "smallbusiness"}/comments/${fixture.id}`,
+      publishedAt: fixture.publishedAt || new Date().toISOString(),
+      redditScore: 0,
+      commentCount: 0,
+      sourceMode: "fixture",
+      sourceDetail: fixture.id,
+    };
+    const matched = { ...post, ...matchPost(post, scanConfig) };
+    const scored = scoreDeterministically(matched);
+    scoredLeads.push(scored);
+    const expected = fixture.expected ?? {};
+    const minScore = expected.scoreMin ?? expected.score ?? 1;
+    const maxScore = expected.scoreMax ?? expected.score ?? 5;
+    const checks = [
+      {
+        ok: scored.score >= minScore && scored.score <= maxScore,
+        message: `score ${scored.score} outside expected ${minScore}-${maxScore}`,
+      },
+      {
+        ok: !expected.posture || scored.outreachPosture === expected.posture,
+        message: `posture ${scored.outreachPosture || "blank"} did not match ${expected.posture}`,
+      },
+      {
+        ok: !("leadType" in expected) ||
+          (expected.leadType
+            ? scored.leadType === expected.leadType
+            : !scored.leadType || scored.leadType === "other"),
+        message: `lead type ${scored.leadType || "blank"} did not match ${expected.leadType || "blank"}`,
+      },
+      {
+        ok: !/https?:\/\//i.test(scored.suggestedComment || ""),
+        message: "suggested public comment contains a URL",
+      },
+    ];
+    const failedChecks = checks.filter((check) => !check.ok);
+    if (failedChecks.length) {
+      failures.push({
+        id: fixture.id,
+        title: fixture.title,
+        failures: failedChecks.map((check) => check.message),
+        scored,
+      });
+    }
+    return {
+      id: fixture.id,
+      score: scored.score,
+      posture: scored.outreachPosture,
+      leadType: scored.leadType || "blank",
+      status: failedChecks.length ? "FAIL" : "PASS",
+    };
+  });
+
+  for (const row of rows) {
+    console.log(`${row.status} ${row.id}: score=${row.score} posture=${row.posture} leadType=${row.leadType}`);
+  }
+  if (failures.length) {
+    console.error(JSON.stringify(failures, null, 2));
+    throw new Error(`${failures.length}/${fixtures.length} Reddit scanner fixture(s) failed.`);
+  }
+  if (process.env.REDDIT_SCANNER_WRITE_FIXTURE_DIGEST === "1") {
+    await mkdir(OUTPUT_DIR, { recursive: true });
+    const outputPath = path.join(OUTPUT_DIR, `${localDate()}-fixtures.md`);
+    const digest = buildDigest({
+      date: localDate(),
+      leads: scoredLeads,
+      rejectedCount: scoredLeads.filter((lead) => lead.score < 3).length,
+      feedResults: [{ ok: true, url: "fixture:reddit-lead-scanner-quality", status: "fixture", posts: fixtures }],
+      config,
+      scanMode: scanConfig.scanMode,
+      rejectionSummary: rejectionReasonSummary(
+        scoredLeads.filter((lead) => lead.score < 3),
+        0,
+      ),
+      partialCoverage: false,
+    });
+    await writeFile(outputPath, digest, "utf8");
+    await writeStatus({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      successfulFeeds: 1,
+      totalFeeds: 1,
+      ingestionMode: "fixture",
+      scanMode: scanConfig.scanMode?.id ?? "legacy-config",
+      fetchedPosts: fixtures.length,
+      candidatesScored: scoredLeads.length,
+      leadsIncluded: scoredLeads.filter((lead) => lead.score >= (config.minScore ?? 4)).length,
+      outputPath,
+      queryDiagnostics: [],
+      message: "Fixture digest written for parser verification.",
+      feedErrors: [],
+    });
+    console.log(`Wrote fixture digest: ${outputPath}`);
+    console.log(`Wrote fixture status: ${STATUS_PATH}`);
+  }
+  console.log(`Fixture scoring passed: ${fixtures.length}/${fixtures.length}.`);
+}
+
 async function loadDotEnv(filePath) {
   if (!existsSync(filePath)) return {};
 
@@ -399,6 +550,7 @@ async function writeStatus(status) {
 function selectedScanConfig(config) {
   const requestedMode = process.env.REDDIT_SCAN_MODE || "";
   const scanModes = Array.isArray(config.scanModes) ? config.scanModes : [];
+  const archetypePacks = normalizeArchetypePacks(config.archetypePacks ?? []);
   const scanMode = requestedMode
     ? scanModes.find((mode) => slug(mode.id || mode.label) === slug(requestedMode))
     : scanModes[0] ?? null;
@@ -409,8 +561,19 @@ function selectedScanConfig(config) {
       scanMode: null,
       channels: config.channels ?? [],
       searchQueries: config.searchQueries ?? [],
+      archetypePacks,
     };
   }
+
+  const selectedArchetypes = archetypesForScanMode(scanMode, archetypePacks);
+  const expandedChannels = dedupeChannels([
+    ...(scanMode.channels ?? config.channels ?? []),
+    ...selectedArchetypes.flatMap((pack) => pack.channels),
+  ]);
+  const expandedSearchQueries = dedupeStrings([
+    ...(scanMode.searchQueries ?? config.searchQueries ?? []),
+    ...selectedArchetypes.flatMap((pack) => pack.searchQueries),
+  ]);
 
   return {
     ...config,
@@ -420,10 +583,72 @@ function selectedScanConfig(config) {
       label: scanMode.label || scanMode.id || "Selected scan mode",
       description: scanMode.description || "",
     },
-    channels: scanMode.channels ?? config.channels ?? [],
-    searchQueries: scanMode.searchQueries ?? config.searchQueries ?? [],
+    archetypePacks: selectedArchetypes,
+    channels: expandedChannels,
+    searchQueries: expandedSearchQueries,
     minSuccessfulFeeds: scanMode.minSuccessfulFeeds ?? config.minSuccessfulFeeds,
   };
+}
+
+function normalizeArchetypePacks(packs) {
+  return packs
+    .map((pack, index) => ({
+      id: slug(pack.id || pack.label),
+      label: pack.label || pack.id || "Archetype",
+      vertical: slug(pack.vertical || "other").replace(/-/g, "_"),
+      failureMode: slug(pack.failureMode || "other").replace(/-/g, "_"),
+      defaultOutreachPosture: allowedOutreachPostures.has(pack.defaultOutreachPosture)
+        ? pack.defaultOutreachPosture
+        : "comment_first",
+      channels: Array.isArray(pack.channels) ? pack.channels : [],
+      searchQueries: Array.isArray(pack.searchQueries) ? pack.searchQueries : [],
+      positiveSignals: normalizeSignalList(pack.positiveSignals),
+      painSignals: normalizeSignalList(pack.painSignals),
+      rejectSignals: normalizeSignalList(pack.rejectSignals),
+      order: index,
+    }))
+    .filter((pack) => pack.id);
+}
+
+function normalizeSignalList(values) {
+  return Array.isArray(values)
+    ? values.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+}
+
+function archetypesForScanMode(scanMode, archetypePacks) {
+  const requestedIds = Array.isArray(scanMode.archetypePackIds)
+    ? scanMode.archetypePackIds.map((value) => slug(value))
+    : [];
+  if (!requestedIds.length) return [];
+  const requested = new Set(requestedIds);
+  return archetypePacks.filter((pack) => requested.has(pack.id));
+}
+
+function dedupeChannels(channels) {
+  const seen = new Set();
+  const deduped = [];
+  for (const channel of channels) {
+    const subreddit = channel.subreddit || subredditFromFeed(channel.feed || channel.url || "");
+    const key = slug(channel.id || subreddit || channel.feed || channel.url);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(channel);
+  }
+  return deduped;
+}
+
+function dedupeStrings(values) {
+  const seen = new Set();
+  const deduped = [];
+  for (const value of values) {
+    const normalized = String(value || "").trim();
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(normalized);
+  }
+  return deduped;
 }
 
 function normalizeChannels(config) {
@@ -547,6 +772,90 @@ async function fetchSearchQuery(query, options) {
       posts: [],
     };
   }
+}
+
+async function enrichCandidatesWithCommentContext(posts, options) {
+  const limit = Math.max(0, Number.parseInt(String(options.candidateLimit ?? 0), 10) || 0);
+  if (!limit) return posts;
+  const enriched = [];
+  let fetched = 0;
+  for (const post of posts) {
+    if (!post.redditId || fetched >= limit) {
+      enriched.push(post);
+      continue;
+    }
+    const commentContext = await fetchCommentContext(post, options);
+    enriched.push(commentContext ? { ...post, commentContext } : post);
+    fetched += 1;
+    if (fetched < limit) {
+      await sleep(options.requestDelayMs ?? 1500);
+    }
+  }
+  return enriched;
+}
+
+async function fetchCommentContext(post, options) {
+  const params = new URLSearchParams({
+    limit: String(options.limit ?? 20),
+    sort: options.sort || "top",
+    raw_json: "1",
+  });
+  const url = `${REDDIT_OAUTH_HOST}/comments/${encodeURIComponent(post.redditId)}?${params.toString()}`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${options.token}`,
+        "User-Agent": options.userAgent,
+      },
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !body) return null;
+    return summarizeCommentContext(body, post.author);
+  } catch {
+    return null;
+  }
+}
+
+function summarizeCommentContext(body, postAuthor) {
+  const listing = Array.isArray(body) ? body[1] : null;
+  const comments = listing?.data?.children ?? [];
+  const parsed = comments
+    .map((child) => child.data ?? {})
+    .filter((comment) => comment.body && comment.author !== "[deleted]")
+    .slice(0, 20);
+  const opReplies = parsed
+    .filter((comment) => normalizeAuthor(comment.author) === normalizeAuthor(postAuthor))
+    .map((comment) => cleanCommentBody(comment.body).slice(0, 220))
+    .filter(Boolean)
+    .slice(0, 3);
+  const topAdviceThemes = parsed
+    .filter((comment) => normalizeAuthor(comment.author) !== "AutoModerator")
+    .map((comment) => cleanCommentBody(comment.body).slice(0, 180))
+    .filter(Boolean)
+    .slice(0, 5);
+  const selfPromotionRisk = parsed.some((comment) => {
+    const text = cleanCommentBody(comment.body).toLowerCase();
+    return normalizeAuthor(comment.author) === "AutoModerator" &&
+      /(self.?promotion|promotional|soliciting|dm|market research|survey)/i.test(text);
+  })
+    ? "high"
+    : "normal";
+
+  if (!opReplies.length && !topAdviceThemes.length && selfPromotionRisk === "normal") return null;
+  return {
+    opReplies,
+    topAdviceThemes,
+    selfPromotionRisk,
+    unansweredAngle: topAdviceThemes.length
+      ? "Add a practical process-design angle without repeating the existing tool suggestions."
+      : "",
+  };
+}
+
+function cleanCommentBody(value) {
+  return stripHtml(String(value || ""))
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function getRedditOAuthToken(env, { required = false } = {}) {
@@ -680,6 +989,7 @@ function parseRedditListing(body, channel) {
     const created = post.created_utc ? new Date(post.created_utc * 1000).toISOString() : "";
 
     return {
+      redditId: String(post.id || ""),
       title: String(post.title || "").trim(),
       summary: String(post.selftext || post.selftext_html || "").trim(),
       author: normalizeAuthor(post.author || "unknown"),
@@ -734,13 +1044,15 @@ function parseFeed(xml, feedUrl) {
   });
 }
 
-function matchPost(post) {
+function matchPost(post, scanConfig = {}) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const matchedKeywords = termsInText(text, positiveTerms);
   const communityPainMatches = termsInText(text, communityPainTerms);
   const buyingIntentMatches = termsInText(text, buyingIntentTerms);
   const negativeMatches = termsInText(text, negativeTerms);
   const hardNegativeMatches = termsInText(text, hardNegativeTerms);
+  const archetypeMatches = matchArchetypes(text, scanConfig.archetypePacks ?? []);
+  const primaryArchetype = primaryArchetypeMatch(archetypeMatches);
 
   return {
     matchedKeywords,
@@ -748,11 +1060,54 @@ function matchPost(post) {
     buyingIntentMatches,
     negativeMatches,
     hardNegativeMatches,
+    archetypeMatches,
+    matchedLeadTypes: archetypeMatches.map((match) => match.id),
+    matchEvidence: archetypeMatches.flatMap((match) => match.evidence).slice(0, 8),
+    leadType: primaryArchetype?.id ?? "",
+    vertical: primaryArchetype?.vertical ?? "",
+    failureMode: primaryArchetype?.failureMode ?? "",
+    outreachPosture: primaryArchetype?.defaultOutreachPosture ?? "",
   };
 }
 
+function matchArchetypes(text, archetypePacks) {
+  return archetypePacks
+    .map((pack) => {
+      const positive = termsInText(text, pack.positiveSignals);
+      const pain = termsInText(text, pack.painSignals);
+      const rejects = termsInText(text, pack.rejectSignals);
+      const evidence = [...positive, ...pain];
+      return {
+        ...pack,
+        positiveMatches: positive,
+        painMatches: pain,
+        rejectMatches: rejects,
+        evidence,
+        evidenceCount: evidence.length,
+      };
+    })
+    .filter((match) => {
+      if (match.rejectMatches.length > 0) return false;
+      return match.painMatches.length > 0 || match.positiveMatches.length >= 2;
+    });
+}
+
+function primaryArchetypeMatch(matches) {
+  if (!matches.length) return null;
+  return [...matches].sort((a, b) => {
+    const explicitDelta = Number(b.positiveMatches.some((term) => /paid|hire|project/.test(term))) -
+      Number(a.positiveMatches.some((term) => /paid|hire|project/.test(term)));
+    if (explicitDelta !== 0) return explicitDelta;
+    return b.evidenceCount - a.evidenceCount || a.order - b.order;
+  })[0];
+}
+
 function shouldKeepPost(post) {
-  if (post.matchedKeywords.length === 0 && post.communityPainMatches.length === 0) return false;
+  const hasDiscoverySignal =
+    post.matchedKeywords.length > 0 ||
+    post.communityPainMatches.length > 0 ||
+    post.archetypeMatches.length > 0;
+  if (!hasDiscoverySignal) return false;
   if (post.hardNegativeMatches.length > 0) return false;
   if (/\bfor hire\b/i.test(post.title)) return false;
   if (isRoleSeekerPost(post)) return false;
@@ -760,21 +1115,24 @@ function shouldKeepPost(post) {
   if (post.negativeMatches.length > 0 && post.buyingIntentMatches.length === 0) {
     return false;
   }
-  return hasRequestIntent(post);
+  return hasRequestIntent(post) || isAdviceShapedOperationalPain(post) || hasExplicitPaidProject(post);
 }
 
 function candidatePriority(post) {
   let priority = 0;
+  priority += Math.min(post.archetypeMatches.length, 4) * 7;
+  priority += Math.min(post.matchEvidence.length, 8) * 3;
   priority += post.buyingIntentMatches.length * 8;
   priority += Math.min(post.matchedKeywords.length, 6) * 2;
   priority += Math.min(post.communityPainMatches.length, 5) * 4;
   if (hasExplicitPaidProject(post)) priority += 35;
+  if (isAdviceShapedOperationalPain(post)) priority += 24;
   if (hasSpecificWorkflowPain(post)) priority += 20;
   if (hasBusinessContext(post)) priority += 10;
   if (post.sourceMode === "search") priority += 5;
   priority += Math.min(Number(post.commentCount || 0), 20) / 10;
   priority += Math.min(Number(post.redditScore || 0), 25) / 25;
-  if (isAdviceOnlyPost(post)) priority -= 18;
+  if (isGenericAdviceOnlyPost(post)) priority -= 18;
   if (isSellerOrBuilderPost(post)) priority -= 30;
   if (isEmploymentPost(post)) priority -= 28;
   if (isRoleSeekerPost(post)) priority -= 45;
@@ -782,6 +1140,185 @@ function candidatePriority(post) {
   if (!hasConsultingBuyerIntent(post)) priority -= 12;
   if (post.negativeMatches.length > 0) priority -= 12;
   return priority;
+}
+
+function selectCandidatePortfolio(posts, scanConfig, config) {
+  const maxCandidates = config.maxLlmCandidates ?? 25;
+  const maxPerSource = config.maxCandidatesPerSource ?? maxCandidates;
+  const maxPerLeadType = config.maxCandidatesPerLeadType ?? maxCandidates;
+  const minCommentFirst = config.minCommentFirstCandidates ?? 0;
+  const maxToolOutsideToolMode = config.maxToolSpecificCandidatesOutsideToolMode ?? maxCandidates;
+  const isToolMode = scanConfig.scanMode?.id === "tool-specific-automation";
+  const sorted = [...posts].sort((a, b) => candidatePriority(b) - candidatePriority(a));
+  const selected = [];
+  const seen = new Set();
+  const sourceCounts = new Map();
+  const leadTypeCounts = new Map();
+  let toolSpecificCount = 0;
+
+  function add(post, { ignoreCaps = false } = {}) {
+    if (selected.length >= maxCandidates) return false;
+    const key = candidateKey(post);
+    if (seen.has(key)) return false;
+    const sourceKey = candidateSourceKey(post);
+    const leadType = post.leadType || "unclassified";
+    const isToolSpecific = isToolSpecificCandidate(post);
+    if (!ignoreCaps) {
+      if ((sourceCounts.get(sourceKey) ?? 0) >= maxPerSource) return false;
+      if ((leadTypeCounts.get(leadType) ?? 0) >= maxPerLeadType) return false;
+      if (!isToolMode && isToolSpecific && toolSpecificCount >= maxToolOutsideToolMode) return false;
+    }
+    seen.add(key);
+    selected.push(post);
+    sourceCounts.set(sourceKey, (sourceCounts.get(sourceKey) ?? 0) + 1);
+    leadTypeCounts.set(leadType, (leadTypeCounts.get(leadType) ?? 0) + 1);
+    if (isToolSpecific) toolSpecificCount += 1;
+    return true;
+  }
+
+  const archetypes = scanConfig.archetypePacks ?? [];
+  const reservePerArchetype = Math.max(1, Math.floor(maxCandidates / Math.max(archetypes.length * 2, 1)));
+  for (const archetype of archetypes) {
+    const matches = sorted.filter((post) => post.matchedLeadTypes?.includes(archetype.id));
+    let added = 0;
+    for (const post of matches) {
+      if (added >= reservePerArchetype) break;
+      if (add(post)) added += 1;
+    }
+  }
+
+  const commentFirstCandidates = sorted.filter((post) => {
+    const posture = normalizeOutreachPosture(defaultOutreachPosture(post, 4), post, 4);
+    return posture === "comment_first" && isAdviceShapedOperationalPain(post);
+  });
+  for (const post of commentFirstCandidates) {
+    const currentCommentFirst = selected.filter((candidate) => {
+      const posture = normalizeOutreachPosture(defaultOutreachPosture(candidate, 4), candidate, 4);
+      return posture === "comment_first";
+    }).length;
+    if (currentCommentFirst >= minCommentFirst) break;
+    add(post);
+  }
+
+  for (const post of sorted) {
+    add(post);
+  }
+
+  return selected;
+}
+
+function candidateKey(post) {
+  return post.url || `${post.author}:${normalizeComparableTitle(post.title)}`;
+}
+
+function candidateSourceKey(post) {
+  return String(post.sourceDetail || post.subreddit || "unknown").toLowerCase();
+}
+
+function isToolSpecificCandidate(post) {
+  const subreddit = String(post.subreddit || "").toLowerCase();
+  if (toolSpecificSubreddits.has(subreddit)) return true;
+  const text = `${post.title}\n${post.summary}`.toLowerCase();
+  return /\b(zapier|make\.com|airtable|notion|hubspot|pipedrive|zoho|shopify|n8n)\b/.test(text);
+}
+
+function defaultOutreachPosture(post, score = 3) {
+  if (isSellerOrBuilderPost(post) || isRoleSeekerPost(post) || isMarketResearchPost(post)) return "ignore";
+  if (hasExplicitPaidProject(post)) return "dm_now";
+  if (score <= 2) return "ignore";
+  if (
+    post.outreachPosture &&
+    allowedOutreachPostures.has(post.outreachPosture) &&
+    (score >= 4 || isAdviceShapedOperationalPain(post))
+  ) {
+    return post.outreachPosture;
+  }
+  if (score <= 3) return "watch";
+  return "comment_first";
+}
+
+function normalizeOutreachPosture(value, post, score) {
+  let posture = allowedOutreachPostures.has(value) ? value : defaultOutreachPosture(post, score);
+  if (post.negativeMatches?.length || isSellerOrBuilderPost(post) || isRoleSeekerPost(post) || isMarketResearchPost(post)) {
+    return score <= 2 ? "ignore" : "watch";
+  }
+  if (posture === "dm_now" && !hasExplicitPaidProject(post)) {
+    posture = score >= 4 ? "dm_if_engaged" : "watch";
+  }
+  if (score <= 3 && ["dm_now", "dm_if_engaged"].includes(posture)) {
+    posture = "watch";
+  }
+  if (score <= 3 && posture === "comment_first" && !isAdviceShapedOperationalPain(post)) {
+    posture = "watch";
+  }
+  if (score >= 4 && posture === "watch") {
+    posture = "comment_first";
+  }
+  return posture;
+}
+
+function actionForOutreachPosture(posture) {
+  if (posture === "dm_now") return "dm";
+  if (posture === "dm_if_engaged") return "dm_if_engaged";
+  if (posture === "comment_first") return "comment";
+  if (posture === "ignore") return "ignore";
+  return "watch";
+}
+
+function freeToPursuePathFor(posture) {
+  if (posture === "dm_now") {
+    return "Explicit project or hiring ask; use a manual DM or platform reply after checking subreddit norms.";
+  }
+  if (posture === "dm_if_engaged") {
+    return "Public helpful comment first; DM only if OP replies, asks for implementation help, or clearly invites private follow-up.";
+  }
+  if (posture === "comment_first") {
+    return "Public helpful comment first with no link; DM only after OP engages or explicitly asks for help.";
+  }
+  if (posture === "ignore") return "Do not pursue.";
+  return "Watch for OP clarification before engaging.";
+}
+
+function suggestedCommentFor(post, posture) {
+  if (!["comment_first", "dm_if_engaged", "dm_now"].includes(posture)) return "";
+  const leadType = post.leadType || "workflow";
+  if (leadType === "service-project-profitability") {
+    return "I would separate this into job-level budget, committed cost, billed-to-date, and remaining work. The important part is deciding who updates each field and when, before choosing a tool.";
+  }
+  if (leadType === "daily-team-tasking") {
+    return "The first thing I would map is the recurring task template by department, then the proof-of-completion step. Once that is clear, the app choice gets much easier.";
+  }
+  if (leadType === "sop-client-onboarding") {
+    return "Start with the onboarding steps that happen every time and the decisions that still require judgment. That usually gives you the first useful SOP without over-documenting everything.";
+  }
+  if (leadType === "recruiting-handoff-drift") {
+    return "I would look at where the intake notes become search criteria, scorecard fields, and outreach copy. That handoff is usually where time leaks and candidate quality drift show up.";
+  }
+  if (leadType === "tax-document-intake") {
+    return "I would separate collection, classification, missing-item checks, and preparer review. AI can help with the middle steps, but the review queue and exception handling matter most.";
+  }
+  if (leadType === "invoice-payment-reconciliation") {
+    return "I would start by standardizing the matching rules and exceptions. The automation is much easier once partial payments, missing references, and duplicates are handled explicitly.";
+  }
+  if (leadType === "crm-source-of-truth") {
+    return "Before picking a CRM, I would define the source-of-truth fields, required follow-up events, and who owns data cleanup. That prevents the new CRM from becoming another spreadsheet.";
+  }
+  if (leadType === "local-service-revenue-leak") {
+    return "I would map the path from call or quote request to booked job, then mark where response time or ownership breaks. That usually shows what needs automation versus a clearer handoff.";
+  }
+  return "I would map the repeatable steps, the owner for each handoff, and the exception cases first. Tool choice is easier once the workflow failure is explicit.";
+}
+
+function suggestedDmFor(post) {
+  return `Hi, I saw your Reddit post about ${post.title}. I can help scope the workflow, identify the manual handoffs, and build a small implementation plan if you are still looking for paid help.`;
+}
+
+function stripPublicReplyUrls(value) {
+  return String(value || "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\s+\./g, ".")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 async function scorePosts(posts, config, apiKey) {
@@ -805,39 +1342,69 @@ async function scorePosts(posts, config, apiKey) {
 }
 
 function scoreDeterministically(post) {
+  const category = categorize(post);
   let score = 2;
-  if (post.matchedKeywords.length >= 2) score += 1;
-  if (post.communityPainMatches.length > 0) score += 1;
-  if (post.buyingIntentMatches.length > 0) score += 1;
+  if (isSellerOrBuilderPost(post) || isRoleSeekerPost(post) || isMarketResearchPost(post)) {
+    score = 2;
+  } else if (hasExplicitPaidProject(post)) {
+    score = 5;
+  } else if (isAdviceShapedOperationalPain(post)) {
+    score = 4;
+  } else if (category !== "other" && hasSpecificWorkflowPain(post) && hasBusinessContext(post)) {
+    score = 4;
+  } else {
+    if (post.matchedKeywords.length >= 2) score += 1;
+    if (post.communityPainMatches.length > 0) score += 1;
+    if (post.archetypeMatches.length > 0) score += 1;
+    if (post.buyingIntentMatches.length > 0) score += 1;
+  }
   if (post.negativeMatches.length > 0) score -= 1;
+  if (isGenericAdviceOnlyPost(post)) score = Math.min(score, 3);
   score = Math.max(1, Math.min(5, score));
+  const outreachPosture = normalizeOutreachPosture(defaultOutreachPosture(post, score), post, score);
+  const recommendedAction = actionForOutreachPosture(outreachPosture);
 
   return {
     ...post,
     score,
-    category: categorize(post),
-    recommendedAction: score >= 5 ? "dm" : score >= 4 ? "comment" : "watch",
+    category,
+    leadType: post.leadType || "",
+    vertical: post.vertical || "",
+    failureMode: post.failureMode || "",
+    outreachPosture,
+    recommendedAction,
+    freeToPursuePath: freeToPursuePathFor(outreachPosture),
     scoreReason: `Matched ${[...post.matchedKeywords, ...post.communityPainMatches].join(", ")}${
       post.buyingIntentMatches.length
         ? ` with buying intent: ${post.buyingIntentMatches.join(", ")}`
         : ""
-    }.`,
-    suggestedComment: "",
-    suggestedDm: "",
+    }${post.matchEvidence.length ? `; archetype evidence: ${post.matchEvidence.join(", ")}` : ""}.`,
+    suggestedComment: suggestedCommentFor(post, outreachPosture),
+    suggestedDm: outreachPosture === "dm_now" ? suggestedDmFor(post) : "",
   };
 }
 
 async function scoreWithLlm(post, config, apiKey) {
+  const schemaEnums = llmSchemaEnums(config, post);
   const input = {
     subreddit: post.subreddit,
     title: post.title,
     summary: post.summary.slice(0, 2000),
     publishedAt: post.publishedAt,
     url: post.url,
+    leadType: post.leadType,
+    matchedLeadTypes: post.matchedLeadTypes,
+    vertical: post.vertical,
+    failureMode: post.failureMode,
+    outreachPosture: post.outreachPosture,
+    matchEvidence: post.matchEvidence,
+    adviceShapedOperationalPain: isAdviceShapedOperationalPain(post),
+    genericAdviceOnly: isGenericAdviceOnlyPost(post),
     matchedKeywords: post.matchedKeywords,
     communityPainMatches: post.communityPainMatches,
     buyingIntentMatches: post.buyingIntentMatches,
     negativeMatches: post.negativeMatches,
+    commentContext: post.commentContext ?? null,
   };
 
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -852,7 +1419,7 @@ async function scoreWithLlm(post, config, apiKey) {
         {
           role: "system",
           content:
-            "You score Reddit posts for a freelance AI automation consultant. Return strict JSON only. Do not use markdown. The consultant builds practical workflow automations, internal tools, CRM automations, reporting pipelines, document/PDF automation, lightweight intake systems, and recruiting or scheduling operations for small businesses. Be strict. Score 5 only when the post explicitly asks to hire/pay someone or describes a very specific implementation project with clear business stakes. Score 4 only for a specific recurring business workflow pain with likely buyer intent, e.g. messy CRM follow-up, manual spreadsheet/reporting/bookkeeping, client onboarding, applicant/recruiting follow-up, staff scheduling, lead routing, order/inventory workflows, PDFs/documents, customer intake, or data cleanup. Score 3 for advice/tool recommendation posts, public-reply opportunities, or workflow curiosity without clear buying intent. Score 1-2 for broad discussion, market research, networking, sellers, builders asking for feedback, agencies, course promoters, or vague AI curiosity. Do not score a post 4+ just because it mentions automation, AI, CRM, Zapier, Make, Airtable, Notion, or spreadsheets. If recommendedAction is ignore, score must be 1 or 2. Suggested replies must be brief, practical, and Reddit-native. Do not say 'I can help' unless the post clearly asks for paid help. Do not include a website URL in public comments. Do not overclaim platform-specific expertise.",
+            "You score Reddit posts for a freelance AI automation consultant. Return strict JSON only. Do not use markdown. The consultant builds practical workflow automations, internal tools, CRM automations, reporting pipelines, document/PDF automation, lightweight intake systems, and recruiting or scheduling operations for small businesses. Use three lanes: direct paid/project lead, comment-first operational pain, and watch/ignore. Score 5 only when the post explicitly asks to hire/pay/scope/build/fix something or describes a very specific implementation project with clear business stakes. Score 4 for specific recurring business workflow pain with concrete business context and process breakdown, even if the first action should be a public helpful comment. Score 3 for generic advice/tool recommendations, workflow curiosity, or public-reply opportunities without enough operational specificity. Score 1-2 for broad discussion, market research, networking, sellers, builders asking for feedback, agencies, course promoters, job seekers, or vague AI curiosity. Do not score a post 4+ just because it mentions automation, AI, CRM, Zapier, Make, Airtable, Notion, or spreadsheets. outreachPosture must be dm_now only for explicit paid/project/hiring intent, dm_if_engaged only when private follow-up is appropriate after OP engagement, comment_first for operational pain where public help comes first, watch for weak signals, and ignore for rejects. Suggested public comments must be brief, practical, Reddit-native, no URLs, and non-duplicative of commentContext. Do not say 'I can help' unless the post clearly asks for paid help. suggestedDm must be blank for comment_first unless OP explicitly invited private help. Do not overclaim platform-specific expertise.",
         },
         {
           role: "user",
@@ -881,10 +1448,27 @@ async function scoreWithLlm(post, config, apiKey) {
                   "other",
                 ],
               },
+              leadType: {
+                type: "string",
+                enum: schemaEnums.leadTypes,
+              },
+              vertical: {
+                type: "string",
+                enum: schemaEnums.verticals,
+              },
+              failureMode: {
+                type: "string",
+                enum: schemaEnums.failureModes,
+              },
+              outreachPosture: {
+                type: "string",
+                enum: ["ignore", "watch", "comment_first", "dm_if_engaged", "dm_now"],
+              },
               recommendedAction: {
                 type: "string",
                 enum: ["ignore", "watch", "comment", "dm_if_engaged", "dm"],
               },
+              freeToPursuePath: { type: "string" },
               scoreReason: { type: "string" },
               suggestedComment: { type: ["string", "null"] },
               suggestedDm: { type: ["string", "null"] },
@@ -892,7 +1476,12 @@ async function scoreWithLlm(post, config, apiKey) {
             required: [
               "score",
               "category",
+              "leadType",
+              "vertical",
+              "failureMode",
+              "outreachPosture",
               "recommendedAction",
+              "freeToPursuePath",
               "scoreReason",
               "suggestedComment",
               "suggestedDm",
@@ -910,7 +1499,7 @@ async function scoreWithLlm(post, config, apiKey) {
 
   const outputText = extractResponseText(body);
   const parsed = JSON.parse(outputText);
-  return normalizeLlmScore(post, parsed);
+  return normalizeLlmScore(post, parsed, config);
 }
 
 function extractResponseText(body) {
@@ -924,15 +1513,25 @@ function extractResponseText(body) {
   throw new Error("OpenAI response did not include output text");
 }
 
-function normalizeLlmScore(post, parsed) {
+function normalizeLlmScore(post, parsed, config) {
   let score = Number.isInteger(parsed.score)
     ? Math.max(1, Math.min(5, parsed.score))
     : 1;
   const category = allowedCategories.has(parsed.category) ? parsed.category : "other";
+  const schemaEnums = llmSchemaEnums(config, post);
+  const leadType = schemaEnums.leadTypes.includes(parsed.leadType) ? parsed.leadType : (post.leadType || "other");
+  const vertical = schemaEnums.verticals.includes(parsed.vertical) ? parsed.vertical : (post.vertical || "other");
+  const failureMode = schemaEnums.failureModes.includes(parsed.failureMode)
+    ? parsed.failureMode
+    : (post.failureMode || "other");
+  let outreachPosture = allowedOutreachPostures.has(parsed.outreachPosture)
+    ? parsed.outreachPosture
+    : defaultOutreachPosture(post, score);
   let recommendedAction = allowedActions.has(parsed.recommendedAction)
     ? parsed.recommendedAction
     : "watch";
   const scoreReason = String(parsed.scoreReason || "").trim();
+  const isAdvicePain = isAdviceShapedOperationalPain(post);
 
   if (category === "other") score = Math.min(score, 3);
   if (category !== "other" && post.buyingIntentMatches.length > 0) {
@@ -944,43 +1543,78 @@ function normalizeLlmScore(post, parsed) {
   if (category !== "other" && hasSpecificWorkflowPain(post) && hasBusinessContext(post)) {
     score = Math.max(score, 4);
   }
-  if (!hasSpecificWorkflowPain(post) && !hasExplicitPaidProject(post)) {
+  if (category !== "other" && isAdvicePain) {
+    score = Math.max(score, 4);
+  }
+  if (!hasSpecificWorkflowPain(post) && !hasExplicitPaidProject(post) && !isAdvicePain) {
     score = Math.min(score, 3);
   }
   if (isBasicSpreadsheetHelp(post)) score = Math.min(score, 3);
-  if (isGeneralHelpReason(scoreReason)) score = Math.min(score, 3);
+  if (isGeneralHelpReason(scoreReason) && !isAdvicePain) score = Math.min(score, 3);
   if (isSellerOrBuilderPost(post)) score = Math.min(score, 2);
   if (isRoleSeekerPost(post)) score = Math.min(score, 2);
   if (isEmploymentPost(post) && !hasConsultingBuyerIntent(post)) score = Math.min(score, 3);
   if (isMarketResearchPost(post)) score = Math.min(score, 3);
-  if (!hasBestLeadSignal(post)) score = Math.min(score, 3);
-  if (!hasConsultingBuyerIntent(post) && !hasExplicitPaidProject(post)) score = Math.min(score, 3);
+  if (!hasBestLeadSignal(post) && !isAdvicePain) score = Math.min(score, 3);
+  if (!hasConsultingBuyerIntent(post) && !hasExplicitPaidProject(post) && !isAdvicePain) score = Math.min(score, 3);
   if (post.negativeMatches.length > 0) score = Math.min(score, 3);
   if (post.buyingIntentMatches.length === 0) score = Math.min(score, 4);
   if (recommendedAction === "ignore") score = Math.min(score, 2);
   if (recommendedAction === "watch") score = Math.min(score, 3);
   if (recommendedAction === "comment") score = Math.min(score, 4);
-  if (isAdviceOnlyPost(post)) score = Math.min(score, 3);
+  if (isGenericAdviceOnlyPost(post)) score = Math.min(score, 3);
+  outreachPosture = normalizeOutreachPosture(outreachPosture, post, score);
+  recommendedAction = actionForOutreachPosture(outreachPosture);
   if (score <= 3 && ["dm", "dm_if_engaged"].includes(recommendedAction)) {
     recommendedAction = "watch";
+    outreachPosture = "watch";
   }
+  const suggestedComment = stripPublicReplyUrls(
+    parsed.suggestedComment ? String(parsed.suggestedComment).trim() : "",
+  );
+  const suggestedDm = outreachPosture === "comment_first" && !hasExplicitPaidProject(post)
+    ? ""
+    : parsed.suggestedDm
+      ? String(parsed.suggestedDm).trim()
+      : "";
 
   return {
     ...post,
     score,
     category,
+    leadType,
+    vertical,
+    failureMode,
+    outreachPosture,
     recommendedAction,
+    freeToPursuePath: parsed.freeToPursuePath
+      ? String(parsed.freeToPursuePath).trim()
+      : freeToPursuePathFor(outreachPosture),
     scoreReason,
-    suggestedComment: parsed.suggestedComment ? String(parsed.suggestedComment).trim() : "",
-    suggestedDm: parsed.suggestedDm ? String(parsed.suggestedDm).trim() : "",
+    suggestedComment,
+    suggestedDm,
   };
 }
 
-function buildDigest({ date, leads, rejectedCount, feedResults, config, scanMode, partialCoverage }) {
+function llmSchemaEnums(config, post) {
+  const archetypes = normalizeArchetypePacks(config.archetypePacks ?? []);
+  const leadTypes = uniqueNonEmpty([...archetypes.map((pack) => pack.id), post.leadType, "other"]);
+  const verticals = uniqueNonEmpty([...archetypes.map((pack) => pack.vertical), post.vertical, "other"]);
+  const failureModes = uniqueNonEmpty([...archetypes.map((pack) => pack.failureMode), post.failureMode, "other"]);
+  return { leadTypes, verticals, failureModes };
+}
+
+function uniqueNonEmpty(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function buildDigest({ date, leads, rejectedCount, feedResults, config, scanMode, rejectionSummary, partialCoverage }) {
   const sorted = [...leads].sort((a, b) => b.score - a.score);
   const best = sorted.filter((lead) => lead.score >= 4);
   const maybe = sorted.filter((lead) => lead.score === 3);
   const feedErrors = feedResults.filter((result) => !result.ok);
+  const sourceMix = sourceMixSummary(sorted);
+  const searchDiagnostics = queryDiagnostics(feedResults);
 
   return [
     `# Reddit Lead Digest - ${date}`,
@@ -993,6 +1627,21 @@ function buildDigest({ date, leads, rejectedCount, feedResults, config, scanMode
     `Filtered/rejected before digest: ${rejectedCount}`,
     `Minimum score: ${config.minScore}`,
     `Partial coverage: ${partialCoverage ? "yes" : "no"}`,
+    "",
+    "## Source Mix",
+    "",
+    [
+      ...(sourceMix.length ? sourceMix : ["No scored leads."]),
+      `- Rejected reasons: ${formatCounts(rejectionSummary ?? new Map())}`,
+    ].join("\n"),
+    "",
+    "## Search Diagnostics",
+    "",
+    searchDiagnostics.length
+      ? searchDiagnostics
+          .map((item) => `- ${item.query}: ${item.status}, ${item.fetchedPosts} posts`)
+          .join("\n")
+      : "No global search queries were run.",
     "",
     "## Best Leads",
     "",
@@ -1028,7 +1677,15 @@ function formatLead(lead) {
     `- URL: ${lead.url}`,
     `- Author: ${lead.author}`,
     `- Category: ${lead.category}`,
+    `- Lead type: ${lead.leadType || "other"}`,
+    `- Vertical: ${lead.vertical || "other"}`,
+    `- Failure mode: ${lead.failureMode || "other"}`,
+    `- Outreach posture: ${lead.outreachPosture || "watch"}`,
     `- Recommended action: ${lead.recommendedAction}`,
+    `- Free-to-pursue path: ${lead.freeToPursuePath || freeToPursuePathFor(lead.outreachPosture || "watch")}`,
+    lead.matchedLeadTypes?.length ? `- Matched lead types: ${lead.matchedLeadTypes.join(", ")}` : "",
+    lead.matchEvidence?.length ? `- Match evidence: ${lead.matchEvidence.join(", ")}` : "",
+    lead.commentContext ? `- Comment context: ${formatCommentContext(lead.commentContext)}` : "",
     `- Why it matched: ${lead.scoreReason || "No reason provided."}`,
     "",
     "Suggested comment:",
@@ -1045,6 +1702,81 @@ function formatLead(lead) {
       lead.title,
     )} | Not yet |  |  | New | ${escapeTable(lead.scoreReason || "")} |`,
   ].join("\n");
+}
+
+function sourceMixSummary(leads) {
+  const byLeadType = countBy(leads, (lead) => lead.leadType || "other");
+  const byPosture = countBy(leads, (lead) => lead.outreachPosture || "watch");
+  const bySource = countBy(leads, (lead) => lead.subreddit || lead.sourceDetail || "unknown");
+  return [
+    `- By lead type: ${formatCounts(byLeadType)}`,
+    `- By outreach posture: ${formatCounts(byPosture)}`,
+    `- By subreddit/source: ${formatCounts(bySource)}`,
+  ];
+}
+
+function countBy(items, keyFn) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = keyFn(item);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function formatCounts(counts) {
+  if (!counts.size) return "none";
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([key, value]) => `${key} ${value}`)
+    .join(", ");
+}
+
+function queryDiagnostics(feedResults) {
+  return feedResults
+    .filter((result) => String(result.url || "").startsWith("reddit-search:"))
+    .map((result) => ({
+      query: result.url.replace(/^reddit-search:/, ""),
+      status: result.ok ? "ok" : String(result.status || "error"),
+      fetchedPosts: result.posts?.length ?? 0,
+    }));
+}
+
+function rejectionReasonSummary(posts, portfolioRejectedCount = 0) {
+  const counts = countBy(posts, rejectionReason);
+  if (portfolioRejectedCount > 0) {
+    counts.set("portfolio_caps", (counts.get("portfolio_caps") ?? 0) + portfolioRejectedCount);
+  }
+  return counts;
+}
+
+function rejectionReason(post) {
+  const hasDiscoverySignal =
+    post.matchedKeywords?.length > 0 ||
+    post.communityPainMatches?.length > 0 ||
+    post.archetypeMatches?.length > 0;
+  if (!hasDiscoverySignal) return "no_discovery_signal";
+  if (post.hardNegativeMatches?.length > 0) return "hard_negative";
+  if (isSellerOrBuilderPost(post)) return "seller_or_builder";
+  if (isRoleSeekerPost(post)) return "role_seeker";
+  if (isEmploymentPost(post) && !hasConsultingBuyerIntent(post)) return "employment_only";
+  if (isMarketResearchPost(post)) return "market_research";
+  if ((post.negativeMatches?.length ?? 0) > 0 && (post.buyingIntentMatches?.length ?? 0) === 0) {
+    return "negative_without_buying_intent";
+  }
+  if (isGenericAdviceOnlyPost(post)) return "generic_advice";
+  return "not_request_or_operational_pain";
+}
+
+function formatCommentContext(commentContext) {
+  const parts = [];
+  if (commentContext.selfPromotionRisk) parts.push(`self-promotion risk ${commentContext.selfPromotionRisk}`);
+  if (commentContext.opReplies?.length) parts.push(`OP replies: ${commentContext.opReplies.join(" / ")}`);
+  if (commentContext.topAdviceThemes?.length) {
+    parts.push(`existing advice: ${commentContext.topAdviceThemes.slice(0, 2).join(" / ")}`);
+  }
+  if (commentContext.unansweredAngle) parts.push(`angle: ${commentContext.unansweredAngle}`);
+  return parts.join("; ");
 }
 
 function dateOnly(value) {
@@ -1065,13 +1797,13 @@ function categorize(post) {
   if (/(crm|lead|drip|sms|email sequence|follow[- ]up|gohighlevel|rei reply|hubspot|zoho)/i.test(text)) {
     return "crm_lead_followup";
   }
-  if (/(report|reporting|dashboard|board|investor|kpi|accounting)/i.test(text)) {
+  if (/(report|reporting|dashboard|board|investor|kpi|accounting|profitability|budget|job costing|cost to complete)/i.test(text)) {
     return "reporting_automation";
   }
-  if (/(pdf|document|invoice|receipt|ocr|scan|redact)/i.test(text)) {
+  if (/(pdf|document|invoice|receipt|ocr|scan|redact|k-1|pbc|client docs?|client documents?)/i.test(text)) {
     return "document_pdf_automation";
   }
-  if (/(spreadsheet|excel|google sheets|airtable|internal tool)/i.test(text)) {
+  if (/(spreadsheet|excel|google sheets|airtable|internal tool|whiteboard|checklist|sop)/i.test(text)) {
     return "spreadsheet_internal_tools";
   }
   return "other";
@@ -1079,7 +1811,7 @@ function categorize(post) {
 
 function hasRequestIntent(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /looking for|need help|recommend|recommendations|which .* use|anyone .* use|how do i|how do you|where do i start|seeking|paid help|paid opportunity|hire|consultant|freelancer|developer|build this|need someone|help setting up|open to paid help/.test(
+  return /looking for|need help|recommend|recommendations|which .* use|anyone .* use|how do i|how do you|what system|what tools?|when did you|is there a better way|where do i start|seeking|paid help|paid opportunity|hire|consultant|freelancer|developer|build this|need someone|help setting up|open to paid help/.test(
     text,
   );
 }
@@ -1087,7 +1819,7 @@ function hasRequestIntent(post) {
 function hasExplicitPaidProject(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   if (isRoleSeekerPost(post) || isEmploymentPost(post)) return false;
-  const explicitHire = /hire|paid help|open to paid help|need someone|need to hire|developer|freelancer/.test(
+  const explicitHire = /\b(hire someone to|need to hire someone to|need someone to|looking for someone to|paid help|open to paid help|willing to pay|take my money|consultant|developer|freelancer)\b/.test(
     text,
   );
   const projectWork = /build|develop|software|automation|automate|workflow|crm|pdf|report|spreadsheet|excel|internal tool|recruiting|staffing|scheduling|intake|applicants?|follow up|follow-up/.test(
@@ -1098,14 +1830,14 @@ function hasExplicitPaidProject(post) {
 
 function hasSpecificWorkflowPain(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /manual|copy.?paste|spreadsheet|google sheets|excel|crm|follow[- ]?up|invoice|receipt|pdf|report|dashboard|bookkeeping|reconciliation|onboarding|offboarding|intake|form submissions?|lead routing|pipeline|inventory|orders?|fulfillment|client portal|data cleanup|api|zapier|make|n8n|airtable|notion|hubspot|pipedrive|zoho|quickbooks|xero|power bi|looker|data entry|every day|every week|every month|takes forever|too slow|mess|chaotic|stuck|can't figure|cant figure|desperate|job boards?|not bringing in anyone|need help finding|can't find|cant find|recruiting|staffing|applicants?|candidates?|screening|scheduling|busy season|missed calls?|customer messages?|quote requests?|buried in emails|can't keep track|cant keep track/.test(
+  return /manual|copy.?paste|spreadsheet|google sheets|excel|crm|follow[- ]?up|invoice|receipt|pdf|report|dashboard|bookkeeping|reconciliation|onboarding|offboarding|intake|form submissions?|lead routing|pipeline|inventory|orders?|fulfillment|client portal|data cleanup|api|zapier|make|n8n|airtable|notion|hubspot|pipedrive|zoho|quickbooks|xero|power bi|looker|data entry|every day|every week|every month|takes forever|too slow|mess|chaotic|stuck|can't figure|cant figure|desperate|job boards?|not bringing in anyone|need help finding|can't find|cant find|recruiting|staffing|applicants?|candidates?|screening|scheduling|busy season|missed calls?|customer messages?|quote requests?|buried in emails|can't keep track|cant keep track|whiteboard|checklist|sop|standard operating|project profitability|job costing|budget|cost to complete|k-1|pbc|client documents?|client docs?|brief drift|scorecard|handoff|bank transactions?|matching invoices?/.test(
     text,
   );
 }
 
 function hasBusinessContext(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /business|company|agency|client|customer|lead|sales|team|contractor|freelancer|employee|shopify|store|ecommerce|bookkeeping|accounting|real estate|realtor|msp|service business|consultancy|consulting|startup|founder|ops|operations|revenue|orders?|invoices?|prospects?|pipeline|warehouse|inventory|tickets?|staff|staffing|recruit|recruiting|applicants?|candidates?|nurses?|drivers?|dispatch|appointments?/.test(
+  return /business|company|agency|client|customer|lead|sales|team|department|contractor|freelancer|employee|shopify|store|ecommerce|bookkeeping|accounting|tax|firm|practice|real estate|realtor|msp|service business|consultancy|consulting|startup|founder|ops|operations|revenue|orders?|invoices?|prospects?|pipeline|warehouse|inventory|tickets?|staff|staffing|recruit|recruiting|applicants?|candidates?|nurses?|drivers?|dispatch|appointments?/.test(
     text,
   );
 }
@@ -1206,8 +1938,9 @@ function isGeneralHelpReason(scoreReason) {
   );
 }
 
-function isAdviceOnlyPost(post) {
+function isGenericAdviceOnlyPost(post) {
   if (hasExplicitPaidProject(post)) return false;
+  if (isAdviceShapedOperationalPain(post)) return false;
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const asksForAdvice =
     /\b(how do|how are you|what do you|what are you|any recommendations|recommend a|recommendations for|best way to|what software|which software|which tool|what tool)\b/.test(
@@ -1217,6 +1950,33 @@ function isAdviceOnlyPost(post) {
     text,
   );
   return asksForAdvice && !projectLanguage;
+}
+
+function isAdviceShapedOperationalPain(post) {
+  if (hasExplicitPaidProject(post)) return false;
+  if (isSellerOrBuilderPost(post) || isRoleSeekerPost(post) || isMarketResearchPost(post)) return false;
+  const text = `${post.title}\n${post.summary}`.toLowerCase();
+  const asksForAdvice =
+    /\b(how do|how are you|what do you|what are you|what system|what software|which software|which tool|what tool|tools are actually working|when did you|is there a better way|best way to|any recommendations|recommendations for|what .* doing)\b/.test(
+      text,
+    );
+  if (!asksForAdvice) return false;
+  const hasCurrentSystem =
+    /\b(spreadsheet|spreadsheets|excel|google sheets|email|emails|inbox|whiteboard|texts?|photos?|manual|crm|accounting software|ats|pdf|portal|quickbooks|xero|paper|checklist)\b/.test(text);
+  const hasRecurrence =
+    /\b(daily|weekly|monthly|every project|every day|every time|many clients|multiple clients|hundreds|busy season|multiple departments|20 employees|team|as we'?ve grown|taken on more work)\b/.test(text);
+  const hasConsequence =
+    /\b(missed follow[- ]?up|late k-?1s?|amended returns?|slow quotes?|lost leads?|hard to see|harder to get a quick view|takes forever|buried|not scalable|outgrown|outgrowing|reinventing the wheel|can't keep track|cant keep track|messy|chaotic|breaks|held up)\b/.test(text);
+  const evidenceCount = [
+    hasBusinessContext(post),
+    hasCurrentSystem,
+    hasRecurrence,
+    hasConsequence,
+    asksForAdvice,
+  ].filter(Boolean).length;
+  return evidenceCount >= 3 &&
+    (hasRecurrence || hasConsequence) &&
+    (hasSpecificWorkflowPain(post) || (post.archetypeMatches?.length ?? 0) > 0);
 }
 
 function dedupePosts(posts) {

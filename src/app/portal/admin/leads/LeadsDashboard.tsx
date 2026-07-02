@@ -133,7 +133,13 @@ export default function LeadsDashboard({
           lead.author,
           lead.category,
           lead.leadType,
+          lead.vertical,
+          lead.failureMode,
+          lead.outreachPosture,
           lead.freeToPursuePath,
+          lead.commentContext,
+          lead.matchedLeadTypes,
+          lead.matchEvidence,
           lead.reason,
           lead.notes,
           lead.suggestedComment,
@@ -574,6 +580,11 @@ export default function LeadsDashboard({
                         </td>
                         <td className="px-4 py-4 align-top capitalize text-white/65">
                           <div>{formatLeadType(lead)}</div>
+                          {lead.outreachPosture ? (
+                            <div className="mt-1 text-xs normal-case text-cyan-200/70">
+                              {formatAction(lead.outreachPosture)}
+                            </div>
+                          ) : null}
                           {lead.freeToPursuePath ? (
                             <div className="mt-1 line-clamp-2 text-xs normal-case text-white/40">
                               {lead.freeToPursuePath}
@@ -690,6 +701,7 @@ function LeadDetail({
         <span>posted {lead.postedDate || "unknown"}</span>
         {lead.discoveredDate ? <span>found {lead.discoveredDate}</span> : null}
         <span>{formatLeadType(lead)}</span>
+        {lead.outreachPosture ? <span>{formatAction(lead.outreachPosture)}</span> : null}
       </div>
       <h2 className="mt-2 text-xl font-semibold leading-7">{lead.title}</h2>
       <p className="mt-3 text-sm leading-6 text-white/55">{lead.reason}</p>
@@ -698,6 +710,9 @@ function LeadDetail({
         <DetailStat label="Score" value={lead.score} />
         <DetailStat label="Posted" value={lead.postedDate || "unknown"} />
         <DetailStat label="Lead type" value={formatLeadType(lead)} />
+        <DetailStat label="Vertical" value={formatCategory(lead.vertical || "other")} />
+        <DetailStat label="Failure" value={formatCategory(lead.failureMode || "other")} />
+        <DetailStat label="Posture" value={formatAction(lead.outreachPosture || "watch")} />
         <DetailStat label="Recommended" value={formatAction(lead.recommendedAction)} />
         <DetailStat label="Queue" value={formatQueue(lead.queue)} />
         <DetailStat label="Action" value={formatAction(lead.action)} />
@@ -707,6 +722,13 @@ function LeadDetail({
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
           <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Free-to-pursue path</h3>
           <p className="mt-2 text-sm leading-6 text-white/65">{lead.freeToPursuePath}</p>
+        </section>
+      ) : null}
+
+      {lead.commentContext ? (
+        <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Comment context</h3>
+          <p className="mt-2 text-sm leading-6 text-white/65">{lead.commentContext}</p>
         </section>
       ) : null}
 
@@ -836,6 +858,8 @@ function queueForLead(lead: RedditLead, state?: LeadState): LeadQueue {
   if (state?.action === "dm_sent") return "dm_sent";
   if (state?.action === "commented") return "commented";
   if (state?.queue) return state.queue;
+  if (lead.recommendedAction === "ignore") return "dismissed";
+  if (lead.recommendedAction === "dm" || lead.recommendedAction === "dm_if_engaged") return "actionable";
   if (lead.recommendedAction === "watch") return "review";
   if (lead.recommendedAction === "comment") return "community_reply";
   if ((Number.parseInt(lead.score, 10) || 0) >= 4) return "actionable";
@@ -891,7 +915,11 @@ function downloadCsv(leads: EnrichedLead[]) {
       "title",
       "category",
       "lead_type",
+      "vertical",
+      "failure_mode",
+      "outreach_posture",
       "free_to_pursue_path",
+      "comment_context",
       "reason",
       "url",
       "notes",
@@ -907,7 +935,11 @@ function downloadCsv(leads: EnrichedLead[]) {
       lead.title,
       lead.category,
       lead.leadType,
+      lead.vertical,
+      lead.failureMode,
+      lead.outreachPosture,
       lead.freeToPursuePath,
+      lead.commentContext,
       lead.reason,
       lead.url,
       lead.notes,
