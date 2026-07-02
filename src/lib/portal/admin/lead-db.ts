@@ -47,6 +47,28 @@ type AdminLeadStateRow = {
   updated_at: string;
 };
 
+type AdminLeadRow = {
+  source_id: LeadSourceId;
+  lead_key: string;
+  score: number | null;
+  score_label: string;
+  source_label: string;
+  source_kind: string;
+  posted_date: string | null;
+  discovered_date: string | null;
+  title: string;
+  url: string;
+  author: string;
+  category: string;
+  recommended_action: string;
+  reason: string;
+  suggested_comment: string;
+  suggested_dm: string;
+  payload: Partial<RedditLead> | null;
+  last_seen_at: string;
+  active: boolean;
+};
+
 let cachedClient: SupabaseClient | null = null;
 
 export function isLeadDatabaseConfigured() {
@@ -210,7 +232,7 @@ export async function readLeadStatesFromDatabase(sources: LeadSourceDigest[]) {
 
   return Object.fromEntries(
     ((data ?? []) as AdminLeadStateRow[]).map((row) => [
-      row.lead_key,
+      leadStateKeyForDatabase(row.source_id, row.lead_key),
       {
         queue: row.queue,
         action: row.action,
@@ -218,6 +240,55 @@ export async function readLeadStatesFromDatabase(sources: LeadSourceDigest[]) {
         updatedAt: row.updated_at,
       },
     ]),
+  );
+}
+
+export async function readStoredLeadsFromDatabase(sourceIds: LeadSourceId[]) {
+  const supabase = adminClient();
+  if (!supabase || sourceIds.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from("admin_leads")
+    .select(
+      [
+        "source_id",
+        "lead_key",
+        "score",
+        "score_label",
+        "source_label",
+        "source_kind",
+        "posted_date",
+        "discovered_date",
+        "title",
+        "url",
+        "author",
+        "category",
+        "recommended_action",
+        "reason",
+        "suggested_comment",
+        "suggested_dm",
+        "payload",
+        "last_seen_at",
+        "active",
+      ].join(","),
+    )
+    .in("source_id", sourceIds)
+    .order("posted_date", { ascending: false, nullsFirst: false })
+    .order("last_seen_at", { ascending: false })
+    .limit(1000);
+
+  if (error) {
+    console.warn("Failed to read Supabase admin leads", { error: error.message });
+    return {};
+  }
+
+  return ((data ?? []) as unknown as AdminLeadRow[]).reduce(
+    (acc, row) => {
+      acc[row.source_id] ??= [];
+      acc[row.source_id]?.push(leadFromRow(row));
+      return acc;
+    },
+    {} as Partial<Record<LeadSourceId, RedditLead[]>>,
   );
 }
 
@@ -248,8 +319,36 @@ export function leadKeyForDatabase(lead: RedditLead) {
   return lead.url || `${lead.subreddit}:${lead.title}`;
 }
 
-export function stateStorageKey(sourceId: LeadSourceId, leadKey: string) {
+export function leadStateKeyForDatabase(sourceId: LeadSourceId, leadKey: string) {
   return `${sourceId}:${leadKey}`;
+}
+
+export function stateStorageKey(sourceId: LeadSourceId, leadKey: string) {
+  return leadStateKeyForDatabase(sourceId, leadKey);
+}
+
+function leadFromRow(row: AdminLeadRow): RedditLead {
+  const payload = row.payload ?? {};
+  return {
+    score: payload.score ?? row.score_label ?? (row.score ? `${row.score}/5` : ""),
+    source: payload.source ?? row.source_label,
+    sourceLabel: payload.sourceLabel ?? row.source_label,
+    sourceKind: row.source_id,
+    sourceDate: payload.sourceDate ?? row.posted_date ?? row.discovered_date ?? "",
+    postedDate: payload.postedDate ?? row.posted_date ?? "",
+    discoveredDate: payload.discoveredDate ?? row.discovered_date ?? "",
+    subreddit: payload.subreddit ?? row.source_label.replace(/^r\//i, ""),
+    title: payload.title ?? row.title,
+    url: payload.url ?? row.url,
+    author: payload.author ?? row.author,
+    category: payload.category ?? row.category,
+    leadType: payload.leadType ?? "",
+    freeToPursuePath: payload.freeToPursuePath ?? "",
+    recommendedAction: payload.recommendedAction ?? row.recommended_action,
+    reason: payload.reason ?? row.reason,
+    suggestedComment: payload.suggestedComment ?? row.suggested_comment,
+    suggestedDm: payload.suggestedDm ?? row.suggested_dm,
+  };
 }
 
 function normalizeTimestamp(value: string) {
