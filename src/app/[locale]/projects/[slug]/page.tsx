@@ -6,6 +6,7 @@ import { PROJECTS, SITE } from "@/lib/constants";
 import { routing } from "@/i18n/routing";
 
 const SLUG_TO_KEY: Record<string, string> = {
+  "mindbody-enrollment-automation": "mindbodyEnrollmentAutomation",
   "dispute-defender": "disputeDefender",
   "deal-engine": "dealEngine",
   "the-lineup": "theLineup",

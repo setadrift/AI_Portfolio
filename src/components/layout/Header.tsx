@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 
 const NAV_KEYS = [
   { key: "work", href: "/#projects" },
+  { key: "samples", href: "/work-samples" },
   { key: "method", href: "/ai-workflow-audit#method" },
   { key: "contact", href: "/ai-workflow-audit#audit-form" },
 ] as const;

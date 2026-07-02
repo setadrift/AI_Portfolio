@@ -4,6 +4,7 @@ import ProjectCard from "@/components/ui/ProjectCard";
 import { PROJECTS } from "@/lib/constants";
 
 const SLUG_TO_KEY: Record<string, string> = {
+  "mindbody-enrollment-automation": "mindbodyEnrollmentAutomation",
   "dispute-defender": "disputeDefender",
   "deal-engine": "dealEngine",
   "the-lineup": "theLineup",
@@ -28,6 +29,7 @@ export default function Projects() {
             <ProjectCard
               key={project.slug}
               slug={project.slug}
+              href={project.caseStudyHref}
               clientType={t(`${key}.clientType`)}
               title={t(`${key}.title`)}
               challenge={t(`${key}.challenge`)}
