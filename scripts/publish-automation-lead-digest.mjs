@@ -13,8 +13,8 @@ const AUTOMATION_LEAD_MAX_AGE_MS = AUTOMATION_LEAD_MAX_AGE_DAYS * 24 * 60 * 60 *
 
 async function main() {
   const env = {
-    ...process.env,
     ...(await loadDotEnv(".env.local")),
+    ...process.env,
   };
   if (env.BLOB_READ_WRITE_TOKEN) {
     process.env.BLOB_READ_WRITE_TOKEN = env.BLOB_READ_WRITE_TOKEN;

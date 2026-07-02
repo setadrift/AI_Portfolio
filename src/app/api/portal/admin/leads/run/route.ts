@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -10,6 +11,7 @@ import {
 import { PORTAL_COOKIE, verifySession } from "@/lib/portal/session";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
@@ -69,6 +71,16 @@ async function runLeadMonitor({ mode, channel }: { mode: string | null; channel:
   });
 
   if (scanResult.code !== 0) return scanResult;
+  const status = await readLeadRunStatus(outputDir);
+  if (status && (!status.ok || !status.outputPath)) {
+    return {
+      code: 1,
+      stdout: scanResult.stdout,
+      stderr: [scanResult.stderr, status.message || "Lead scan did not produce a publishable digest."]
+        .filter(Boolean)
+        .join("\n"),
+    };
+  }
   if (!shouldPublish) return scanResult;
 
   try {
@@ -114,4 +126,13 @@ function runScript(scriptName: string, env: Record<string, string>) {
       resolve({ code, stdout, stderr });
     });
   });
+}
+
+async function readLeadRunStatus(outputDir: string) {
+  try {
+    const raw = await readFile(path.join(outputDir, "latest-status.json"), "utf8");
+    return JSON.parse(raw) as { ok?: boolean; outputPath?: string; message?: string };
+  } catch {
+    return null;
+  }
 }

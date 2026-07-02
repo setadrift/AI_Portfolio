@@ -387,6 +387,7 @@
   "minScore": 4,
   "useLlm": true,
   "llmModel": "gpt-4.1-mini",
+  "llmConcurrency": 6,
   "maxLlmCandidates": 60,
   "maxCandidatesPerSource": 12,
   "maxCandidatesPerLeadType": 10,

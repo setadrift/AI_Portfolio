@@ -246,8 +246,8 @@ async function main() {
 
   const scanConfig = selectedScanConfig(config);
   const env = {
-    ...process.env,
     ...(await loadDotEnv(".env.local")),
+    ...process.env,
   };
   const outputDate = localDate();
   const maxAgeMs = (config.maxAgeHours ?? 48) * 60 * 60 * 1000;
@@ -1327,18 +1327,30 @@ async function scorePosts(posts, config, apiKey) {
     return posts.map(scoreDeterministically).filter((lead) => lead.score >= reviewFloor);
   }
 
-  const scored = [];
-  for (const post of posts) {
-    const score = await scoreWithLlm(post, config, apiKey).catch((error) => ({
-      ...scoreDeterministically(post),
-      scoreReason: `LLM scoring failed; deterministic fallback used. ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    }));
-    scored.push(score);
+  const scored = new Array(posts.length);
+  const concurrency = Math.max(
+    1,
+    Math.min(Number.parseInt(process.env.REDDIT_LLM_CONCURRENCY || `${config.llmConcurrency ?? 6}`, 10) || 6, posts.length),
+  );
+  let nextIndex = 0;
+
+  async function scoreNext() {
+    while (nextIndex < posts.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const post = posts[index];
+      scored[index] = await scoreWithLlm(post, config, apiKey).catch((error) => ({
+        ...scoreDeterministically(post),
+        scoreReason: `LLM scoring failed; deterministic fallback used. ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      }));
+    }
   }
 
-  return scored.filter((lead) => lead.score >= reviewFloor);
+  await Promise.all(Array.from({ length: concurrency }, () => scoreNext()));
+
+  return scored.filter(Boolean).filter((lead) => lead.score >= reviewFloor);
 }
 
 function scoreDeterministically(post) {
