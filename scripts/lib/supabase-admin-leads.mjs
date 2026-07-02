@@ -77,6 +77,8 @@ function parseLeads(markdown, sourceId) {
       url: bulletValue(block, "URL"),
       author: bulletValue(block, "Author"),
       category: bulletValue(block, "Category"),
+      leadType: bulletValue(block, "Lead type"),
+      freeToPursuePath: bulletValue(block, "Free-to-pursue path"),
       recommendedAction: bulletValue(block, "Recommended action"),
       reason: bulletValue(block, "Why it matched"),
       suggestedComment: sectionQuote(block, "Suggested comment"),

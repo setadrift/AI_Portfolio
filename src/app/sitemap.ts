@@ -25,6 +25,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     });
 
     pages.push({
+      url: `${SITE.url}${prefix}/automation-rescue`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    });
+
+    pages.push({
       url: `${SITE.url}${prefix}/ai-consulting-small-business`,
       lastModified: new Date(),
       changeFrequency: "weekly",
