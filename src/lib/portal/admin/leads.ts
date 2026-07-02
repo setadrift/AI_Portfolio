@@ -28,6 +28,8 @@ export interface RedditLead {
   url: string;
   author: string;
   category: string;
+  leadType: string;
+  freeToPursuePath: string;
   recommendedAction: string;
   reason: string;
   suggestedComment: string;
@@ -887,6 +889,8 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         url: bulletValue(block, "URL"),
         author: bulletValue(block, "Author"),
         category: bulletValue(block, "Category"),
+        leadType: bulletValue(block, "Lead type"),
+        freeToPursuePath: bulletValue(block, "Free-to-pursue path"),
         recommendedAction: bulletValue(block, "Recommended action"),
         reason: bulletValue(block, "Why it matched"),
         suggestedComment: sectionQuote(block, "Suggested comment"),

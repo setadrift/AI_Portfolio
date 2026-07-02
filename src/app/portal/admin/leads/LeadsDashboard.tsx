@@ -129,6 +129,8 @@ export default function LeadsDashboard({
           lead.sourceLabel,
           lead.author,
           lead.category,
+          lead.leadType,
+          lead.freeToPursuePath,
           lead.reason,
           lead.notes,
           lead.suggestedComment,
@@ -566,7 +568,12 @@ export default function LeadsDashboard({
                           {lead.postedDate || <span className="text-amber-300/80">unknown</span>}
                         </td>
                         <td className="px-4 py-4 align-top capitalize text-white/65">
-                          {formatCategory(lead.category)}
+                          <div>{formatLeadType(lead)}</div>
+                          {lead.freeToPursuePath ? (
+                            <div className="mt-1 line-clamp-2 text-xs normal-case text-white/40">
+                              {lead.freeToPursuePath}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="px-4 py-4 align-top">
                           <select
@@ -677,7 +684,7 @@ function LeadDetail({
         <span>{lead.author}</span>
         <span>posted {lead.postedDate || "unknown"}</span>
         {lead.discoveredDate ? <span>found {lead.discoveredDate}</span> : null}
-        <span>{formatCategory(lead.category)}</span>
+        <span>{formatLeadType(lead)}</span>
       </div>
       <h2 className="mt-2 text-xl font-semibold leading-7">{lead.title}</h2>
       <p className="mt-3 text-sm leading-6 text-white/55">{lead.reason}</p>
@@ -685,10 +692,18 @@ function LeadDetail({
       <div className="mt-5 grid grid-cols-2 gap-3">
         <DetailStat label="Score" value={lead.score} />
         <DetailStat label="Posted" value={lead.postedDate || "unknown"} />
+        <DetailStat label="Lead type" value={formatLeadType(lead)} />
         <DetailStat label="Recommended" value={formatAction(lead.recommendedAction)} />
         <DetailStat label="Queue" value={formatQueue(lead.queue)} />
         <DetailStat label="Action" value={formatAction(lead.action)} />
       </div>
+
+      {lead.freeToPursuePath ? (
+        <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Free-to-pursue path</h3>
+          <p className="mt-2 text-sm leading-6 text-white/65">{lead.freeToPursuePath}</p>
+        </section>
+      ) : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
         <button type="button" onClick={() => updateLead(lead, { queue: "actionable", action: "new" })} className={queueButtonClass}>
@@ -842,6 +857,10 @@ function formatCategory(value: string) {
   return value.replace(/_/g, " ") || "other";
 }
 
+function formatLeadType(lead: RedditLead) {
+  return formatCategory(lead.leadType || lead.category);
+}
+
 function formatQueue(value: LeadQueue) {
   return value.replace(/_/g, " ");
 }
@@ -862,6 +881,8 @@ function downloadCsv(leads: EnrichedLead[]) {
       "author",
       "title",
       "category",
+      "lead_type",
+      "free_to_pursue_path",
       "reason",
       "url",
       "notes",
@@ -876,6 +897,8 @@ function downloadCsv(leads: EnrichedLead[]) {
       lead.author,
       lead.title,
       lead.category,
+      lead.leadType,
+      lead.freeToPursuePath,
       lead.reason,
       lead.url,
       lead.notes,
