@@ -12,12 +12,14 @@ export const BOOKING_URL =
 
 export const NAV_LINKS = [
   { label: "Work", href: "/#projects" },
+  { label: "Samples", href: "/work-samples" },
   { label: "Method", href: "/ai-workflow-audit#method" },
   { label: "Contact", href: "/ai-workflow-audit#audit-form" },
 ];
 
 export interface Project {
   slug: string;
+  caseStudyHref?: string;
   clientType: string;
   title: string;
   challenge: string;
@@ -29,6 +31,23 @@ export interface Project {
 }
 
 export const PROJECTS: Project[] = [
+  {
+    slug: "mindbody-enrollment-automation",
+    caseStudyHref: "/mindbody-enrollment-automation",
+    clientType: "Education Operations",
+    title: "Mindbody Enrollment Automation",
+    challenge:
+      "A coaching center needed a Make.com workflow that checks Mindbody class enrollments, fills missing sessions, updates HubSpot, logs operations, and keeps an existing Appiant sync safe.",
+    result:
+      "Built an end-to-end dry-run prototype with enrollment comparison, duplicate prevention, HubSpot guardrails, Google Sheet logging, VA alerting, and documentation output.",
+    problem:
+      "Course purchases in Mindbody can create operational follow-up work when students need to be placed into multiple required sessions, reflected correctly in HubSpot, and confirmed without duplicating existing enrollments or fighting another sync tool.",
+    solution:
+      "I built a Make-style prototype that models a Mindbody purchase event, searches current client enrollments, compares required sessions against existing visits, queues only missing sessions for enrollment, and then prepares the HubSpot update, segment action, Google Sheet row, VA alert, and confirmation email payload.",
+    outcome:
+      "The demo shows the exact control points needed before going live: StartIntegrate/MAXMEL connector assumptions, Appiant-owned field protection, duplicate booking prevention, documentation checklist, and a dry-run API response that can become the Make scenario contract.",
+    tech: ["Make.com", "Mindbody", "StartIntegrate/MAXMEL", "HubSpot", "Google Sheets", "Next.js"],
+  },
   {
     slug: "dispute-defender",
     clientType: "Online Travel Agency",

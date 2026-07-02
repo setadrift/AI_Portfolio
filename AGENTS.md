@@ -33,6 +33,12 @@ Site metadata, navigation links, and project data are centralized in `src/lib/co
 
 Tailwind CSS v4 with an inline theme defined in `src/app/globals.css` (custom colors via `@theme inline`). No separate tailwind.config file. Uses warm/slate/amber palette, mobile-first responsive breakpoints, and alternating section backgrounds via SectionWrapper.
 
+### Frontend Design Workflow
+
+For any UI, page, component, prototype, landing page, portal, demo, or visual/copy polish task, read and follow `.agents/skills/frontend-design/SKILL.md` before editing. This is mandatory when the user says the work looks generic, AI-generated, "vibecoded," too internal-facing, not polished, or needs to connect with a buyer.
+
+Design work must start from the intended reviewer and their decision, then translate technical behavior into buyer-facing proof. Keep raw JSON, logs, internal IDs, endpoint names, and agent/process language behind progressive disclosure instead of making them the primary experience.
+
 ### Path Alias
 
 `@/*` maps to `./src/*` (configured in tsconfig.json).

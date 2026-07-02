@@ -1,6 +1,7 @@
 {
   "nav": {
     "work": "Travail",
+    "samples": "Exemples",
     "method": "Méthode",
     "workflowAudit": "Audit de workflow",
     "projects": "Projets",
@@ -31,6 +32,15 @@
     "stackLabel": "Stack",
     "interestedCta": "Un projet similaire vous intéresse pour votre entreprise?",
     "letsTalk": "Discutons",
+    "mindbodyEnrollmentAutomation": {
+      "clientType": "Opérations en éducation",
+      "title": "Automatisation des inscriptions Mindbody",
+      "challenge": "Un prototype Make.com pour vérifier les inscriptions Mindbody, ajouter les séances manquantes, mettre HubSpot à jour prudemment, journaliser les opérations et documenter la construction.",
+      "result": "J'ai construit un dry run de bout en bout avec hypothèses StartIntegrate/MAXMEL, protection contre les doublons, garde-fous Appiant, alerte VA et réponse de scénario exécutable.",
+      "problem": "Les achats de cours dans Mindbody peuvent créer du suivi opérationnel lorsque les étudiants doivent être placés dans plusieurs séances obligatoires, reflétés correctement dans HubSpot et confirmés sans doublonner les inscriptions existantes ni entrer en conflit avec un autre outil de synchronisation.",
+      "solution": "J'ai construit un prototype de style Make qui modélise un événement d'achat Mindbody, recherche les inscriptions actuelles du client, compare les séances requises aux visites existantes, ne met en file que les séances manquantes, puis prépare la mise à jour HubSpot, l'action de segment, la ligne Google Sheet, l'alerte VA et le courriel de confirmation.",
+      "outcome": "La démo montre les points de contrôle nécessaires avant une mise en production : hypothèses du connecteur StartIntegrate/MAXMEL, protection des champs possédés par Appiant, prévention des réservations en double, checklist de documentation et réponse API dry-run pouvant devenir le contrat du scénario Make."
+    },
     "disputeDefender": {
       "clientType": "Agence de voyages en ligne",
       "title": "Dispute Defender",

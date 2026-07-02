@@ -2,6 +2,7 @@ import { Link } from "@/i18n/navigation";
 
 interface ProjectCardProps {
   slug: string;
+  href?: string;
   clientType: string;
   title: string;
   challenge: string;
@@ -11,6 +12,7 @@ interface ProjectCardProps {
 
 export default function ProjectCard({
   slug,
+  href,
   clientType,
   title,
   challenge,
@@ -19,7 +21,7 @@ export default function ProjectCard({
 }: ProjectCardProps) {
   return (
     <Link
-      href={`/projects/${slug}`}
+      href={href ?? `/projects/${slug}`}
       className="group relative flex flex-col border border-border bg-white p-7 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-accent/40 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-background"
     >
       <span className="mb-4 font-mono text-[11px] uppercase tracking-[0.2em] text-accent">

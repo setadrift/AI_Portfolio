@@ -1,6 +1,7 @@
 {
   "nav": {
     "work": "Work",
+    "samples": "Samples",
     "method": "Method",
     "workflowAudit": "Workflow Audit",
     "projects": "Projects",
@@ -31,6 +32,15 @@
     "stackLabel": "Stack",
     "interestedCta": "Interested in something like this for your business?",
     "letsTalk": "Let's Talk",
+    "mindbodyEnrollmentAutomation": {
+      "clientType": "Education Operations",
+      "title": "Mindbody Enrollment Automation",
+      "challenge": "A Make.com prototype for checking Mindbody enrollments, adding missing course sessions, updating HubSpot safely, logging operations, and documenting the build.",
+      "result": "Built an end-to-end dry run with StartIntegrate/MAXMEL assumptions, duplicate protection, Appiant guardrails, VA alerting, and a runnable scenario response.",
+      "problem": "Course purchases in Mindbody can create operational follow-up work when students need to be placed into multiple required sessions, reflected correctly in HubSpot, and confirmed without duplicating existing enrollments or fighting another sync tool.",
+      "solution": "I built a Make-style prototype that models a Mindbody purchase event, searches current client enrollments, compares required sessions against existing visits, queues only missing sessions for enrollment, and then prepares the HubSpot update, segment action, Google Sheet row, VA alert, and confirmation email payload.",
+      "outcome": "The demo shows the exact control points needed before going live: StartIntegrate/MAXMEL connector assumptions, Appiant-owned field protection, duplicate booking prevention, documentation checklist, and a dry-run API response that can become the Make scenario contract."
+    },
     "disputeDefender": {
       "clientType": "Online Travel Agency",
       "title": "Dispute Defender",
