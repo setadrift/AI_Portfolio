@@ -31,8 +31,14 @@ export interface RedditLead {
   author: string;
   category: string;
   leadType: string;
+  vertical: string;
+  failureMode: string;
+  outreachPosture: string;
   freeToPursuePath: string;
   recommendedAction: string;
+  commentContext: string;
+  matchedLeadTypes: string;
+  matchEvidence: string;
   reason: string;
   suggestedComment: string;
   suggestedDm: string;
@@ -87,13 +93,18 @@ export interface LeadRunStatus {
   generatedAt: string;
   successfulFeeds: number;
   totalFeeds: number;
-  ingestionMode?: "oauth" | "rss";
+  ingestionMode?: "oauth" | "rss" | "fixture";
   scanMode?: string;
   fetchedPosts: number;
   candidatesScored: number;
   leadsIncluded: number;
   outputPath: string;
   message: string;
+  queryDiagnostics?: Array<{
+    query: string;
+    status: string | number;
+    fetchedPosts: number;
+  }>;
   feedErrors: Array<{
     url: string;
     status: string | number;
@@ -921,8 +932,14 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         author: bulletValue(block, "Author"),
         category: bulletValue(block, "Category"),
         leadType: bulletValue(block, "Lead type"),
+        vertical: bulletValue(block, "Vertical"),
+        failureMode: bulletValue(block, "Failure mode"),
+        outreachPosture: bulletValue(block, "Outreach posture"),
         freeToPursuePath: bulletValue(block, "Free-to-pursue path"),
         recommendedAction: bulletValue(block, "Recommended action"),
+        commentContext: bulletValue(block, "Comment context"),
+        matchedLeadTypes: bulletValue(block, "Matched lead types"),
+        matchEvidence: bulletValue(block, "Match evidence"),
         reason: bulletValue(block, "Why it matched"),
         suggestedComment: sectionQuote(block, "Suggested comment"),
         suggestedDm: sectionQuote(block, "Suggested DM"),
