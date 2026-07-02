@@ -995,18 +995,20 @@ function diagnosticForDigest(
   const declaredCandidates = Number.parseInt(digest?.candidatesIncluded || "0", 10) || 0;
   const feedErrors = digest?.feedErrors.length ?? status?.feedErrors.length ?? 0;
   const usable = digest ? isUsableDigest(digest) : false;
+  const bestLeadBlocks =
+    source === "reddit" ? digest?.leads.filter((lead) => leadScoreValue(lead) >= 4).length ?? 0 : parsedLeads;
   return {
     source,
     fileName: digest?.fileName ?? "",
     declaredCandidates,
     parsedLeads,
-    bestLeadBlocks: parsedLeads,
+    bestLeadBlocks,
     totalHeadingBlocks: parsedLeads,
     postedDateCount: digest?.leads.filter((lead) => lead.postedDate).length ?? 0,
     unknownPostedDateCount: digest?.leads.filter((lead) => !lead.postedDate).length ?? 0,
     feedErrors,
     usable,
-    warning: diagnosticWarning({ declaredCandidates, parsedLeads, feedErrors, usable }),
+    warning: diagnosticWarning({ declaredCandidates, bestLeadBlocks, feedErrors, usable }),
   };
 }
 
@@ -1034,27 +1036,31 @@ function diagnosticForSource(
     unknownPostedDateCount: digest.leads.filter((lead) => !lead.postedDate).length,
     feedErrors,
     usable,
-    warning: diagnosticWarning({ declaredCandidates, parsedLeads, feedErrors, usable }),
+    warning: diagnosticWarning({ declaredCandidates, bestLeadBlocks, feedErrors, usable }),
   };
 }
 
 function diagnosticWarning({
   declaredCandidates,
-  parsedLeads,
+  bestLeadBlocks,
   feedErrors,
   usable,
 }: {
   declaredCandidates: number;
-  parsedLeads: number;
+  bestLeadBlocks: number;
   feedErrors: number;
   usable: boolean;
 }) {
-  if (declaredCandidates !== parsedLeads) {
-    return `Declared ${declaredCandidates} candidates but parsed ${parsedLeads} Best Leads rows.`;
+  if (declaredCandidates !== bestLeadBlocks) {
+    return `Declared ${declaredCandidates} candidates but parsed ${bestLeadBlocks} Best Leads rows.`;
   }
   if (!usable) return "Digest is not usable.";
   if (feedErrors > 0) return `${feedErrors} feed errors reported.`;
   return "";
+}
+
+function leadScoreValue(lead: RedditLead) {
+  return Number.parseInt(lead.score, 10) || 0;
 }
 
 function logLeadSourceDiagnostics(sources: LeadSourceDigest[]) {

@@ -123,10 +123,7 @@ export async function readLeadSourcesFromDatabase(
       markdown: row.markdown,
       status: row.status,
     });
-    return {
-      ...parsed,
-      diagnostic: row.diagnostic ?? parsed.diagnostic,
-    };
+    return parsed;
   });
 }
 
