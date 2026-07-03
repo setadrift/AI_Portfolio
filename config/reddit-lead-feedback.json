@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "positiveExamples": [
+    {
+      "id": "automator-paid-workflow-task",
+      "url": "",
+      "title": "Workflow tasks request",
+      "whyGood": [
+        "explicit willingness to pay",
+        "specific manual workflow with files and formats",
+        "poster tried Automator and ffmpeg already",
+        "poster says they are not technical enough to finish",
+        "natural paid implementation reply"
+      ],
+      "patterns": ["direct_paid_help"]
+    }
+  ],
+  "negativePersonas": [
+    {
+      "id": "seller_shilling_own_tool",
+      "label": "Seller or founder promoting their own thing",
+      "description": "OP is promoting an app, agency, newsletter, course, template, or AI automation service rather than asking for help.",
+      "hardReject": true,
+      "phrases": [
+        "i built",
+        "i made",
+        "i launched",
+        "my tool",
+        "my app",
+        "my product",
+        "case study",
+        "launching",
+        "looking for feedback",
+        "feedback on my",
+        "showcase"
+      ]
+    },
+    {
+      "id": "generic_ai_chatter",
+      "label": "Generic AI or automation discussion",
+      "description": "The post talks about AI, automation, agents, or productivity in the abstract without a concrete workflow request.",
+      "hardReject": false,
+      "phrases": [
+        "how are you using ai",
+        "what ai tools",
+        "ai tools has been working",
+        "future of ai",
+        "automation trend",
+        "will ai replace",
+        "thoughts on ai"
+      ]
+    },
+    {
+      "id": "generic_best_tool_question",
+      "label": "Generic best-tool question",
+      "description": "The post asks for a broad tool recommendation without current process detail, pain, or implementation intent.",
+      "hardReject": false,
+      "phrases": [
+        "best crm",
+        "best tool",
+        "best software",
+        "what software",
+        "which software",
+        "what tool",
+        "which tool",
+        "any recommendations"
+      ]
+    },
+    {
+      "id": "diy_builder_or_technical_founder",
+      "label": "DIY builder or technical founder",
+      "description": "OP wants to build or self-host the automation themselves, not hire outside implementation help.",
+      "hardReject": false,
+      "phrases": [
+        "building myself",
+        "self host",
+        "self-host",
+        "open source stack",
+        "side project",
+        "my saas",
+        "technical founder"
+      ]
+    },
+    {
+      "id": "job_seeker_or_for_hire",
+      "label": "Job seeker or for-hire post",
+      "description": "OP is looking for work or promoting their services.",
+      "hardReject": true,
+      "phrases": [
+        "for hire",
+        "hire me",
+        "looking for work",
+        "looking for a job",
+        "open to work",
+        "available for freelance",
+        "available for contract",
+        "resume review",
+        "portfolio review"
+      ]
+    },
+    {
+      "id": "market_research_or_validation",
+      "label": "Market research or validation",
+      "description": "OP is validating an idea or polling demand rather than asking for help.",
+      "hardReject": true,
+      "phrases": [
+        "market research",
+        "validate this idea",
+        "validating an idea",
+        "would you pay",
+        "do you actually need",
+        "is this a good idea",
+        "bad idea"
+      ]
+    },
+    {
+      "id": "named_vendor_only_search",
+      "label": "Named vendor specialist search",
+      "description": "OP is looking for a narrow vendor-specific specialist without broader workflow implementation fit.",
+      "hardReject": false,
+      "phrases": [
+        "gohighlevel expert",
+        "alteryx consultant",
+        "zoho consultant",
+        "resume redaction",
+        "document workflow software"
+      ]
+    },
+    {
+      "id": "low_budget_or_tiny",
+      "label": "Low-budget or tiny task",
+      "description": "The task is likely too small or price-sensitive for meaningful paid consulting unless it is unusually easy and explicit.",
+      "hardReject": false,
+      "phrases": [
+        "cheap",
+        "low budget",
+        "small budget",
+        "free help",
+        "quick favor",
+        "$5",
+        "$10",
+        "$20"
+      ]
+    }
+  ],
+  "rejectedExamples": [],
+  "sourcePerformance": {
+    "subreddits": {},
+    "queries": {}
+  }
+}

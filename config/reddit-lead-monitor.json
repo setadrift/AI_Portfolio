@@ -192,6 +192,45 @@
   ],
   "scanModes": [
     {
+      "id": "direct-requests",
+      "label": "Direct requests",
+      "description": "Reddit-only scan for people directly asking for paid help, someone to build or fix a workflow, or practical recommendations tied to concrete workflow pain.",
+      "archetypePackIds": [
+        "service-project-profitability",
+        "daily-team-tasking",
+        "sop-client-onboarding",
+        "recruiting-handoff-drift",
+        "tax-document-intake",
+        "invoice-payment-reconciliation",
+        "crm-source-of-truth",
+        "local-service-revenue-leak"
+      ],
+      "channels": [
+        { "id": "automator", "label": "Automator", "subreddit": "Automator" },
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "businessowners", "label": "Business Owners", "subreddit": "businessowners" },
+        { "id": "smallbusinessowner", "label": "Small Business Owner", "subreddit": "smallbusinessowner" },
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" },
+        { "id": "bookkeeping", "label": "Bookkeeping", "subreddit": "bookkeeping" },
+        { "id": "crm", "label": "CRM", "subreddit": "CRM" },
+        { "id": "airtable", "label": "Airtable", "subreddit": "Airtable" },
+        { "id": "zapier", "label": "Zapier", "subreddit": "Zapier" }
+      ],
+      "searchQueries": [
+        "\"willing to pay\" (automator OR shortcut OR script OR workflow OR automate OR spreadsheet OR crm OR pdf OR ffmpeg)",
+        "\"paid help\" (automator OR shortcut OR script OR workflow OR automate OR spreadsheet OR crm OR pdf)",
+        "\"need someone to\" (automate OR build OR create OR fix) (workflow OR spreadsheet OR crm OR pdf OR script OR files)",
+        "\"looking for someone to\" (automate OR build OR create OR fix) (workflow OR spreadsheet OR crm OR pdf OR script)",
+        "\"can anyone create\" (automator OR shortcut OR script OR workflow OR spreadsheet)",
+        "\"can someone build\" (automation OR workflow OR spreadsheet OR crm OR script)",
+        "\"can't get it to work\" (automator OR ffmpeg OR zapier OR airtable OR spreadsheet OR script)",
+        "\"not tech inclined\" (automate OR automation OR workflow OR spreadsheet OR script)",
+        "\"would love to automate\" (spreadsheet OR files OR workflow OR crm OR invoices OR reports)",
+        "\"recommend someone\" (automation OR workflow OR airtable OR zapier OR crm OR spreadsheet)",
+        "\"who do you use\" (automation OR workflow OR crm OR bookkeeping OR spreadsheet)"
+      ]
+    },
+    {
       "id": "broad-buyer-intent",
       "label": "Broad buyer intent",
       "description": "Global Reddit searches for people describing urgent business pain, hiring intent, or manual operations problems across any community.",

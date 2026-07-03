@@ -7,8 +7,12 @@
       "summary": "We are a service business using spreadsheets alongside email to keep track of client projects. It is becoming harder to get a quick view of budgets, progress, profitability, and who is working on what as we take on more work. Did you improve your spreadsheet process or realize you had outgrown it?",
       "expected": {
         "score": 4,
+        "fitScore": 4,
+        "replyabilityScore": 4,
         "posture": "comment_first",
-        "leadType": "service-project-profitability"
+        "leadType": "service-project-profitability",
+        "pattern": "operational_pain_advice",
+        "negativePersona": ""
       }
     },
     {
@@ -18,8 +22,12 @@
       "summary": "We run a local service company. Every day managers take photos of the whiteboard task list at the end of the day, but people forget recurring department checklists and it is hard to know who is doing what. What system are other owners using?",
       "expected": {
         "score": 4,
+        "fitScore": 4,
+        "replyabilityScore": 4,
         "posture": "comment_first",
-        "leadType": "daily-team-tasking"
+        "leadType": "daily-team-tasking",
+        "pattern": "operational_pain_advice",
+        "negativePersona": ""
       }
     },
     {
@@ -30,8 +38,11 @@
       "expected": {
         "scoreMin": 3,
         "scoreMax": 4,
+        "replyabilityScore": 4,
         "posture": "comment_first",
-        "leadType": "sop-client-onboarding"
+        "leadType": "sop-client-onboarding",
+        "pattern": "operational_pain_advice",
+        "negativePersona": ""
       }
     },
     {
@@ -41,8 +52,12 @@
       "summary": "Agency recruiting desk here. Intake call notes turn into manual ATS searches, screening scorecards, and candidate outreach, but the brief drifts and screening applicants takes forever when we have hundreds of applications. How are other teams handling this?",
       "expected": {
         "score": 4,
+        "fitScore": 4,
+        "replyabilityScore": 4,
         "posture": "dm_if_engaged",
-        "leadType": "recruiting-handoff-drift"
+        "leadType": "recruiting-handoff-drift",
+        "pattern": "operational_pain_advice",
+        "negativePersona": ""
       }
     },
     {
@@ -53,8 +68,11 @@
       "expected": {
         "scoreMin": 4,
         "scoreMax": 5,
+        "replyabilityScore": 4,
         "posture": "comment_first",
-        "leadType": "tax-document-intake"
+        "leadType": "tax-document-intake",
+        "pattern": "operational_pain_advice",
+        "negativePersona": ""
       }
     },
     {
@@ -64,8 +82,12 @@
       "summary": "Small business bookkeeping question. Customer payments often cover multiple invoices and the bank transactions have missing references. We track invoices and receipts in a spreadsheet beside QuickBooks and month end takes forever. How do you handle this?",
       "expected": {
         "score": 4,
+        "fitScore": 4,
+        "replyabilityScore": 4,
         "posture": "comment_first",
-        "leadType": "invoice-payment-reconciliation"
+        "leadType": "invoice-payment-reconciliation",
+        "pattern": "operational_pain_advice",
+        "negativePersona": ""
       }
     },
     {
@@ -76,8 +98,10 @@
       "expected": {
         "scoreMin": 1,
         "scoreMax": 3,
+        "replyabilityScore": 3,
         "posture": "watch",
-        "leadType": ""
+        "leadType": "",
+        "negativePersona": "generic-best-tool-question"
       }
     },
     {
@@ -88,8 +112,10 @@
       "expected": {
         "scoreMin": 1,
         "scoreMax": 2,
+        "replyabilityScore": 1,
         "posture": "ignore",
-        "leadType": ""
+        "leadType": "",
+        "negativePersona": "seller-shilling-own-tool"
       }
     },
     {
@@ -100,8 +126,10 @@
       "expected": {
         "scoreMin": 1,
         "scoreMax": 2,
+        "replyabilityScore": 1,
         "posture": "ignore",
-        "leadType": ""
+        "leadType": "",
+        "negativePersona": "job-seeker-or-for-hire"
       }
     },
     {
@@ -111,8 +139,69 @@
       "summary": "We are a small consultancy moving from spreadsheet tracking to an Airtable CRM source of truth. I need someone to build this for me with client follow up, SMS reminders, and reporting. Open to paid help.",
       "expected": {
         "score": 5,
+        "fitScore": 5,
+        "replyabilityScore": 5,
         "posture": "dm_now",
-        "leadType": "crm-source-of-truth"
+        "leadType": "crm-source-of-truth",
+        "pattern": "direct_paid_help",
+        "negativePersona": ""
+      }
+    },
+    {
+      "id": "automator-paid-workflow-task",
+      "subreddit": "Automator",
+      "title": "Workflow tasks request",
+      "summary": "I need to create 2 relatively easy custom Automator apps but can't seem to get it to work. I'm not that tech-inclined honestly. I am willing to pay for someone's time. App 1 merges a sticker png onto artwork. App 2 creates mp4 and mov files from mp3 audio snippets and artwork. I tried Automator and ffmpeg but didn't get a successful result.",
+      "expected": {
+        "score": 5,
+        "fitScore": 5,
+        "replyabilityScore": 5,
+        "posture": "dm_now",
+        "leadType": "",
+        "pattern": "direct_paid_help",
+        "negativePersona": ""
+      }
+    },
+    {
+      "id": "generic-ai-tools-discussion",
+      "subreddit": "smallbusiness",
+      "title": "Question about what AI tools have been working for your team",
+      "summary": "Curious what AI tools everyone is using and whether they are worth it. No specific workflow yet, just trying to understand the landscape.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 3,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "leadType": "",
+        "negativePersona": "generic-ai-chatter"
+      }
+    },
+    {
+      "id": "market-research-ai-automation",
+      "subreddit": "Entrepreneur",
+      "title": "Would small businesses pay for an AI automation agency?",
+      "summary": "I'm validating an idea for an AI automation agency and want to know if there is a market for this service. Would you pay for it?",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "leadType": "",
+        "negativePersona": "market-research-or-validation"
+      }
+    },
+    {
+      "id": "low-budget-tiny-task",
+      "subreddit": "automation",
+      "title": "Need quick automation for cheap",
+      "summary": "I need a quick favor to automate a tiny spreadsheet thing. Low budget, maybe $10 or $20. Can someone help?",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 3,
+        "replyabilityScore": 2,
+        "posture": "watch",
+        "leadType": "service-project-profitability",
+        "negativePersona": "low-budget-or-tiny"
       }
     }
   ]
