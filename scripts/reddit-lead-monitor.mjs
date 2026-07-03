@@ -222,7 +222,6 @@ const allowedCategories = new Set([
   "other",
 ]);
 
-const allowedActions = new Set(["ignore", "watch", "comment", "dm_if_engaged", "dm"]);
 const allowedOutreachPostures = new Set(["ignore", "watch", "comment_first", "dm_if_engaged", "dm_now"]);
 const toolSpecificSubreddits = new Set([
   "airtable",
@@ -456,8 +455,8 @@ async function main() {
 
   const scanConfig = selectedScanConfig(runtimeConfig);
   const env = {
-    ...process.env,
     ...(await loadDotEnv(".env.local")),
+    ...process.env,
   };
   const outputDate = localDate();
   const maxAgeMs = (runtimeConfig.maxAgeHours ?? 48) * 60 * 60 * 1000;
@@ -469,7 +468,9 @@ async function main() {
   const channels = limitChannels(normalizeChannels(scanConfig));
   const searchQueries = limitSearchQueries(scanConfig.searchQueries ?? []);
   const totalConfiguredFeeds = channels.length + searchQueries.length;
+  progress(`Mode: ${scanConfig.scanMode?.label ?? "Legacy config"}. Checking ${channels.length} subreddits and ${searchQueries.length} searches.`);
   const requiresOauth = (config.ingestionMode ?? "oauth") === "oauth";
+  progress("Authenticating with Reddit...");
   const redditToken = await getRedditOAuthToken(env, { required: requiresOauth });
   const useOauth = Boolean(redditToken);
   if (requiresOauth && !useOauth) {
@@ -503,6 +504,7 @@ async function main() {
     console.log(`Wrote run status: ${STATUS_PATH}`);
     return;
   }
+  if (channels.length) progress("Fetching subreddit posts...");
   for (const [index, channel] of channels.entries()) {
     const result = await fetchChannel(channel, {
       token: redditToken,
@@ -511,10 +513,12 @@ async function main() {
     });
     feedResults.push(result);
     if (result.ok) posts.push(...result.posts);
+    progress(`Subreddit ${index + 1}/${channels.length}: r/${channel.subreddit} ${result.ok ? `fetched ${result.posts.length}` : `failed (${result.status})`}.`);
     if (index < channels.length - 1) {
       await sleep(runtimeConfig.requestDelayMs ?? 1500);
     }
   }
+  if (searchQueries.length) progress("Fetching Reddit search results...");
   for (const [index, query] of searchQueries.entries()) {
     const result = await fetchSearchQuery(query, {
       token: redditToken,
@@ -523,11 +527,13 @@ async function main() {
     });
     feedResults.push(result);
     if (result.ok) posts.push(...result.posts);
+    progress(`Search ${index + 1}/${searchQueries.length}: ${result.ok ? `fetched ${result.posts.length}` : `failed (${result.status})`} for ${query}.`);
     if (index < searchQueries.length - 1) {
       await sleep(runtimeConfig.requestDelayMs ?? 1500);
     }
   }
 
+  progress(`Fetched ${posts.length} raw posts. Filtering candidates...`);
   const freshPosts = dedupePosts(posts).filter((post) => {
     if (!post.publishedAt) return true;
     return now - new Date(post.publishedAt).getTime() <= maxAgeMs;
@@ -541,8 +547,10 @@ async function main() {
     .sort((a, b) => candidatePriority(b) - candidatePriority(a));
   let filtered = selectCandidatePortfolio(eligiblePosts, scanConfig, runtimeConfig);
   const portfolioRejectedCount = Math.max(0, freshPosts.length - filtered.length - preScoringRejected.length);
+  progress(`Selected ${filtered.length} candidates for scoring from ${freshPosts.length} fresh posts.`);
 
   if (useOauth && runtimeConfig.commentContextEnabled !== false) {
+    progress("Loading comment context for top candidates...");
     filtered = await enrichCandidatesWithCommentContext(filtered, {
       token: redditToken,
       limit: runtimeConfig.commentLimitPerPost ?? 20,
@@ -553,8 +561,10 @@ async function main() {
     });
   }
 
+  progress(`Scoring ${filtered.length} candidates...`);
   const scored = await scorePosts(filtered, runtimeConfig, env.OPENAI_API_KEY);
   const includedLeads = scored.filter((lead) => isReplyTodayLead(lead, runtimeConfig));
+  progress(`Scoring complete: ${includedLeads.length} qualified leads, ${Math.max(0, scored.length - includedLeads.length)} watch/review candidates.`);
   const successfulFeeds = feedResults.filter((result) => result.ok).length;
   const minSuccessfulFeeds = Math.min(
     scanConfig.minSuccessfulFeeds ?? Math.min(3, totalConfiguredFeeds),
@@ -619,6 +629,10 @@ async function main() {
     );
     console.log(`Wrote run status: ${STATUS_PATH}`);
   }
+}
+
+function progress(message) {
+  console.log(`[scan] ${message}`);
 }
 
 async function loadConfig() {
@@ -1498,7 +1512,10 @@ function shouldKeepPost(post) {
   if (post.hardNegativeMatches.length > 0) return false;
   if (/\bfor hire\b/i.test(post.title)) return false;
   if (isRoleSeekerPost(post)) return false;
+  if (isPartnerOrCofounderPost(post)) return false;
   if (isMarketResearchPost(post)) return false;
+  if (isPromotionalOrEducationalPost(post)) return false;
+  if (isPersonalCreativeContent(post)) return false;
   if (post.negativeMatches.length > 0 && post.buyingIntentMatches.length === 0) {
     return false;
   }
@@ -1533,7 +1550,11 @@ function candidatePriority(post) {
   if (isSellerOrBuilderPost(post)) priority -= 30;
   if (isEmploymentPost(post)) priority -= 28;
   if (isRoleSeekerPost(post)) priority -= 45;
+  if (isPartnerOrCofounderPost(post)) priority -= 45;
   if (isMarketResearchPost(post)) priority -= 32;
+  if (isPromotionalOrEducationalPost(post)) priority -= 40;
+  if (isVendorSeededPost(post)) priority -= 30;
+  if (isPersonalCreativeContent(post)) priority -= 60;
   if (post.hardNegativePersonas.length > 0) priority -= 80;
   if (post.negativePersonas.length > 0) priority -= 20;
   if (!hasConsultingBuyerIntent(post)) priority -= 12;
@@ -1651,7 +1672,16 @@ function isToolSpecificCandidate(post) {
 }
 
 function defaultOutreachPosture(post, score = 3) {
-  if (post.hardNegativePersonas?.length || isSellerOrBuilderPost(post) || isRoleSeekerPost(post) || isMarketResearchPost(post)) return "ignore";
+  if (
+    post.hardNegativePersonas?.length ||
+    isSellerOrBuilderPost(post) ||
+    isRoleSeekerPost(post) ||
+    isPartnerOrCofounderPost(post) ||
+    isMarketResearchPost(post) ||
+    isPromotionalOrEducationalPost(post) ||
+    isPersonalCreativeContent(post)
+  ) return "ignore";
+  if (isVendorSeededPost(post)) return "watch";
   if (hasExplicitPaidProject(post)) return "dm_now";
   if (score <= 2) return "ignore";
   if (
@@ -1672,9 +1702,18 @@ function defaultOutreachPosture(post, score = 3) {
 function normalizeOutreachPosture(value, post, score) {
   let posture = allowedOutreachPostures.has(value) ? value : defaultOutreachPosture(post, score);
   if (post.hardNegativePersonas?.length) return "ignore";
-  if (post.negativeMatches?.length || isSellerOrBuilderPost(post) || isRoleSeekerPost(post) || isMarketResearchPost(post)) {
+  if (
+    post.negativeMatches?.length ||
+    isSellerOrBuilderPost(post) ||
+    isRoleSeekerPost(post) ||
+    isPartnerOrCofounderPost(post) ||
+    isMarketResearchPost(post) ||
+    isPromotionalOrEducationalPost(post) ||
+    isPersonalCreativeContent(post)
+  ) {
     return score <= 2 ? "ignore" : "watch";
   }
+  if (isVendorSeededPost(post)) return "watch";
   if (posture === "dm_now" && !hasExplicitPaidProject(post) && post.primaryPattern !== "direct_paid_help") {
     posture = score >= 4 ? "dm_if_engaged" : "watch";
   }
@@ -1698,62 +1737,6 @@ function actionForOutreachPosture(posture) {
   return "watch";
 }
 
-function freeToPursuePathFor(posture) {
-  if (posture === "dm_now") {
-    return "Explicit project or hiring ask; use a manual DM or platform reply after checking subreddit norms.";
-  }
-  if (posture === "dm_if_engaged") {
-    return "Public helpful comment first; DM only if OP replies, asks for implementation help, or clearly invites private follow-up.";
-  }
-  if (posture === "comment_first") {
-    return "Public helpful comment first with no link; DM only after OP engages or explicitly asks for help.";
-  }
-  if (posture === "ignore") return "Do not pursue.";
-  return "Watch for OP clarification before engaging.";
-}
-
-function suggestedCommentFor(post, posture) {
-  if (!["comment_first", "dm_if_engaged", "dm_now"].includes(posture)) return "";
-  const leadType = post.leadType || "workflow";
-  if (leadType === "service-project-profitability") {
-    return "I would separate this into job-level budget, committed cost, billed-to-date, and remaining work. The important part is deciding who updates each field and when, before choosing a tool.";
-  }
-  if (leadType === "daily-team-tasking") {
-    return "The first thing I would map is the recurring task template by department, then the proof-of-completion step. Once that is clear, the app choice gets much easier.";
-  }
-  if (leadType === "sop-client-onboarding") {
-    return "Start with the onboarding steps that happen every time and the decisions that still require judgment. That usually gives you the first useful SOP without over-documenting everything.";
-  }
-  if (leadType === "recruiting-handoff-drift") {
-    return "I would look at where the intake notes become search criteria, scorecard fields, and outreach copy. That handoff is usually where time leaks and candidate quality drift show up.";
-  }
-  if (leadType === "tax-document-intake") {
-    return "I would separate collection, classification, missing-item checks, and preparer review. AI can help with the middle steps, but the review queue and exception handling matter most.";
-  }
-  if (leadType === "invoice-payment-reconciliation") {
-    return "I would start by standardizing the matching rules and exceptions. The automation is much easier once partial payments, missing references, and duplicates are handled explicitly.";
-  }
-  if (leadType === "crm-source-of-truth") {
-    return "Before picking a CRM, I would define the source-of-truth fields, required follow-up events, and who owns data cleanup. That prevents the new CRM from becoming another spreadsheet.";
-  }
-  if (leadType === "local-service-revenue-leak") {
-    return "I would map the path from call or quote request to booked job, then mark where response time or ownership breaks. That usually shows what needs automation versus a clearer handoff.";
-  }
-  return "I would map the repeatable steps, the owner for each handoff, and the exception cases first. Tool choice is easier once the workflow failure is explicit.";
-}
-
-function suggestedDmFor(post) {
-  return `Hi, I saw your Reddit post about ${post.title}. I can help scope the workflow, identify the manual handoffs, and build a small implementation plan if you are still looking for paid help.`;
-}
-
-function stripPublicReplyUrls(value) {
-  return String(value || "")
-    .replace(/https?:\/\/\S+/g, "")
-    .replace(/\s+\./g, ".")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
 async function scorePosts(posts, config, apiKey) {
   const reviewFloor = Math.min(3, config.minScore ?? 4);
   if (!config.useLlm || !apiKey) {
@@ -1762,23 +1745,74 @@ async function scorePosts(posts, config, apiKey) {
 
   const scored = [];
   for (const post of posts) {
-    const score = await scoreWithLlm(post, config, apiKey).catch((error) => ({
-      ...scoreDeterministically(post),
-      scoreReason: `LLM scoring failed; deterministic fallback used. ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    }));
+    const score = await scoreWithLlmWithRetry(post, config, apiKey).catch((error) =>
+      watchOnlyFallbackScore(post, error),
+    );
     scored.push(score);
+    if (scored.length === posts.length || scored.length % 10 === 0) {
+      progress(`Scored ${scored.length}/${posts.length} candidates.`);
+    }
   }
 
   return scored.filter((lead) => lead.score >= reviewFloor);
 }
 
+async function scoreWithLlmWithRetry(post, config, apiKey, attempts = 3) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await scoreWithLlm(post, config, apiKey);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await sleep(500 * attempt);
+      }
+    }
+  }
+  throw lastError;
+}
+
+function watchOnlyFallbackScore(post, error) {
+  const fallback = scoreDeterministically(post);
+  const reason = error instanceof Error ? error.message : String(error);
+  return {
+    ...fallback,
+    score: Math.min(fallback.score ?? 3, 3),
+    fitScore: Math.min(fallback.fitScore ?? fallback.score ?? 3, 3),
+    replyabilityScore: Math.min(fallback.replyabilityScore ?? 3, 3),
+    outreachPosture: "watch",
+    recommendedAction: "watch",
+    freeToPursuePath: "",
+    suggestedComment: "",
+    suggestedDm: "",
+    scoreReason: `LLM scoring failed after retries; kept as watch-only fallback. ${reason}`,
+  };
+}
+
 function isReplyTodayLead(lead, config) {
   const minFit = config.minScore ?? 4;
+  const scoreReason = String(lead.scoreReason || "").toLowerCase();
+  const hasDomainFit = hasConsultingDomainFit(lead);
+  const hasDirectRequest = hasDirectRequestShape(lead);
+  const hasMainDigestSignal =
+    (hasExplicitPaidProject(lead) && hasDomainFit) ||
+    (hasDirectRequest && hasBestLeadSignal(lead) && hasConsultingBuyerIntent(lead) && hasDomainFit) ||
+    (hasDirectRequest && isAdviceShapedOperationalPain(lead) && hasConsultingBuyerIntent(lead) && hasDomainFit);
   return (lead.fitScore ?? lead.score ?? 0) >= minFit &&
     (lead.replyabilityScore ?? 0) >= 4 &&
     (lead.hardNegativePersonas?.length ?? 0) === 0 &&
+    !lead.negativePersona &&
+    !scoreReason.includes("llm scoring failed") &&
+    !isSellerOrBuilderPost(lead) &&
+    !isRoleSeekerPost(lead) &&
+    !isPartnerOrCofounderPost(lead) &&
+    !isMarketResearchPost(lead) &&
+    !isPromotionalOrEducationalPost(lead) &&
+    !isPersonalCreativeContent(lead) &&
+    !isVendorSeededPost(lead) &&
+    !isDigestFalsePositive(lead) &&
+    !(isEmploymentPost(lead) && !hasConsultingBuyerIntent(lead)) &&
+    hasMainDigestSignal &&
     !["ignore", "watch"].includes(lead.outreachPosture || "") &&
     !["ignore", "watch"].includes(lead.recommendedAction || "");
 }
@@ -1787,9 +1821,20 @@ function scoreDeterministically(post) {
   const category = categorize(post);
   let fitScore = 2;
   let replyabilityScore = 2;
-  if (post.hardNegativePersonas.length > 0 || isSellerOrBuilderPost(post) || isRoleSeekerPost(post) || isMarketResearchPost(post)) {
+  if (
+    post.hardNegativePersonas.length > 0 ||
+    isSellerOrBuilderPost(post) ||
+    isRoleSeekerPost(post) ||
+    isPartnerOrCofounderPost(post) ||
+    isMarketResearchPost(post) ||
+    isPromotionalOrEducationalPost(post) ||
+    isPersonalCreativeContent(post)
+  ) {
     fitScore = 2;
     replyabilityScore = 1;
+  } else if (isVendorSeededPost(post)) {
+    fitScore = 3;
+    replyabilityScore = 3;
   } else if (hasExplicitPaidProject(post)) {
     fitScore = 5;
     replyabilityScore = 5;
@@ -1852,21 +1897,12 @@ function scoreDeterministically(post) {
     failureMode: post.failureMode || "",
     outreachPosture: finalOutreachPosture,
     recommendedAction,
-    freeToPursuePath: freeToPursuePathFor(finalOutreachPosture),
+    freeToPursuePath: "",
     pattern: post.primaryPattern || "unclassified",
     negativePersona: post.negativePersona || "",
-    scoreReason: `Fit ${fitScore}/5, replyability ${replyabilityScore}/5. Matched ${[
-      ...post.matchedKeywords,
-      ...post.communityPainMatches,
-    ].join(", ")}${
-      post.buyingIntentMatches.length
-        ? ` with buying intent: ${post.buyingIntentMatches.join(", ")}`
-        : ""
-    }${post.primaryPattern ? `; pattern: ${post.primaryPattern}` : ""}${
-      post.matchEvidence.length ? `; archetype evidence: ${post.matchEvidence.join(", ")}` : ""
-    }${post.negativePersona ? `; negative persona: ${post.negativePersona}` : ""}.`,
-    suggestedComment: suggestedCommentFor(post, finalOutreachPosture),
-    suggestedDm: finalOutreachPosture === "dm_now" ? suggestedDmFor(post) : "",
+    scoreReason: "",
+    suggestedComment: "",
+    suggestedDm: "",
   };
 }
 
@@ -1882,7 +1918,6 @@ async function scoreWithLlm(post, config, apiKey) {
     matchedLeadTypes: post.matchedLeadTypes,
     vertical: post.vertical,
     failureMode: post.failureMode,
-    outreachPosture: post.outreachPosture,
     primaryPattern: post.primaryPattern,
     patternMatches: post.patternMatches?.map((pattern) => pattern.id) ?? [],
     requestEvidence: post.requestEvidence,
@@ -1907,7 +1942,6 @@ async function scoreWithLlm(post, config, apiKey) {
     communityPainMatches: post.communityPainMatches,
     buyingIntentMatches: post.buyingIntentMatches,
     negativeMatches: post.negativeMatches,
-    commentContext: post.commentContext ?? null,
   };
 
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -1922,7 +1956,7 @@ async function scoreWithLlm(post, config, apiKey) {
         {
           role: "system",
           content:
-            "You score Reddit posts for a freelance AI automation consultant. Return strict JSON only. Do not use markdown. This is a Reddit-only lead scanner, not a broad job board or marketplace workflow. Score fitScore and replyabilityScore separately. fitScore measures consulting fit. replyabilityScore measures whether Duncan should actually respond to this Reddit post. Put a post in the effective lead lane only when both scores are 4+. Score 5/5 replyability only when OP directly asks for paid help, someone to build/fix/create, or has a concrete workflow and clear implementation ask. Score 4/5 replyability for specific operational pain where a useful public reply is natural. Score 3 or lower for generic tool-shopping, broad AI discussion, workflow curiosity, or weak signal. Score 1-2 for sellers, builders promoting their own thing, job seekers, market research, low-budget noise, or irrelevant chatter. Do not score 4+ just because a post mentions automation, AI, CRM, Zapier, Make, Airtable, Notion, spreadsheets, or operations. Use the provided structured evidence and pattern matches. If a negative persona fits, name it. outreachPosture must be dm_now only for explicit paid/project/hiring intent, dm_if_engaged only when private follow-up is appropriate after OP engagement, comment_first for operational pain where public help comes first, watch for weak signals, and ignore for rejects. Suggested public comments must be brief, practical, Reddit-native, no URLs, and non-duplicative of commentContext. Do not say 'I can help' unless the post clearly asks for paid help. suggestedDm must be blank for comment_first unless OP explicitly invited private help. Do not overclaim platform-specific expertise.",
+            "Score and classify Reddit posts for a freelance AI automation consultant. Return strict JSON only. Do not use markdown. This is a Reddit-only lead scanner, not a broad job board or marketplace workflow. Score 5 only for an explicit paid/project/hiring request with a concrete business workflow and implementation ask. Score 4 for specific business workflow pain with clear buyer context. Score 3 or lower for generic tool-shopping, broad AI discussion, workflow curiosity, weak signal, or posts that are not realistic consulting opportunities. Score 1-2 for sellers, builders promoting their own thing, job seekers, market research, low-budget noise, or irrelevant chatter. Do not score 4+ just because a post mentions automation, AI, CRM, Zapier, Make, Airtable, Notion, spreadsheets, or operations. Use the provided structured evidence and pattern matches. If a negative persona fits, name it.",
         },
         {
           role: "user",
@@ -1939,8 +1973,6 @@ async function scoreWithLlm(post, config, apiKey) {
             additionalProperties: false,
             properties: {
               score: { type: "integer", minimum: 1, maximum: 5 },
-              fitScore: { type: "integer", minimum: 1, maximum: 5 },
-              replyabilityScore: { type: "integer", minimum: 1, maximum: 5 },
               category: {
                 type: "string",
                 enum: [
@@ -1965,40 +1997,20 @@ async function scoreWithLlm(post, config, apiKey) {
                 type: "string",
                 enum: schemaEnums.failureModes,
               },
-              outreachPosture: {
-                type: "string",
-                enum: ["ignore", "watch", "comment_first", "dm_if_engaged", "dm_now"],
-              },
-              recommendedAction: {
-                type: "string",
-                enum: ["ignore", "watch", "comment", "dm_if_engaged", "dm"],
-              },
-              freeToPursuePath: { type: "string" },
               pattern: {
                 type: "string",
                 enum: ["direct_paid_help", "operational_pain_advice", "tool_shopping_with_pain", "vendor_specialist_with_scope", "unclassified"],
               },
               negativePersona: { type: "string" },
-              scoreReason: { type: "string" },
-              suggestedComment: { type: ["string", "null"] },
-              suggestedDm: { type: ["string", "null"] },
             },
             required: [
               "score",
-              "fitScore",
-              "replyabilityScore",
               "category",
               "leadType",
               "vertical",
               "failureMode",
-              "outreachPosture",
-              "recommendedAction",
-              "freeToPursuePath",
               "pattern",
               "negativePersona",
-              "scoreReason",
-              "suggestedComment",
-              "suggestedDm",
             ],
           },
         },
@@ -2028,14 +2040,17 @@ function extractResponseText(body) {
 }
 
 function normalizeLlmScore(post, parsed, config) {
-  let fitScore = Number.isInteger(parsed.fitScore)
-    ? Math.max(1, Math.min(5, parsed.fitScore))
-    : Number.isInteger(parsed.score)
-      ? Math.max(1, Math.min(5, parsed.score))
-      : 1;
-  let replyabilityScore = Number.isInteger(parsed.replyabilityScore)
-    ? Math.max(1, Math.min(5, parsed.replyabilityScore))
-    : Math.min(fitScore, hasRequestIntent(post) || isAdviceShapedOperationalPain(post) ? 4 : 3);
+  let fitScore = Number.isInteger(parsed.score)
+    ? Math.max(1, Math.min(5, parsed.score))
+    : 1;
+  let replyabilityScore = Math.min(
+    fitScore,
+    hasExplicitPaidProject(post) || post.primaryPattern === "direct_paid_help"
+      ? 5
+      : hasRequestIntent(post) || isAdviceShapedOperationalPain(post)
+        ? 4
+        : 3,
+  );
   const category = allowedCategories.has(parsed.category) ? parsed.category : "other";
   const schemaEnums = llmSchemaEnums(config, post);
   const leadType = schemaEnums.leadTypes.includes(parsed.leadType) ? parsed.leadType : (post.leadType || "other");
@@ -2043,13 +2058,8 @@ function normalizeLlmScore(post, parsed, config) {
   const failureMode = schemaEnums.failureModes.includes(parsed.failureMode)
     ? parsed.failureMode
     : (post.failureMode || "other");
-  let outreachPosture = allowedOutreachPostures.has(parsed.outreachPosture)
-    ? parsed.outreachPosture
-    : defaultOutreachPosture(post, fitScore);
-  let recommendedAction = allowedActions.has(parsed.recommendedAction)
-    ? parsed.recommendedAction
-    : "watch";
-  const scoreReason = String(parsed.scoreReason || "").trim();
+  let outreachPosture = defaultOutreachPosture(post, fitScore);
+  let recommendedAction = actionForOutreachPosture(outreachPosture);
   const isAdvicePain = isAdviceShapedOperationalPain(post);
 
   if (category === "other") fitScore = Math.min(fitScore, 3);
@@ -2080,15 +2090,15 @@ function normalizeLlmScore(post, parsed, config) {
     replyabilityScore = Math.min(replyabilityScore, 3);
   }
   if (isBasicSpreadsheetHelp(post)) fitScore = Math.min(fitScore, 3);
-  if (isGeneralHelpReason(scoreReason) && !isAdvicePain) {
-    fitScore = Math.min(fitScore, 3);
-    replyabilityScore = Math.min(replyabilityScore, 3);
-  }
   if (isSellerOrBuilderPost(post)) {
     fitScore = Math.min(fitScore, 2);
     replyabilityScore = Math.min(replyabilityScore, 1);
   }
   if (isRoleSeekerPost(post)) {
+    fitScore = Math.min(fitScore, 2);
+    replyabilityScore = Math.min(replyabilityScore, 1);
+  }
+  if (isPartnerOrCofounderPost(post)) {
     fitScore = Math.min(fitScore, 2);
     replyabilityScore = Math.min(replyabilityScore, 1);
   }
@@ -2100,6 +2110,18 @@ function normalizeLlmScore(post, parsed, config) {
   if (isMarketResearchPost(post)) {
     fitScore = Math.min(fitScore, 3);
     replyabilityScore = Math.min(replyabilityScore, 2);
+  }
+  if (isPromotionalOrEducationalPost(post)) {
+    fitScore = Math.min(fitScore, 2);
+    replyabilityScore = Math.min(replyabilityScore, 1);
+  }
+  if (isPersonalCreativeContent(post)) {
+    fitScore = Math.min(fitScore, 2);
+    replyabilityScore = Math.min(replyabilityScore, 1);
+  }
+  if (isVendorSeededPost(post)) {
+    fitScore = Math.min(fitScore, 3);
+    replyabilityScore = Math.min(replyabilityScore, 3);
   }
   if (!hasBestLeadSignal(post) && !isAdvicePain && !post.primaryPattern) fitScore = Math.min(fitScore, 3);
   if (!hasConsultingBuyerIntent(post) && !hasExplicitPaidProject(post) && !isAdvicePain && !post.primaryPattern) {
@@ -2115,12 +2137,6 @@ function normalizeLlmScore(post, parsed, config) {
     replyabilityScore = Math.min(replyabilityScore, 3);
   }
   if (post.buyingIntentMatches.length === 0 && post.requestEvidence.length === 0) fitScore = Math.min(fitScore, 4);
-  if (recommendedAction === "ignore") {
-    fitScore = Math.min(fitScore, 2);
-    replyabilityScore = Math.min(replyabilityScore, 1);
-  }
-  if (recommendedAction === "watch") replyabilityScore = Math.min(replyabilityScore, 3);
-  if (recommendedAction === "comment") fitScore = Math.min(fitScore, 4);
   if (isGenericAdviceOnlyPost(post)) {
     fitScore = Math.min(fitScore, 3);
     replyabilityScore = Math.min(replyabilityScore, 3);
@@ -2133,14 +2149,6 @@ function normalizeLlmScore(post, parsed, config) {
     recommendedAction = "watch";
     outreachPosture = "watch";
   }
-  const suggestedComment = stripPublicReplyUrls(
-    parsed.suggestedComment ? String(parsed.suggestedComment).trim() : "",
-  );
-  const suggestedDm = outreachPosture === "comment_first" && !hasExplicitPaidProject(post)
-    ? ""
-    : parsed.suggestedDm
-      ? String(parsed.suggestedDm).trim()
-      : "";
 
   return {
     ...post,
@@ -2157,12 +2165,10 @@ function normalizeLlmScore(post, parsed, config) {
       ? parsed.pattern
       : (post.primaryPattern || "unclassified"),
     negativePersona: normalizeNegativePersonaId(parsed.negativePersona, post.negativePersona),
-    freeToPursuePath: parsed.freeToPursuePath
-      ? String(parsed.freeToPursuePath).trim()
-      : freeToPursuePathFor(outreachPosture),
-    scoreReason,
-    suggestedComment,
-    suggestedDm,
+    freeToPursuePath: "",
+    scoreReason: "",
+    suggestedComment: "",
+    suggestedDm: "",
   };
 }
 
@@ -2278,47 +2284,14 @@ function formatLead(lead) {
     `- Lead type: ${lead.leadType || "other"}`,
     `- Vertical: ${lead.vertical || "other"}`,
     `- Failure mode: ${lead.failureMode || "other"}`,
-    `- Outreach posture: ${lead.outreachPosture || "watch"}`,
-    `- Recommended action: ${lead.recommendedAction}`,
-    `- Free-to-pursue path: ${lead.freeToPursuePath || freeToPursuePathFor(lead.outreachPosture || "watch")}`,
-    lead.matchedLeadTypes?.length ? `- Matched lead types: ${lead.matchedLeadTypes.join(", ")}` : "",
-    lead.matchEvidence?.length ? `- Match evidence: ${lead.matchEvidence.join(", ")}` : "",
-    `- Request evidence: ${formatEvidence(lead.requestEvidence)}`,
-    `- Workflow evidence: ${formatEvidence(lead.workflowEvidence)}`,
-    `- Pain evidence: ${formatEvidence(lead.painEvidence)}`,
-    `- Business evidence: ${formatEvidence(lead.businessEvidence)}`,
-    `- Budget evidence: ${formatEvidence(lead.budgetEvidence)}`,
-    `- Negative evidence: ${formatEvidence(lead.negativeEvidence)}`,
-    lead.commentContext ? `- Comment context: ${formatCommentContext(lead.commentContext)}` : "",
-    `- Why it matched: ${lead.scoreReason || "No reason provided."}`,
-    "",
-    "Suggested comment:",
-    "",
-    lead.suggestedComment ? blockquote(lead.suggestedComment) : ">",
-    "",
-    "Suggested DM:",
-    "",
-    lead.suggestedDm ? blockquote(lead.suggestedDm) : ">",
-    "",
-    "Tracker row:",
-    "",
-    `| ${localDate()} | Reddit: r/${lead.subreddit} | u/${lead.author} | ${escapeTable(
-      lead.title,
-    )} | Not yet |  |  | New | ${escapeTable(lead.scoreReason || "")} |`,
   ].join("\n");
-}
-
-function formatEvidence(values) {
-  return Array.isArray(values) && values.length ? values.join(", ") : "none";
 }
 
 function sourceMixSummary(leads) {
   const byLeadType = countBy(leads, (lead) => lead.leadType || "other");
-  const byPosture = countBy(leads, (lead) => lead.outreachPosture || "watch");
   const bySource = countBy(leads, (lead) => lead.subreddit || lead.sourceDetail || "unknown");
   return [
     `- By lead type: ${formatCounts(byLeadType)}`,
-    `- By outreach posture: ${formatCounts(byPosture)}`,
     `- By subreddit/source: ${formatCounts(bySource)}`,
   ];
 }
@@ -2468,17 +2441,6 @@ function rejectionReason(post) {
   return "not_request_or_operational_pain";
 }
 
-function formatCommentContext(commentContext) {
-  const parts = [];
-  if (commentContext.selfPromotionRisk) parts.push(`self-promotion risk ${commentContext.selfPromotionRisk}`);
-  if (commentContext.opReplies?.length) parts.push(`OP replies: ${commentContext.opReplies.join(" / ")}`);
-  if (commentContext.topAdviceThemes?.length) {
-    parts.push(`existing advice: ${commentContext.topAdviceThemes.slice(0, 2).join(" / ")}`);
-  }
-  if (commentContext.unansweredAngle) parts.push(`angle: ${commentContext.unansweredAngle}`);
-  return parts.join("; ");
-}
-
 function dateOnly(value) {
   if (!value) return "";
   const parsed = new Date(value);
@@ -2543,8 +2505,8 @@ function hasBusinessContext(post) {
 }
 
 function isSellerOrBuilderPost(post) {
-  const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /\b(i built|i made|i launched|i created|my app|my product|my tool|looking for feedback|feedback on my|showcase|case study|available for|for hire|hire me|looking for clients)\b/.test(
+  const text = `${post.title}\n${post.summary}\n${post.subreddit || ""}`.toLowerCase();
+  return /\b(i built|i made|i launched|i created|my app|my product|my tool|my agency|our product|looking for feedback|honest feedback|feedback on my|showcase|case study|available for|for hire|hire me|looking for clients|bookpromotion|startups?_promotion|u_[a-z0-9_-]+|unpopular opinion|must-have features|best affordable|when .* stops scaling|what we learned after|how we built|what you can copy today|finally tackled|saving my sanity|ways to automate|explained in plain english)\b/.test(
     text,
   );
 }
@@ -2567,7 +2529,7 @@ function isEmploymentPost(post) {
 function isRoleSeekerPost(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const explicitSeeker =
-    /\b(looking for a role|looking for work|looking for a job|open to work|seeking a role|seeking work|seeking a job|job search|my resume|resume review|portfolio review|hire me|for hire|available for freelance|available for contract)\b/.test(
+    /\b(looking for a role|looking for work|looking for a job|looking for .* role|looking for .* position|need a .* job|need .* job urgently|job hunt|job hunting|how can .* become|become an? .*engineer|visa somewhere|chase a visa|open to remote or on-site|open to work|seeking a role|seeking work|seeking a job|job search|my resume|resume review|portfolio review|hire me|for hire|available for freelance|available for contract|referral fee)\b/.test(
       text,
     );
   const titleSeeker = /^\s*(looking for|seeking)\b.+\b(job|role|position|opportunity|work)\b/i.test(
@@ -2576,16 +2538,93 @@ function isRoleSeekerPost(post) {
   return explicitSeeker || titleSeeker;
 }
 
+function isPartnerOrCofounderPost(post) {
+  const text = `${post.title}\n${post.summary}`.toLowerCase();
+  return /\b(co[- ]?founder|technical co[- ]?founder|founding engineer|full[- ]?stack developer|sales\/outreach partner|outreach partner|business partner|equity only|rev share|revenue share|partner with me|join me to build)\b/.test(
+    text,
+  );
+}
+
 function isMarketResearchPost(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /\b(market research|potential collab|collab opportunity|how'?s the general market|market for .*smb|do you actually need|would you pay for|validate this idea|validating an idea|bad idea|feedback on my idea)\b/.test(
+  return /\b(market research|potential collab|collab opportunity|how'?s the general market|market for .*smb|do you actually need|would you pay for|would you be willing to pay|what would you pay|how much would you pay|how much would you be willing to pay|pay for it problem|would you actually use this|would this even fit|fit the vc model|vc model|validate this idea|validated .*pain point|validating an idea|bad idea|feedback on my idea|honest feedback|help me choose one ai business|which niche is still underserved|what ai product do you wish existed|what product do you wish existed|what repetitive task would you happily pay|spend the next 90 days building|pick one direction based on the discussion|document everything publicly)\b/.test(
+    text,
+  );
+}
+
+function isPromotionalOrEducationalPost(post) {
+  const text = `${post.title}\n${post.summary}\n${post.subreddit || ""}`.toLowerCase();
+  return /\b(here'?s how|here is how|guide to|ultimate guide|case study|roi comparison|honest breakdown|key highlights|market review|do not let .* trap you|warning:|speed to the lead|why .* win more|how to reduce|12 ways to|10 ways to|must-have|explained in plain english|inside the algorithm|became .* heroes|what you can copy today|using ai in unique ways|welcome to .* read first|introduce yourself|read first)\b/.test(
+    text,
+  );
+}
+
+function isVendorSeededPost(post) {
+  const text = `${post.title}\n${post.summary}`.toLowerCase();
+  return /\b(requesting a demo from|request a demo from|demo from|built specifically for this kind of|eliminate paper from the company|has anyone else made the transition .* without confusing)\b/.test(
+    text,
+  );
+}
+
+function isPersonalCreativeContent(post) {
+  const text = `${post.title}\n${post.summary}\n${post.subreddit || ""}`.toLowerCase();
+  const personalCreativeSignals =
+    /\b(anime|manga|fandom|fanfic|fan fiction|character essay|an essay|literary analysis|poem|poetry|short story|scary stories?|dating|relationship advice|roleplay|cosplay|gameplay|gaming)\b/.test(
+      text,
+    );
+  if (!personalCreativeSignals) return false;
+  return !hasExplicitPaidProject(post);
+}
+
+function hasConsultingDomainFit(post) {
+  const text = `${post.title}\n${post.summary}`.toLowerCase();
+  const implementationTerms =
+    /\b(automate|automation|automator|script|workflow|zapier|make\.com|make com|n8n|airtable|notion|crm|hubspot|salesforce|pipedrive|zoho|spreadsheet|excel|google sheets|dashboard|reporting|report automation|pdf workflow|forms?|intake|lead routing|pipeline|onboarding|offboarding|reconciliation|invoice|bookkeeping|quickbooks|xero|api integration|internal tool|client portal|data cleanup|manual process|copy.?paste|scheduling|screening|applicants?|candidates?|staffing|recruiting|customer messages?|quote requests?)\b/.test(
+      text,
+    );
+  if (!implementationTerms) return false;
+  return hasBusinessContext(post) || isTrustedAutomationSource(post);
+}
+
+function isTrustedAutomationSource(post) {
+  const subreddit = String(post.subreddit || "").toLowerCase();
+  return /^(automator|shortcuts|applescript|zapier|integromat|make|n8n|airtable|googlesheets|excel)$/i.test(
+    subreddit,
+  );
+}
+
+function hasDirectRequestShape(post) {
+  const title = String(post.title || "").toLowerCase();
+  const text = `${post.title}\n${post.summary}`.toLowerCase();
+  if (/^\s*(welcome to|unpopular opinion|most .* do not|when .* stops scaling|the best |best affordable|10 must-have|must-have features)\b/.test(title)) {
+    return false;
+  }
+  if (/\b(how can one become|how to become|what is an? .*engineer|introduce yourself|read first)\b/.test(text)) {
+    return false;
+  }
+  const directAsk =
+    /\b(how do i|how do you|how are you|what do you use|what are you using|what system|which crm|which tool|what tool|recommend|recommendations?|need help|looking for help|need someone|looking for someone|can someone help|where do i start|how do you keep track|how do you manage|crm for|tool for|software for)\b/.test(
+      text,
+    );
+  return directAsk || hasExplicitPaidProject(post);
+}
+
+function isDigestFalsePositive(post) {
+  const text = `${post.title}\n${post.summary}\n${post.subreddit || ""}`.toLowerCase();
+  return /\b(welcome to .*read first|introduce yourself|lived in australia|moved home|chase a visa|forced line suspension|device promo loophole|my coworker|office appropriate attitude|must-have features|best affordable crms|unpopular opinion|most local businesses do not lose leads)\b/.test(
     text,
   );
 }
 
 function hasConsultingBuyerIntent(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  if (isRoleSeekerPost(post) || isMarketResearchPost(post)) return false;
+  if (
+    isRoleSeekerPost(post) ||
+    isPartnerOrCofounderPost(post) ||
+    isMarketResearchPost(post) ||
+    isPromotionalOrEducationalPost(post) ||
+    isPersonalCreativeContent(post)
+  ) return false;
   if (isEmploymentPost(post)) {
     return /\b(consultant|contractor|freelancer|agency|implementation|setup|build this|automate this|project|one[- ]?off|fixed price|scope)\b/.test(
       text,
@@ -2606,7 +2645,15 @@ function hasConsultingBuyerIntent(post) {
 
 function hasBestLeadSignal(post) {
   if (hasExplicitPaidProject(post)) return true;
-  if (isRoleSeekerPost(post) || isEmploymentPost(post) || isMarketResearchPost(post)) return false;
+  if (
+    isRoleSeekerPost(post) ||
+    isPartnerOrCofounderPost(post) ||
+    isEmploymentPost(post) ||
+    isMarketResearchPost(post) ||
+    isPromotionalOrEducationalPost(post) ||
+    isPersonalCreativeContent(post) ||
+    isVendorSeededPost(post)
+  ) return false;
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const strongPain =
     /\b(struggling|struggle|problem|pain|painful|mess|messy|manual|copy.?paste|takes forever|too slow|stuck|can't figure|cant figure|desperate|chaotic|broken|overwhelmed|moving off|switching from|migrate|migration|setup|set up|integrate|integration|reconciliation|manual reporting|difficult reporting|reporting issue|reporting problem|job boards? not|not bringing in anyone|can't find|cant find|need help finding|busy season|missed calls?|too many messages|buried in emails|can't keep track|cant keep track|screening applicants|scheduling mess)\b/.test(
@@ -2632,12 +2679,6 @@ function isBasicSpreadsheetHelp(post) {
   );
 }
 
-function isGeneralHelpReason(scoreReason) {
-  return /general help|general request|request for advice|seeking recommendations|seeking advice|does not show specific workflow pain|does not show explicit buying intent|does not express immediate buying intent|does not indicate specific workflow|does not indicate specific business workflow|does not request paid help|does not indicate clear buying intent|does not indicate immediate buying intent|does not ask for hiring|does not ask .*project|does not ask to hire|does not ask .*implement|does not explicitly ask|doesn't explicitly ask|does not explicitly request|doesn't explicitly request|without a clear direct buying intent|without clear direct buying intent|without explicit buying|without .*buying or hiring intent|without .*buying or hiring request|without .*specific workflow problem|without .*specific pain|lacks explicit buying intent|lacks clear buyer intent|no clear buyer intent|no clear buying intent|no clear indication of buying intent|no explicit buying or hiring request|no explicit intent to hire|no explicit .*intent .*implement|no specific implementation project|no specific workflow pain|beyond general curiosity/.test(
-    scoreReason.toLowerCase(),
-  );
-}
-
 function isGenericAdviceOnlyPost(post) {
   if (hasExplicitPaidProject(post)) return false;
   if (isAdviceShapedOperationalPain(post)) return false;
@@ -2654,7 +2695,15 @@ function isGenericAdviceOnlyPost(post) {
 
 function isAdviceShapedOperationalPain(post) {
   if (hasExplicitPaidProject(post)) return false;
-  if (isSellerOrBuilderPost(post) || isRoleSeekerPost(post) || isMarketResearchPost(post)) return false;
+  if (
+    isSellerOrBuilderPost(post) ||
+    isRoleSeekerPost(post) ||
+    isPartnerOrCofounderPost(post) ||
+    isMarketResearchPost(post) ||
+    isPromotionalOrEducationalPost(post) ||
+    isPersonalCreativeContent(post) ||
+    isVendorSeededPost(post)
+  ) return false;
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const asksForAdvice =
     /\b(how do|how are you|what do you|what are you|what system|what software|which software|which tool|what tool|tools are actually working|when did you|is there a better way|best way to|any recommendations|recommendations for|what .* doing)\b/.test(
@@ -2765,17 +2814,6 @@ function stripQuotes(value) {
 
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function escapeTable(value) {
-  return String(value || "").replace(/\|/g, "\\|").replace(/\n/g, " ");
-}
-
-function blockquote(value) {
-  return String(value || "")
-    .split(/\r?\n/)
-    .map((line) => `> ${line}`)
-    .join("\n");
 }
 
 function localDate() {

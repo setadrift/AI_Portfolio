@@ -61,6 +61,9 @@ export type LeadAction = "new" | "opened" | "commented" | "dm_sent" | "converted
 export interface StoredLeadState {
   queue: LeadQueue;
   action: LeadAction;
+  commented: boolean;
+  dmSent: boolean;
+  dismissed: boolean;
   notes: string;
   updatedAt: string;
 }
@@ -93,7 +96,7 @@ export interface LeadRunStatus {
   generatedAt: string;
   successfulFeeds: number;
   totalFeeds: number;
-  ingestionMode?: "oauth" | "rss" | "fixture";
+  ingestionMode?: "oauth" | "rss" | "fixture" | "cleanup";
   scanMode?: string;
   fetchedPosts: number;
   candidatesScored: number;
@@ -156,7 +159,8 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
   ]);
 
   const allPublishedSources = [...databaseSources, ...publishedSources];
-  const redditSource = allPublishedSources.find((source) => source.id === "reddit") ?? {
+  const redditSources = allPublishedSources.filter((source) => source.id === "reddit");
+  const redditSource = redditSources.find((source) => !isCleanupOnlyRedditSource(source)) ?? {
     id: "reddit" as const,
     label: "Reddit monitor",
     description: "Leads from the configured Reddit scan.",
@@ -182,6 +186,15 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
   logLeadSourceDiagnostics(sourcesWithStoredLeads);
 
   return { digest, status, sources: sourcesWithStoredLeads, leadStates, channels, scanModes };
+}
+
+function isCleanupOnlyRedditSource(source: LeadSourceDigest) {
+  return (
+    source.id === "reddit" &&
+    source.status?.ingestionMode === "cleanup" &&
+    (source.status.totalFeeds ?? 0) === 0 &&
+    (source.digest?.leads.length ?? 0) === 0
+  );
 }
 
 export async function readLeadChannels(): Promise<LeadChannel[]> {
@@ -900,7 +913,7 @@ function parseDigest(fileName: string, markdown: string, sourceKind: LeadSourceI
 }
 
 function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: string): RedditLead[] {
-  return leadBlocks(markdown, { includeWatch: sourceKind === "reddit" })
+  return leadBlocks(markdown)
     .map((block) => {
       const heading = block.match(/^### ([1-5]\/5) - (.+?) - (.+)$/m);
       const sourceLabel = heading?.[2]?.trim() ?? "";

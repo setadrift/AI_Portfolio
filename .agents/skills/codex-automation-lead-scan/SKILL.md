@@ -31,7 +31,7 @@ Run the AI consulting public-source lead research workflow and load the results 
 6. Put uncertain, stale, or unverifiable-date candidates in `## Maybe / Watch` or reject them.
 7. Enforce source diversity. This is a broad public-internet pass, not an Upwork scraper.
 8. Check at least 5 source families when search access allows it: Reddit/local subreddits, automation/vendor communities, freelance/job marketplaces, founder/operator/small-business forums, and general web search results.
-9. Cap Upwork at 4 of 12 Best Leads unless fewer than 4 qualified non-Upwork leads can be verified after a genuine multi-source search.
+9. Exclude Upwork entirely. Do not search Upwork, include Upwork links, write Upwork watchlist items, or surface Upwork leads in `## Best Leads`, `## Maybe / Watch`, tracker rows, status summaries, or published admin data.
 10. If one platform dominates the digest, name the non-dominant source families checked and why they did not qualify.
 11. Do not include broad fit-based business-directory leads unless the source also shows a current trigger such as a hiring post, help request, public complaint, explicit tool failure, recent operations change, or consultant request.
 12. Treat partner/overflow opportunities as valid when they show paid implementation demand from an automation agency, freelancer, RevOps consultant, or tool specialist looking for builders, contractors, QA, documentation, or delivery support.
@@ -45,7 +45,7 @@ Run the AI consulting public-source lead research workflow and load the results 
 3. Search public sources for explicit buying intent around AI automation, Airtable, Zapier, Make, n8n, reporting automation, CRM follow-up, spreadsheet cleanup, document/PDF automation, invoice automation, or custom internal tools. Include direct-client leads and partner/overflow opportunities. Use a deliberately mixed search set:
    - Reddit public pages and local/business subreddits.
    - Automation/vendor communities such as n8n Community, Airtable Community, Zapier Community, Make Community, Softr/Glide/Notion forums.
-   - Public freelance/job marketplaces such as Upwork, Freelancer, PeoplePerHour, Contra, Wellfound, We Work Remotely, RemoteOK, Craigslist gigs, Kijiji/Craigslist local services, and relevant job boards.
+   - Public freelance/job marketplaces except Upwork, such as Freelancer, PeoplePerHour, Contra, Wellfound, We Work Remotely, RemoteOK, Craigslist gigs, Kijiji/Craigslist local services, and relevant job boards.
    - Founder/operator/small-business forums such as Indie Hackers, Hacker News hiring/freelance threads, public Alignable-style posts, and industry forums.
    - General web/search result pages for exact buying-intent phrases.
 4. Apply this scoring model:
@@ -91,7 +91,7 @@ Tracker row:
 
 ## Maybe / Watch
 
-Use this section for possibly good leads with weaker fit, older dates, or unverifiable dates. Also include promising non-Upwork sources checked when they did not produce main-digest leads.
+Use this section for possibly good leads with weaker fit, older dates, or unverifiable dates. Also include promising non-Upwork source families checked when they did not produce main-digest leads. Do not include Upwork watchlist items.
 
 ## Rejected
 

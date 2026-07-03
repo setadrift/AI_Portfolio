@@ -14,6 +14,10 @@ import type {
 type SortField = "score" | "posted" | "source" | "title" | "action";
 
 type LeadState = StoredLeadState;
+type ScanEvent =
+  | { type: "log"; message: string }
+  | { type: "done"; ok: boolean; stdout: string; stderr: string }
+  | { type: "error"; message: string; stdout: string; stderr: string };
 
 const STORAGE_KEY = "ai-portfolio-admin-lead-state-v1";
 
@@ -24,15 +28,6 @@ const QUEUES: Array<{ value: LeadQueue; label: string; description: string }> = 
   { value: "commented", label: "Commented", description: "Leads where you already replied publicly." },
   { value: "dm_sent", label: "DM sent", description: "Leads where you already sent a Reddit DM." },
   { value: "dismissed", label: "Dismissed", description: "Handled, duplicate, stale, or not a fit." },
-];
-
-const ACTIONS: Array<{ value: LeadAction; label: string }> = [
-  { value: "new", label: "New" },
-  { value: "opened", label: "Opened" },
-  { value: "commented", label: "Commented" },
-  { value: "dm_sent", label: "DM sent" },
-  { value: "converted", label: "Converted" },
-  { value: "dismissed", label: "Dismissed" },
 ];
 
 const queueButtonClass =
@@ -56,12 +51,15 @@ export default function LeadsDashboard({
   );
   const [search, setSearch] = useState("");
   const [leadTypeFilter, setLeadTypeFilter] = useState("all");
-  const [postureFilter, setPostureFilter] = useState("all");
   const [sortBy, setSortBy] = useState<SortField>("posted");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [leadState, setLeadState] = useState<Record<string, LeadState>>(initialData.leadStates);
   const [isRunning, setIsRunning] = useState(false);
   const [runMessage, setRunMessage] = useState("");
+  const [scanLog, setScanLog] = useState<string[]>([]);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanStartedAt, setScanStartedAt] = useState<number | null>(null);
+  const [scanElapsedSeconds, setScanElapsedSeconds] = useState(0);
 
   useEffect(() => {
     try {
@@ -77,6 +75,14 @@ export default function LeadsDashboard({
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(leadState));
   }, [leadState]);
+
+  useEffect(() => {
+    if (!isRunning || !scanStartedAt) return;
+    const timer = window.setInterval(() => {
+      setScanElapsedSeconds(Math.floor((Date.now() - scanStartedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isRunning, scanStartedAt]);
 
   useEffect(() => {
     const currentSource = initialData.sources.find((source) => source.id === selectedSourceId);
@@ -114,7 +120,7 @@ export default function LeadsDashboard({
     return QUEUES.reduce(
       (acc, queue) => ({
         ...acc,
-        [queue.value]: rows.filter((lead) => lead.queue === queue.value).length,
+        [queue.value]: rows.filter((lead) => leadMatchesQueue(lead, queue.value)).length,
       }),
       {} as Record<LeadQueue, number>,
     );
@@ -124,17 +130,11 @@ export default function LeadsDashboard({
     () => filterOptions(rows, (lead) => lead.leadType || lead.category || "other"),
     [rows],
   );
-  const postureOptions = useMemo(
-    () => filterOptions(rows, (lead) => lead.outreachPosture || "watch"),
-    [rows],
-  );
-
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return rows
-      .filter((lead) => lead.queue === selectedQueue)
+      .filter((lead) => leadMatchesQueue(lead, selectedQueue))
       .filter((lead) => leadTypeFilter === "all" || (lead.leadType || lead.category || "other") === leadTypeFilter)
-      .filter((lead) => postureFilter === "all" || (lead.outreachPosture || "watch") === postureFilter)
       .filter((lead) => {
         if (!needle) return true;
         return [
@@ -145,22 +145,18 @@ export default function LeadsDashboard({
           lead.leadType,
           lead.vertical,
           lead.failureMode,
-          lead.outreachPosture,
-          lead.freeToPursuePath,
           lead.commentContext,
           lead.matchedLeadTypes,
           lead.matchEvidence,
           lead.reason,
           lead.notes,
-          lead.suggestedComment,
-          lead.suggestedDm,
         ]
           .join(" ")
           .toLowerCase()
           .includes(needle);
       })
       .sort((a, b) => sortRows(a, b, sortBy));
-  }, [leadTypeFilter, postureFilter, rows, search, selectedQueue, sortBy]);
+  }, [leadTypeFilter, rows, search, selectedQueue, sortBy]);
 
   const selectedLead =
     visibleRows.find((lead) => lead.url === selectedLeadUrl) ??
@@ -174,31 +170,88 @@ export default function LeadsDashboard({
 
   async function runScan() {
     setIsRunning(true);
-    setRunMessage("");
+    setRunMessage("Starting Reddit scan...");
+    setScanLog(["Starting Reddit scan..."]);
+    setScanProgress(5);
+    setScanStartedAt(Date.now());
+    setScanElapsedSeconds(0);
     try {
       const response = await fetch("/api/portal/admin/leads/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: selectedScanMode }),
       });
-      const result = (await response.json().catch(() => ({}))) as {
-        ok?: boolean;
-        stdout?: string;
-        stderr?: string;
-        error?: string;
-      };
 
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error || result.stderr || "Scan failed");
+      if (!response.ok) {
+        const result = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(result.error || "Scan failed");
       }
 
-      setRunMessage(result.stdout?.trim() || "Scan complete.");
+      if (!response.body) {
+        throw new Error("Scan response did not include a progress stream.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completed = false;
+      let scanError = "";
+
+      while (!completed) {
+        const { done, value } = await reader.read();
+        if (value) {
+          buffer += decoder.decode(value, { stream: !done });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const errorMessage = handleScanEvent(line);
+            if (errorMessage) scanError = errorMessage;
+          }
+        }
+        completed = done;
+      }
+      if (buffer.trim()) {
+        const errorMessage = handleScanEvent(buffer);
+        if (errorMessage) scanError = errorMessage;
+      }
+
+      if (scanError) {
+        throw new Error(scanError);
+      }
+
       router.refresh();
     } catch (error) {
-      setRunMessage(error instanceof Error ? error.message : "Scan failed");
+      const message = error instanceof Error ? error.message : "Scan failed";
+      setRunMessage(message);
+      appendScanLog(message);
     } finally {
       setIsRunning(false);
     }
+  }
+
+  function handleScanEvent(line: string) {
+    if (!line.trim()) return "";
+    const event = JSON.parse(line) as ScanEvent;
+    if (event.type === "log") {
+      appendScanLog(event.message);
+      setRunMessage(event.message);
+      setScanProgress((current) => Math.max(current, progressForMessage(event.message)));
+      return "";
+    }
+    if (event.type === "done") {
+      setScanProgress(100);
+      setRunMessage("Scan complete. Results loaded.");
+      appendScanLog("Scan complete. Results loaded.");
+      return "";
+    }
+    setScanProgress(100);
+    setRunMessage(event.message || "Scan failed.");
+    appendScanLog(event.stderr || event.message || "Scan failed.");
+    return event.stderr || event.message || "Scan failed.";
+  }
+
+  function appendScanLog(message: string) {
+    setScanLog((current) => [...current, message].slice(-12));
   }
 
   async function runAutomationScan() {
@@ -231,13 +284,18 @@ export default function LeadsDashboard({
   function updateLead(lead: RedditLead, patch: Partial<LeadState>) {
     const key = stateKey(lead);
     const currentState = leadState[key] ?? leadState[leadKey(lead)];
+    const currentQueue = queueForLead(lead, currentState);
     const nextState = {
-      queue: queueForLead(lead, currentState),
+      queue: currentQueue,
       action: currentState?.action ?? "new",
+      commented: currentState?.commented ?? (currentState?.action === "commented"),
+      dmSent: currentState?.dmSent ?? (currentState?.action === "dm_sent"),
+      dismissed: currentState?.dismissed ?? (currentState?.action === "dismissed"),
       notes: currentState?.notes ?? "",
       updatedAt: new Date().toISOString(),
       ...patch,
     };
+    nextState.action = actionForState(nextState);
 
     setLeadState((current) => ({
       ...current,
@@ -256,14 +314,21 @@ export default function LeadsDashboard({
     const updates = nextSelected.map((lead) => {
       const key = stateKey(lead);
       const currentState = leadState[key] ?? leadState[leadKey(lead)];
+      const nextState = {
+        queue,
+        action: action ?? currentState?.action ?? (queue === "dismissed" ? "dismissed" : "new"),
+        commented: currentState?.commented ?? (currentState?.action === "commented"),
+        dmSent: currentState?.dmSent ?? (currentState?.action === "dm_sent"),
+        dismissed: queue === "dismissed" ? true : false,
+        notes: currentState?.notes ?? "",
+        updatedAt: new Date().toISOString(),
+      };
+      if (queue === "commented") nextState.commented = true;
+      if (queue === "dm_sent") nextState.dmSent = true;
+      nextState.action = actionForState(nextState);
       return {
         lead,
-        state: {
-          queue,
-          action: action ?? currentState?.action ?? (queue === "dismissed" ? "dismissed" : "new"),
-          notes: currentState?.notes ?? "",
-          updatedAt: new Date().toISOString(),
-        },
+        state: nextState,
       };
     });
 
@@ -291,6 +356,9 @@ export default function LeadsDashboard({
             leadKey: leadKey(lead),
             queue: state.queue,
             action: state.action,
+            commented: state.commented,
+            dmSent: state.dmSent,
+            dismissed: state.dismissed,
             notes: state.notes,
           })),
         }),
@@ -367,7 +435,6 @@ export default function LeadsDashboard({
                   setSelectedSourceId(source.id);
                   setSelectedQueue("actionable");
                   setLeadTypeFilter("all");
-                  setPostureFilter("all");
                   setSelectedIds(new Set());
                   setSelectedLeadUrl(source.digest?.leads[0]?.url ?? "");
                 }}
@@ -440,6 +507,36 @@ export default function LeadsDashboard({
               ) : null}
             </div>
           ) : null}
+          {(isRunning || scanLog.length > 0) && selectedSourceId === "reddit" ? (
+            <div className="mt-4 rounded-md border border-white/10 bg-[#151515] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-white">
+                    {isRunning ? "Reddit scan running" : "Latest scan log"}
+                  </p>
+                  <p className="mt-1 text-xs text-white/45">
+                    {isRunning
+                      ? `Elapsed ${formatElapsed(scanElapsedSeconds)}. You can leave this page open while posts are fetched and scored.`
+                      : "The next run will replace the cleared Reddit queue."}
+                  </p>
+                </div>
+                <span className="text-xs tabular-nums text-white/45">
+                  {Math.round(scanProgress)}%
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-emerald-400 transition-[width] duration-500"
+                  style={{ width: `${Math.max(5, Math.min(100, scanProgress))}%` }}
+                />
+              </div>
+              <div className="mt-3 max-h-36 overflow-auto rounded-md border border-white/10 bg-black/20 p-2 font-mono text-xs leading-5 text-white/55">
+                {scanLog.map((line, index) => (
+                  <div key={`${line}-${index}`}>{line}</div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </header>
 
         <main className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -466,7 +563,7 @@ export default function LeadsDashboard({
                 ))}
               </div>
 
-              <div className="mt-4 grid gap-2 md:grid-cols-[minmax(240px,1fr)_180px_160px_160px_auto]">
+              <div className="mt-4 grid gap-2 md:grid-cols-[minmax(240px,1fr)_180px_160px_auto]">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -485,21 +582,6 @@ export default function LeadsDashboard({
                   {leadTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label} {option.count}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={postureFilter}
-                  onChange={(event) => {
-                    setPostureFilter(event.target.value);
-                    setSelectedIds(new Set());
-                  }}
-                  className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
-                >
-                  <option value="all">All postures</option>
-                  {postureOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {formatAction(option.value)} {option.count}
                     </option>
                   ))}
                 </select>
@@ -621,42 +703,33 @@ export default function LeadsDashboard({
                         </td>
                         <td className="px-4 py-4 align-top capitalize text-white/65">
                           <div>{formatLeadType(lead)}</div>
-                          {lead.outreachPosture ? (
-                            <div className="mt-1 text-xs normal-case text-cyan-200/70">
-                              {formatAction(lead.outreachPosture)}
-                            </div>
-                          ) : null}
-                          {lead.freeToPursuePath ? (
-                            <div className="mt-1 line-clamp-2 text-xs normal-case text-white/40">
-                              {lead.freeToPursuePath}
-                            </div>
-                          ) : null}
                         </td>
                         <td className="px-4 py-4 align-top">
                           <select
-                            value={lead.action}
+                            value={lead.queue}
                             onClick={(event) => event.stopPropagation()}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              const queue = event.target.value as LeadQueue;
                               updateLead(lead, {
-                                action: event.target.value as LeadAction,
-                                queue:
-                                  event.target.value === "dismissed"
-                                    ? "dismissed"
-                                    : event.target.value === "commented"
-                                      ? "commented"
-                                      : event.target.value === "dm_sent"
-                                        ? "dm_sent"
-                                      : lead.queue,
-                              })
-                            }
+                                queue,
+                                commented: queue === "commented" ? true : lead.commented,
+                                dmSent: queue === "dm_sent" ? true : lead.dmSent,
+                                dismissed: queue === "dismissed",
+                              });
+                            }}
                             className="h-8 rounded-md border border-white/10 bg-[#151515] px-2 text-xs text-white outline-none"
                           >
-                            {ACTIONS.map((action) => (
-                              <option key={action.value} value={action.value}>
-                                {action.label}
+                            {QUEUES.map((queue) => (
+                              <option key={queue.value} value={queue.value}>
+                                {queue.label}
                               </option>
                             ))}
                           </select>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {lead.commented ? <StatusPill label="Commented" /> : null}
+                            {lead.dmSent ? <StatusPill label="DM sent" /> : null}
+                            {lead.dismissed ? <StatusPill label="Dismissed" tone="amber" /> : null}
+                          </div>
                         </td>
                         <td className="px-4 py-4 align-top">
                           <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs text-emerald-300">
@@ -664,24 +737,20 @@ export default function LeadsDashboard({
                           </span>
                         </td>
                         <td className="px-4 py-4 text-right align-top" onClick={(event) => event.stopPropagation()}>
-                          {lead.queue !== "commented" ? (
-                            <button
-                              type="button"
-                              onClick={() => updateLead(lead, { queue: "commented", action: "commented" })}
-                              className="mr-3 text-sm text-white/70 hover:text-white"
-                            >
-                              Commented
-                            </button>
-                          ) : null}
-                          {lead.queue !== "dm_sent" ? (
-                            <button
-                              type="button"
-                              onClick={() => updateLead(lead, { queue: "dm_sent", action: "dm_sent" })}
-                              className="mr-3 text-sm text-white/70 hover:text-white"
-                            >
-                              DM sent
-                            </button>
-                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => updateLead(lead, { queue: "commented", commented: !lead.commented, dismissed: false })}
+                            className="mr-3 text-sm text-white/70 hover:text-white"
+                          >
+                            {lead.commented ? "Uncommented" : "Commented"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateLead(lead, { queue: "dm_sent", dmSent: !lead.dmSent, dismissed: false })}
+                            className="mr-3 text-sm text-white/70 hover:text-white"
+                          >
+                            {lead.dmSent ? "Undo DM" : "DM sent"}
+                          </button>
                           <a
                             href={lead.url}
                             target="_blank"
@@ -742,7 +811,6 @@ function LeadDetail({
         <span>posted {lead.postedDate || "unknown"}</span>
         {lead.discoveredDate ? <span>found {lead.discoveredDate}</span> : null}
         <span>{formatLeadType(lead)}</span>
-        {lead.outreachPosture ? <span>{formatAction(lead.outreachPosture)}</span> : null}
       </div>
       <h2 className="mt-2 text-xl font-semibold leading-7">{lead.title}</h2>
       <p className="mt-3 text-sm leading-6 text-white/55">{lead.reason}</p>
@@ -753,18 +821,9 @@ function LeadDetail({
         <DetailStat label="Lead type" value={formatLeadType(lead)} />
         <DetailStat label="Vertical" value={formatCategory(lead.vertical || "other")} />
         <DetailStat label="Failure" value={formatCategory(lead.failureMode || "other")} />
-        <DetailStat label="Posture" value={formatAction(lead.outreachPosture || "watch")} />
-        <DetailStat label="Recommended" value={formatAction(lead.recommendedAction)} />
         <DetailStat label="Queue" value={formatQueue(lead.queue)} />
-        <DetailStat label="Action" value={formatAction(lead.action)} />
+        <DetailStat label="Status" value={statusSummary(lead)} />
       </div>
-
-      {lead.freeToPursuePath ? (
-        <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
-          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Free-to-pursue path</h3>
-          <p className="mt-2 text-sm leading-6 text-white/65">{lead.freeToPursuePath}</p>
-        </section>
-      ) : null}
 
       {lead.commentContext ? (
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
@@ -774,28 +833,25 @@ function LeadDetail({
       ) : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <button type="button" onClick={() => updateLead(lead, { queue: "actionable", action: "new" })} className={queueButtonClass}>
+        <button type="button" onClick={() => updateLead(lead, { queue: "actionable", dismissed: false })} className={queueButtonClass}>
           Actionable
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "review" })} className={queueButtonClass}>
+        <button type="button" onClick={() => updateLead(lead, { queue: "review", dismissed: false })} className={queueButtonClass}>
           Review
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "community_reply" })} className={queueButtonClass}>
+        <button type="button" onClick={() => updateLead(lead, { queue: "community_reply", dismissed: false })} className={queueButtonClass}>
           Community
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "commented", action: "commented" })} className={queueButtonClass}>
-          Commented
+        <button type="button" onClick={() => updateLead(lead, { queue: "commented", commented: !lead.commented, dismissed: false })} className={queueButtonClass}>
+          {lead.commented ? "Unmark Commented" : "Commented"}
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "dm_sent", action: "dm_sent" })} className={queueButtonClass}>
-          DM sent
+        <button type="button" onClick={() => updateLead(lead, { queue: "dm_sent", dmSent: !lead.dmSent, dismissed: false })} className={queueButtonClass}>
+          {lead.dmSent ? "Unmark DM sent" : "DM sent"}
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "dismissed", action: "dismissed" })} className={queueButtonClass}>
-          Dismiss
+        <button type="button" onClick={() => updateLead(lead, { queue: lead.dismissed ? "review" : "dismissed", dismissed: !lead.dismissed })} className={queueButtonClass}>
+          {lead.dismissed ? "Restore" : "Dismiss"}
         </button>
       </div>
-
-      <CopyBlock label="Suggested comment" value={lead.suggestedComment} />
-      <CopyBlock label="Suggested DM" value={lead.suggestedDm} />
 
       <label className="mt-5 block">
         <span className="text-xs uppercase tracking-[0.16em] text-white/35">Notes</span>
@@ -829,24 +885,15 @@ function DetailStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CopyBlock({ label, value }: { label: string; value: string }) {
-  if (!value) return null;
+function StatusPill({ label, tone = "default" }: { label: string; tone?: "default" | "amber" }) {
   return (
-    <section className="mt-5">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">{label}</h3>
-        <button
-          type="button"
-          onClick={() => navigator.clipboard.writeText(value)}
-          className="text-xs text-white/55 hover:text-white"
-        >
-          Copy
-        </button>
-      </div>
-      <p className="whitespace-pre-wrap rounded-md border border-white/10 bg-[#151515] p-3 text-sm leading-6 text-white/70">
-        {value}
-      </p>
-    </section>
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] ${
+        tone === "amber" ? "bg-amber-500/15 text-amber-200" : "bg-white/10 text-white/60"
+      }`}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -868,19 +915,56 @@ function mergeLeadStates(
   localState: Record<string, LeadState>,
   databaseState: Record<string, LeadState>,
 ) {
-  const merged = { ...localState };
+  const merged = Object.fromEntries(
+    Object.entries(localState).map(([key, value]) => [key, normalizeStoredState(value)]),
+  ) as Record<string, LeadState>;
   for (const [key, databaseValue] of Object.entries(databaseState)) {
     const localValue = merged[key];
     if (!localValue || dateValue(databaseValue.updatedAt) >= dateValue(localValue.updatedAt)) {
-      merged[key] = databaseValue;
+      merged[key] = normalizeStoredState(databaseValue);
     }
   }
   return merged;
 }
 
+function normalizeStoredState(state: LeadState): LeadState {
+  return {
+    ...state,
+    commented: state.commented ?? state.action === "commented",
+    dmSent: state.dmSent ?? state.action === "dm_sent",
+    dismissed: state.dismissed ?? (state.action === "dismissed" || state.queue === "dismissed"),
+  };
+}
+
 function dateValue(value: string) {
   const parsed = new Date(value).getTime();
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function progressForMessage(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("starting")) return 8;
+  if (normalized.includes("authenticating")) return 12;
+  if (normalized.includes("fetching subreddit")) return 18;
+  if (normalized.includes("subreddit ")) return 35;
+  if (normalized.includes("fetching reddit search")) return 45;
+  if (normalized.includes("search ")) return 58;
+  if (normalized.includes("filtering")) return 65;
+  if (normalized.includes("comment context")) return 72;
+  if (normalized.includes("scoring complete")) return 92;
+  if (normalized.includes("scoring ")) return 78;
+  if (normalized.includes("scored ")) return 88;
+  if (normalized.includes("wrote digest")) return 96;
+  if (normalized.includes("publishing")) return 98;
+  if (normalized.includes("published")) return 100;
+  return 10;
+}
+
+function formatElapsed(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  if (minutes === 0) return `${remainder}s`;
+  return `${minutes}m ${remainder.toString().padStart(2, "0")}s`;
 }
 
 function filterOptions(leads: RedditLead[], valueForLead: (lead: RedditLead) => string) {
@@ -901,27 +985,55 @@ function filterOptions(leads: RedditLead[], valueForLead: (lead: RedditLead) => 
 }
 
 function enrichLead(lead: RedditLead, state?: LeadState): EnrichedLead {
+  const normalizedState = state ? normalizeStoredState(state) : undefined;
   const queue = queueForLead(lead, state);
+  const commented = normalizedState?.commented ?? false;
+  const dmSent = normalizedState?.dmSent ?? false;
+  const dismissed = normalizedState?.dismissed ?? queue === "dismissed";
   return {
     ...lead,
     queue,
-    action: state?.action ?? (queue === "dismissed" ? "dismissed" : "new"),
-    notes: state?.notes ?? "",
-    updatedAt: state?.updatedAt ?? "",
+    action: actionForState({
+      queue,
+      action: normalizedState?.action ?? "new",
+      commented,
+      dmSent,
+      dismissed,
+    }),
+    commented,
+    dmSent,
+    dismissed,
+    notes: normalizedState?.notes ?? "",
+    updatedAt: normalizedState?.updatedAt ?? "",
     numericScore: Number.parseInt(lead.score, 10) || 0,
   };
 }
 
 function queueForLead(lead: RedditLead, state?: LeadState): LeadQueue {
-  if (state?.action === "dm_sent") return "dm_sent";
-  if (state?.action === "commented") return "commented";
-  if (state?.queue) return state.queue;
+  const normalizedState = state ? normalizeStoredState(state) : undefined;
+  if (normalizedState?.dismissed) return "dismissed";
+  if (normalizedState?.queue) return normalizedState.queue;
   if (lead.recommendedAction === "ignore") return "dismissed";
   if (lead.recommendedAction === "dm" || lead.recommendedAction === "dm_if_engaged") return "actionable";
   if (lead.recommendedAction === "watch") return "review";
   if (lead.recommendedAction === "comment") return "community_reply";
   if ((Number.parseInt(lead.score, 10) || 0) >= 4) return "actionable";
   return "review";
+}
+
+function leadMatchesQueue(lead: EnrichedLead, queue: LeadQueue) {
+  if (queue === "commented") return lead.commented;
+  if (queue === "dm_sent") return lead.dmSent;
+  if (queue === "dismissed") return lead.dismissed || lead.queue === "dismissed";
+  return lead.queue === queue && !lead.dismissed;
+}
+
+function actionForState(state: Pick<LeadState, "queue" | "action" | "commented" | "dmSent" | "dismissed">): LeadAction {
+  if (state.dismissed || state.queue === "dismissed") return "dismissed";
+  if (state.dmSent) return "dm_sent";
+  if (state.commented) return "commented";
+  if (state.action === "converted" || state.action === "opened") return state.action;
+  return "new";
 }
 
 function sortRows(a: EnrichedLead, b: EnrichedLead, sortBy: SortField) {
@@ -960,6 +1072,15 @@ function formatAction(value: string) {
   return value.replace(/_/g, " ");
 }
 
+function statusSummary(lead: EnrichedLead) {
+  const statuses = [
+    lead.commented ? "commented" : "",
+    lead.dmSent ? "DM sent" : "",
+    lead.dismissed ? "dismissed" : "",
+  ].filter(Boolean);
+  return statuses.length ? statuses.join(", ") : formatAction(lead.action);
+}
+
 function downloadCsv(leads: EnrichedLead[]) {
   const rows = [
     [
@@ -975,8 +1096,6 @@ function downloadCsv(leads: EnrichedLead[]) {
       "lead_type",
       "vertical",
       "failure_mode",
-      "outreach_posture",
-      "free_to_pursue_path",
       "comment_context",
       "reason",
       "url",
@@ -995,8 +1114,6 @@ function downloadCsv(leads: EnrichedLead[]) {
       lead.leadType,
       lead.vertical,
       lead.failureMode,
-      lead.outreachPosture,
-      lead.freeToPursuePath,
       lead.commentContext,
       lead.reason,
       lead.url,

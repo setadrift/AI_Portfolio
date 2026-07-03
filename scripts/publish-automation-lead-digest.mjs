@@ -89,6 +89,7 @@ async function buildAggregateDigest() {
     rejectedCount += numberValue(markdown, "Filtered/rejected before digest");
     feedErrors.push(...parseFeedErrors(markdown, file));
     for (const block of leadBlocks(markdown)) {
+      if (isExcludedLeadSource(block)) continue;
       const explicitLeadDate = leadFreshnessDate(block);
       const normalized = withDiscoveryDate(block.trim(), file.slice(0, 10));
       blocks.push({
@@ -190,6 +191,13 @@ function leadDedupeKey(block) {
   const source = heading?.[1] ?? "";
   const title = heading?.[2] ?? block.split("\n")[0] ?? "";
   return `title:${normalizeComparable(`${source} ${title}`)}`;
+}
+
+function isExcludedLeadSource(block) {
+  const heading = block.match(/^### [1-5]\/5 - (.+?) - (.+)$/m);
+  const source = heading?.[1] ?? "";
+  const url = bulletValue(block, "URL");
+  return [source, url].some((value) => /\bupwork\b|upwork\.com/i.test(value));
 }
 
 function normalizeLeadUrl(url) {

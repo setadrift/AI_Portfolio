@@ -55,7 +55,7 @@ async function persistSourceLeads(supabase, source) {
 }
 
 function parseLeads(markdown, sourceId) {
-  return leadBlocks(markdown, { includeWatch: sourceId === "reddit" }).map((block) => {
+  return leadBlocks(markdown).map((block) => {
     const heading = block.match(/^### ([1-5]\/5) - (.+?) - (.+)$/m);
     const sourceLabel = heading?.[2]?.trim() ?? "";
     const lead = {
@@ -118,9 +118,9 @@ function parseLeads(markdown, sourceId) {
 
 function sourceDiagnostic(source) {
   const markdown = source.markdown ?? "";
-  const parsedRows = leadBlocks(markdown, { includeWatch: source.id === "reddit" }).length;
+  const parsedRows = leadBlocks(markdown).length;
   const bestRows = leadBlocks(markdown).length;
-  const postedDateRows = leadBlocks(markdown, { includeWatch: source.id === "reddit" }).join("\n");
+  const postedDateRows = leadBlocks(markdown).join("\n");
   const declaredCandidates = numberValue(markdown, "Candidates included");
   const feedsChecked = numberValue(markdown, "Feeds checked");
   const feedErrors = feedErrorCount(markdown);

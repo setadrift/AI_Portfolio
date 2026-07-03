@@ -25,6 +25,9 @@ interface LeadStateUpdate {
   leadKey: string;
   queue: string;
   action: string;
+  commented: boolean;
+  dmSent: boolean;
+  dismissed: boolean;
   notes: string;
 }
 
@@ -43,6 +46,9 @@ type AdminLeadStateRow = {
   lead_key: string;
   queue: StoredLeadState["queue"];
   action: StoredLeadState["action"];
+  commented_at: string | null;
+  dm_sent_at: string | null;
+  dismissed_at: string | null;
   notes: string;
   updated_at: string;
 };
@@ -219,7 +225,7 @@ export async function readLeadStatesFromDatabase(sources: LeadSourceDigest[]) {
 
   const { data, error } = await supabase
     .from("admin_lead_states")
-    .select("source_id,lead_key,queue,action,notes,updated_at")
+    .select("source_id,lead_key,queue,action,commented_at,dm_sent_at,dismissed_at,notes,updated_at")
     .in("source_id", sourceIds);
 
   if (error) {
@@ -233,6 +239,9 @@ export async function readLeadStatesFromDatabase(sources: LeadSourceDigest[]) {
       {
         queue: row.queue,
         action: row.action,
+        commented: Boolean(row.commented_at) || row.action === "commented",
+        dmSent: Boolean(row.dm_sent_at) || row.action === "dm_sent",
+        dismissed: Boolean(row.dismissed_at) || row.action === "dismissed",
         notes: row.notes,
         updatedAt: row.updated_at,
       },
@@ -293,14 +302,22 @@ export async function persistLeadStatesToDatabase(updates: LeadStateUpdate[]) {
   const supabase = adminClient();
   if (!supabase || updates.length === 0) return { ok: false, skipped: true };
 
+  const savedAt = new Date().toISOString();
+  const existingStates = await readExistingLeadStateTimestamps(supabase, updates);
   const { error } = await supabase.from("admin_lead_states").upsert(
-    updates.map((update) => ({
-      source_id: update.sourceId,
-      lead_key: update.leadKey,
-      queue: update.queue,
-      action: update.action,
-      notes: update.notes,
-    })),
+    updates.map((update) => {
+      const existing = existingStates.get(leadStateKeyForDatabase(update.sourceId, update.leadKey));
+      return {
+        source_id: update.sourceId,
+        lead_key: update.leadKey,
+        queue: update.queue,
+        action: update.action,
+        commented_at: update.commented ? existing?.commented_at ?? savedAt : null,
+        dm_sent_at: update.dmSent ? existing?.dm_sent_at ?? savedAt : null,
+        dismissed_at: update.dismissed ? existing?.dismissed_at ?? savedAt : null,
+        notes: update.notes,
+      };
+    }),
     { onConflict: "source_id,lead_key" },
   );
 
@@ -310,6 +327,36 @@ export async function persistLeadStatesToDatabase(updates: LeadStateUpdate[]) {
   }
 
   return { ok: true };
+}
+
+async function readExistingLeadStateTimestamps(supabase: SupabaseClient, updates: LeadStateUpdate[]) {
+  const keysBySource = updates.reduce(
+    (acc, update) => {
+      acc[update.sourceId] ??= new Set<string>();
+      acc[update.sourceId]?.add(update.leadKey);
+      return acc;
+    },
+    {} as Partial<Record<LeadSourceId, Set<string>>>,
+  );
+  const rows: Array<{
+    source_id: LeadSourceId;
+    lead_key: string;
+    commented_at: string | null;
+    dm_sent_at: string | null;
+    dismissed_at: string | null;
+  }> = [];
+
+  for (const [sourceId, leadKeys] of Object.entries(keysBySource) as Array<[LeadSourceId, Set<string>]>) {
+    const { data, error } = await supabase
+      .from("admin_lead_states")
+      .select("source_id,lead_key,commented_at,dm_sent_at,dismissed_at")
+      .eq("source_id", sourceId)
+      .in("lead_key", [...leadKeys]);
+    if (error) continue;
+    rows.push(...((data ?? []) as typeof rows));
+  }
+
+  return new Map(rows.map((row) => [leadStateKeyForDatabase(row.source_id, row.lead_key), row]));
 }
 
 export function leadKeyForDatabase(lead: RedditLead) {
