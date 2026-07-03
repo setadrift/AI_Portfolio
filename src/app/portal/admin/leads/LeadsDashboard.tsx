@@ -80,10 +80,7 @@ export default function LeadsDashboard({
 
   useEffect(() => {
     const currentSource = initialData.sources.find((source) => source.id === selectedSourceId);
-    const nextSource =
-      currentSource && (currentSource.digest?.leads.length ?? 0) > 0
-        ? currentSource
-        : preferredSource(initialData);
+    const nextSource = currentSource ?? preferredSource(initialData);
 
     if (!nextSource) return;
     if (nextSource.id !== selectedSourceId) {
