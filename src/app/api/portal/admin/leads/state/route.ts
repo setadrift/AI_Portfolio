@@ -12,6 +12,9 @@ type LeadStateRequest = {
     leadKey?: string;
     queue?: StoredLeadState["queue"];
     action?: StoredLeadState["action"];
+    commented?: boolean;
+    dmSent?: boolean;
+    dismissed?: boolean;
     notes?: string;
   }>;
 };
@@ -45,6 +48,9 @@ export async function POST(req: NextRequest) {
       leadKey: update.leadKey as string,
       queue: update.queue as string,
       action: update.action as string,
+      commented: update.commented ?? update.action === "commented",
+      dmSent: update.dmSent ?? update.action === "dm_sent",
+      dismissed: update.dismissed ?? update.action === "dismissed",
       notes: update.notes as string,
     })),
   );

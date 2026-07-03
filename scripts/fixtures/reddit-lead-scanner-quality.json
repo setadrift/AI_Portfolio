@@ -114,7 +114,6 @@
         "scoreMax": 2,
         "replyabilityScore": 1,
         "posture": "ignore",
-        "leadType": "",
         "negativePersona": "seller-shilling-own-tool"
       }
     },
@@ -188,6 +187,75 @@
         "posture": "ignore",
         "leadType": "",
         "negativePersona": "market-research-or-validation"
+      }
+    },
+    {
+      "id": "builder-market-validation-ai-agents",
+      "subreddit": "AI_Agents",
+      "title": "Help me choose ONE AI business to build (I'll document everything publicly)",
+      "summary": "I'm a solo developer and want to spend the next 90 days building one product people actually need. Which niche is still underserved? Which businesses are actually willing to pay? What AI product do you wish existed but can't find? What repetitive task would you happily pay AI to automate? I'll pick one direction based on the discussion.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "leadType": "",
+        "negativePersona": "market-research-or-validation"
+      }
+    },
+    {
+      "id": "cofounder-partner-search",
+      "subreddit": "learnmachinelearning",
+      "title": "Looking for a Technical Co-founder in Bengaluru to build an AI + PropTech startup",
+      "summary": "I am looking for a technical co-founder / full-stack developer to partner with me on an AI startup. Equity only to start, no paid implementation budget.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "leadType": "",
+        "negativePersona": "job-seeker-or-for-hire"
+      }
+    },
+    {
+      "id": "promotional-how-to-article",
+      "subreddit": "CognitoForms",
+      "title": "12 ways to automate form data entry (so you're not copying stuff manually)",
+      "summary": "Here are 12 ways to automate form data entry and reduce manual work. This guide explains our product and how teams can use it.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "negativePersona": "seller-shilling-own-tool"
+      }
+    },
+    {
+      "id": "vendor-seeded-container-demo",
+      "subreddit": "Warehousing",
+      "title": "How do you manage the chaos when you have dozens of containers rented out simultaneously all over the city?",
+      "summary": "I have 20 containers and lost track of them. I use a whiteboard and Excel. Edit: I keep thinking about requesting a demo from CurbWaste because I understand it's built specifically for this kind of dumpster logistics and maybe it will help me completely eliminate paper from the company.",
+      "expected": {
+        "scoreMin": 3,
+        "scoreMax": 3,
+        "replyabilityScore": 3,
+        "posture": "watch",
+        "leadType": "local-service-revenue-leak",
+        "negativePersona": ""
+      }
+    },
+    {
+      "id": "personal-entertainment-essay",
+      "subreddit": "BungouStrayDogs",
+      "title": "Akutagawa Ryuunosuke and Shiro the Dog (an essay)",
+      "summary": "A long anime character essay about Akutagawa, Shiro, literature, and fandom interpretation. This is not a business workflow, paid implementation request, or operations problem.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "leadType": "",
+        "negativePersona": ""
       }
     },
     {

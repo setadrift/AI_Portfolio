@@ -12,8 +12,8 @@ const PUBLISHED_AUTOMATION_DIGEST_PATH = "admin/leads/automation/latest.json";
 
 async function main() {
   const env = {
-    ...process.env,
     ...(await loadDotEnv(".env.local")),
+    ...process.env,
   };
   if (env.BLOB_READ_WRITE_TOKEN) {
     process.env.BLOB_READ_WRITE_TOKEN = env.BLOB_READ_WRITE_TOKEN;
