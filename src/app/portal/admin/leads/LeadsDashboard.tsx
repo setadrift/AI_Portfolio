@@ -490,8 +490,8 @@ export default function LeadsDashboard({
           </div>
           {selectedSource?.diagnostic ? (
             <div className="mt-2 text-xs text-white/40">
-              Parsed {selectedSource.diagnostic.parsedLeads} displayed lead rows from{" "}
-              {selectedSource.diagnostic.fileName || "unknown file"}; declared{" "}
+              Board rows: {selectedSource.diagnostic.parsedLeads} active/displayed; latest file{" "}
+              {selectedSource.diagnostic.fileName || "unknown file"} declared{" "}
               {selectedSource.diagnostic.declaredCandidates} Best Leads, posted dates{" "}
               {selectedSource.diagnostic.postedDateCount}/
               {selectedSource.diagnostic.parsedLeads}

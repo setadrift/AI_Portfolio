@@ -72,6 +72,9 @@ type AdminLeadRow = {
   suggested_dm: string;
   payload: Partial<RedditLead> | null;
   last_seen_at: string;
+  first_seen_scan_mode: string | null;
+  last_seen_scan_mode: string | null;
+  last_seen_scan_batch: string | null;
   active: boolean;
 };
 
@@ -163,23 +166,32 @@ export async function persistLeadSourcesToDatabase(sources: PublishedLeadSourceF
 }
 
 async function persistLeadRows(supabase: SupabaseClient, source: PublishedLeadSourceForDb) {
-  const leadKeys = source.digest.leads.map((lead) => leadKeyForDatabase(lead));
-  const staleLeadQuery = supabase
-    .from("admin_leads")
-    .update({ active: false })
-    .eq("source_id", source.id);
-  const { error: deactivateError } =
-    leadKeys.length > 0
-      ? await staleLeadQuery.not("lead_key", "in", `(${leadKeys.map(quotePostgrestValue).join(",")})`)
-      : await staleLeadQuery;
+  if (shouldReplaceMissingLeads(source)) {
+    const leadKeys = source.digest.leads.map((lead) => leadKeyForDatabase(lead));
+    const staleLeadQuery = supabase
+      .from("admin_leads")
+      .update({ active: false })
+      .eq("source_id", source.id);
+    const { error: deactivateError } =
+      leadKeys.length > 0
+        ? await staleLeadQuery.not("lead_key", "in", `(${leadKeys.map(quotePostgrestValue).join(",")})`)
+        : await staleLeadQuery;
 
-  if (deactivateError) {
-    console.warn("Failed to deactivate stale Supabase admin leads", {
-      source: source.id,
-      error: deactivateError.message,
-    });
+    if (deactivateError) {
+      console.warn("Failed to deactivate stale Supabase admin leads", {
+        source: source.id,
+        error: deactivateError.message,
+      });
+    }
   }
 
+  const existingLeadMeta = await readExistingLeadMeta(
+    supabase,
+    source.id,
+    source.digest.leads.map((lead) => leadKeyForDatabase(lead)),
+  );
+  const scanMode = source.status?.scanMode ?? null;
+  const scanBatch = scanBatchId(source);
   const leadRows = source.digest.leads.map((lead) => ({
     source_id: source.id,
     lead_key: leadKeyForDatabase(lead),
@@ -199,6 +211,9 @@ async function persistLeadRows(supabase: SupabaseClient, source: PublishedLeadSo
     suggested_dm: lead.suggestedDm,
     payload: lead,
     last_seen_at: new Date().toISOString(),
+    first_seen_scan_mode: existingLeadMeta.get(leadKeyForDatabase(lead))?.first_seen_scan_mode ?? scanMode,
+    last_seen_scan_mode: scanMode,
+    last_seen_scan_batch: scanBatch,
     active: true,
   }));
 
@@ -214,6 +229,10 @@ async function persistLeadRows(supabase: SupabaseClient, source: PublishedLeadSo
       error: error.message,
     });
   }
+}
+
+function shouldReplaceMissingLeads(source: PublishedLeadSourceForDb) {
+  return source.id !== "reddit" || source.status?.ingestionMode === "cleanup";
 }
 
 export async function readLeadStatesFromDatabase(sources: LeadSourceDigest[]) {
@@ -275,10 +294,14 @@ export async function readStoredLeadsFromDatabase(sourceIds: LeadSourceId[]) {
         "suggested_dm",
         "payload",
         "last_seen_at",
+        "first_seen_scan_mode",
+        "last_seen_scan_mode",
+        "last_seen_scan_batch",
         "active",
       ].join(","),
     )
     .in("source_id", sourceIds)
+    .eq("active", true)
     .order("posted_date", { ascending: false, nullsFirst: false })
     .order("last_seen_at", { ascending: false })
     .limit(1000);
@@ -296,6 +319,32 @@ export async function readStoredLeadsFromDatabase(sourceIds: LeadSourceId[]) {
     },
     {} as Partial<Record<LeadSourceId, RedditLead[]>>,
   );
+}
+
+async function readExistingLeadMeta(supabase: SupabaseClient, sourceId: LeadSourceId, leadKeys: string[]) {
+  if (leadKeys.length === 0) return new Map<string, { first_seen_scan_mode: string | null }>();
+
+  const { data, error } = await supabase
+    .from("admin_leads")
+    .select("lead_key,first_seen_scan_mode")
+    .eq("source_id", sourceId)
+    .in("lead_key", leadKeys);
+
+  if (error) return new Map<string, { first_seen_scan_mode: string | null }>();
+  return new Map(
+    ((data ?? []) as Array<{ lead_key: string; first_seen_scan_mode: string | null }>).map((row) => [
+      row.lead_key,
+      { first_seen_scan_mode: row.first_seen_scan_mode },
+    ]),
+  );
+}
+
+function scanBatchId(source: PublishedLeadSourceForDb) {
+  return [
+    source.id,
+    source.status?.scanMode ?? "unknown",
+    source.status?.generatedAt ?? source.digest.generatedAt ?? source.fileName,
+  ].join(":");
 }
 
 export async function persistLeadStatesToDatabase(updates: LeadStateUpdate[]) {

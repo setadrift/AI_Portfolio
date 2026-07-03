@@ -181,7 +181,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
   const status = redditSource.status ?? localStatus;
   const leadStates = await readLeadStatesFromDatabase(sources);
   const storedLeads = await readStoredLeadsFromDatabase(sources.map((source) => source.id));
-  const sourcesWithStoredLeads = mergeStoredStateLeads(sources, storedLeads, leadStates);
+  const sourcesWithStoredLeads = mergeStoredLeads(sources, storedLeads);
 
   logLeadSourceDiagnostics(sourcesWithStoredLeads);
 
@@ -547,28 +547,35 @@ export function leadStateStorageKey(lead: RedditLead) {
   return stateStorageKey(lead.sourceKind, leadKeyForDatabase(lead));
 }
 
-function mergeStoredStateLeads(
+function mergeStoredLeads(
   sources: LeadSourceDigest[],
   storedLeads: Partial<Record<LeadSourceId, RedditLead[]>>,
-  leadStates: Record<string, StoredLeadState>,
 ) {
   return sources.map((source) => {
     const digest = source.digest;
     if (!digest) return source;
 
-    const existingKeys = new Set(digest.leads.map((lead) => leadKeyForDatabase(lead)));
-    const historicalLeads = (storedLeads[source.id] ?? []).filter((lead) => {
-      const leadKey = leadKeyForDatabase(lead);
-      return !existingKeys.has(leadKey) && Boolean(leadStates[stateStorageKey(source.id, leadKey)]);
-    });
+    const stored = storedLeads[source.id] ?? [];
+    if (stored.length === 0) return source;
 
-    if (historicalLeads.length === 0) return source;
+    const storedKeys = new Set(stored.map((lead) => leadKeyForDatabase(lead)));
+    const unpublishedDigestLeads = digest.leads.filter((lead) => !storedKeys.has(leadKeyForDatabase(lead)));
+    const leads = [...stored, ...unpublishedDigestLeads];
 
     return {
       ...source,
       digest: {
         ...digest,
-        leads: [...digest.leads, ...historicalLeads],
+        candidatesIncluded: leads.length.toString(),
+        leads,
+      },
+      diagnostic: {
+        ...source.diagnostic,
+        parsedLeads: leads.length,
+        bestLeadBlocks: source.id === "reddit" ? leads.filter((lead) => leadScoreValue(lead) >= 4).length : leads.length,
+        totalHeadingBlocks: Math.max(source.diagnostic.totalHeadingBlocks, leads.length),
+        postedDateCount: leads.filter((lead) => lead.postedDate).length,
+        unknownPostedDateCount: leads.filter((lead) => !lead.postedDate).length,
       },
     };
   });
