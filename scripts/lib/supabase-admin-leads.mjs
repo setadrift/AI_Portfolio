@@ -34,24 +34,44 @@ export async function persistAdminLeadBundleToSupabase(payload) {
 
 async function persistSourceLeads(supabase, source) {
   const leads = parseLeads(source.markdown ?? "", source.id);
-  const leadKeys = leads.map((lead) => lead.lead_key);
-  const staleLeadQuery = supabase
-    .from("admin_leads")
-    .update({ active: false })
-    .eq("source_id", source.id);
-  const { error: deactivateError } =
-    leadKeys.length > 0
-      ? await staleLeadQuery.not("lead_key", "in", `(${leadKeys.map(quotePostgrestValue).join(",")})`)
-      : await staleLeadQuery;
+  if (shouldReplaceMissingLeads(source)) {
+    const leadKeys = leads.map((lead) => lead.lead_key);
+    const staleLeadQuery = supabase
+      .from("admin_leads")
+      .update({ active: false })
+      .eq("source_id", source.id);
+    const { error: deactivateError } =
+      leadKeys.length > 0
+        ? await staleLeadQuery.not("lead_key", "in", `(${leadKeys.map(quotePostgrestValue).join(",")})`)
+        : await staleLeadQuery;
 
-  if (deactivateError) return { ok: false, error: deactivateError.message };
+    if (deactivateError) return { ok: false, error: deactivateError.message };
+  }
   if (!leads.length) return { ok: true };
 
-  const { error } = await supabase.from("admin_leads").upsert(leads, {
+  const existingLeadMeta = await readExistingLeadMeta(
+    supabase,
+    source.id,
+    leads.map((lead) => lead.lead_key),
+  );
+  const scanMode = source.status?.scanMode ?? null;
+  const scanBatch = scanBatchId(source);
+  const leadRows = leads.map((lead) => ({
+    ...lead,
+    first_seen_scan_mode: existingLeadMeta.get(lead.lead_key)?.first_seen_scan_mode ?? scanMode,
+    last_seen_scan_mode: scanMode,
+    last_seen_scan_batch: scanBatch,
+  }));
+
+  const { error } = await supabase.from("admin_leads").upsert(leadRows, {
     onConflict: "source_id,lead_key",
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+function shouldReplaceMissingLeads(source) {
+  return source.id !== "reddit" || source.status?.ingestionMode === "cleanup";
 }
 
 function parseLeads(markdown, sourceId) {
@@ -114,6 +134,26 @@ function parseLeads(markdown, sourceId) {
       active: true,
     };
   });
+}
+
+async function readExistingLeadMeta(supabase, sourceId, leadKeys) {
+  if (!leadKeys.length) return new Map();
+  const { data, error } = await supabase
+    .from("admin_leads")
+    .select("lead_key,first_seen_scan_mode")
+    .eq("source_id", sourceId)
+    .in("lead_key", leadKeys);
+
+  if (error) return new Map();
+  return new Map((data ?? []).map((row) => [row.lead_key, { first_seen_scan_mode: row.first_seen_scan_mode }]));
+}
+
+function scanBatchId(source) {
+  return [
+    source.id,
+    source.status?.scanMode ?? "unknown",
+    source.status?.generatedAt ?? metadataValue(source.markdown ?? "", "Generated") ?? source.fileName ?? "",
+  ].join(":");
 }
 
 function sourceDiagnostic(source) {
