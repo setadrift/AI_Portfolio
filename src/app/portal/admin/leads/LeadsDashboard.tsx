@@ -832,6 +832,17 @@ function LeadDetail({
         </section>
       ) : null}
 
+      {lead.sourceQuery ? (
+        <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Search source</h3>
+          <p className="mt-2 text-sm leading-6 text-white/65">{lead.sourceQuery}</p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/40">
+            {lead.sourcePatternFamily ? <span>{formatCategory(lead.sourcePatternFamily)}</span> : null}
+            {lead.sourceVertical ? <span>{formatCategory(lead.sourceVertical)}</span> : null}
+          </div>
+        </section>
+      ) : null}
+
       <div className="mt-5 flex flex-wrap gap-2">
         <button type="button" onClick={() => updateLead(lead, { queue: "actionable", dismissed: false })} className={queueButtonClass}>
           Actionable

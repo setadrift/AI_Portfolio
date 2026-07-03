@@ -12,7 +12,7 @@
         "poster says they are not technical enough to finish",
         "natural paid implementation reply"
       ],
-      "patterns": ["direct_paid_help"]
+      "patterns": ["direct_implementation_request"]
     }
   ],
   "negativePersonas": [

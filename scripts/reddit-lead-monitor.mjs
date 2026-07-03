@@ -145,13 +145,10 @@ const negativeTerms = [
   "here's how",
   "here’s how",
   "i automated",
-  "i built",
   "i made",
   "case study",
   "looking for feedback",
   "feedback on my",
-  "built a",
-  "i built",
   "launching",
   "my product",
   "my app",
@@ -164,7 +161,7 @@ const negativeTerms = [
   "seeking a job",
   "job search",
   "resume",
-  "portfolio",
+  "portfolio review",
   "sales guy",
   "virtual assistant",
   "full-time",
@@ -207,7 +204,7 @@ const hardNegativeTerms = [
   "seeking a job",
   "job search",
   "resume",
-  "portfolio",
+  "portfolio review",
   "hire me",
   "do you actually need",
 ];
@@ -237,12 +234,18 @@ const toolSpecificSubreddits = new Set([
   "zapier",
 ]);
 
-const patternFamilies = [
+const defaultPatternFamilies = [
   {
-    id: "direct_paid_help",
-    label: "Direct paid help",
+    id: "direct_implementation_request",
+    label: "Direct implementation request",
     defaultOutreachPosture: "dm_now",
     requires: ["requestEvidence", "workflowEvidence"],
+  },
+  {
+    id: "stuck_builder_ceiling",
+    label: "Stuck builder / ceiling hit",
+    defaultOutreachPosture: "dm_now",
+    requires: ["requestEvidence", "currentSystemEvidence", "painEvidence"],
   },
   {
     id: "operational_pain_advice",
@@ -251,16 +254,22 @@ const patternFamilies = [
     requires: ["currentSystemEvidence", "painEvidence", "businessEvidence"],
   },
   {
-    id: "tool_shopping_with_pain",
+    id: "tool_shopping_with_implementation_pain",
     label: "Tool shopping with implementation pain",
     defaultOutreachPosture: "comment_first",
     requires: ["toolShoppingEvidence", "workflowEvidence", "painEvidence"],
   },
   {
-    id: "vendor_specialist_with_scope",
+    id: "vendor_platform_with_scope",
     label: "Vendor specialist with implementation scope",
     defaultOutreachPosture: "watch",
     requires: ["vendorEvidence", "workflowEvidence", "requestEvidence"],
+  },
+  {
+    id: "partner_overflow_implementation",
+    label: "Partner / overflow implementation demand",
+    defaultOutreachPosture: "dm_if_engaged",
+    requires: ["partnerEvidence", "workflowEvidence", "businessEvidence"],
   },
 ];
 
@@ -268,9 +277,12 @@ const requestEvidenceTerms = [
   "willing to pay",
   "paid help",
   "open to paid help",
+  "paid opportunity",
+  "paid implementation",
   "hire someone",
   "need to hire",
   "looking for someone",
+  "looking for someone experienced",
   "can anyone create",
   "can someone create",
   "can anyone build",
@@ -278,6 +290,10 @@ const requestEvidenceTerms = [
   "need someone to build",
   "need someone to fix",
   "need someone to create",
+  "help me finish",
+  "take over parts",
+  "review what i've built",
+  "review what i have built",
   "freelancer",
   "consultant",
   "not tech-inclined",
@@ -317,6 +333,13 @@ const workflowEvidenceTerms = [
   "calendar",
   "follow up",
   "follow-up",
+  "ai workflow",
+  "ai workflows",
+  "business process automation",
+  "custom system",
+  "source of truth",
+  "claude",
+  "chatgpt",
   "data entry",
   "file",
   "files",
@@ -327,6 +350,13 @@ const workflowEvidenceTerms = [
   "sop",
   "task list",
   "checklist",
+  "property management",
+  "property manager",
+  "rental",
+  "tenant",
+  "maintenance",
+  "turnover",
+  "data pipeline",
 ];
 
 const currentSystemEvidenceTerms = [
@@ -342,6 +372,16 @@ const currentSystemEvidenceTerms = [
   "pdf",
   "paper",
   "manual",
+  "custom system",
+  "existing system",
+  "one place",
+  "single source of truth",
+  "source of truth",
+  "consolidate",
+  "consolidating",
+  "built with",
+  "claude",
+  "chatgpt",
   "forms",
   "texts",
   "photos",
@@ -371,6 +411,13 @@ const painEvidenceTerms = [
   "hard to track",
   "keeps forgetting",
   "stuck",
+  "hit a ceiling",
+  "hit the ceiling",
+  "hitting a ceiling",
+  "spending too much time",
+  "working through it",
+  "take over parts",
+  "help me finish",
   "mess",
   "messy",
   "chaotic",
@@ -409,6 +456,21 @@ const businessEvidenceTerms = [
   "workflows",
   "customer",
   "client",
+  "real estate",
+  "property",
+  "properties",
+  "property management",
+  "property manager",
+  "rental",
+  "rentals",
+  "tenant",
+  "tenants",
+  "maintenance",
+  "ecommerce",
+  "retail",
+  "nonprofit",
+  "donor",
+  "healthcare",
 ];
 
 const toolShoppingEvidenceTerms = [
@@ -442,6 +504,16 @@ const vendorEvidenceTerms = [
   "make.com",
   "zapier",
   "airtable",
+];
+
+const partnerEvidenceTerms = [
+  "overflow",
+  "subcontract",
+  "subcontractor",
+  "white label implementation",
+  "implementation partner",
+  "client asked",
+  "my client needs",
 ];
 
 async function main() {
@@ -493,7 +565,7 @@ async function main() {
         status: "missing_oauth_credentials",
         error: "Missing Reddit OAuth credentials.",
       })).concat(searchQueries.map((query) => ({
-        url: `reddit-search:${query}`,
+        url: `reddit-search:${searchQueryId(query)}`,
         status: "missing_oauth_credentials",
         error: "Missing Reddit OAuth credentials.",
       }))),
@@ -527,7 +599,7 @@ async function main() {
     });
     feedResults.push(result);
     if (result.ok) posts.push(...result.posts);
-    progress(`Search ${index + 1}/${searchQueries.length}: ${result.ok ? `fetched ${result.posts.length}` : `failed (${result.status})`} for ${query}.`);
+    progress(`Search ${index + 1}/${searchQueries.length}: ${result.ok ? `fetched ${result.posts.length}` : `failed (${result.status})`} for ${searchQueryLabel(query)}.`);
     if (index < searchQueries.length - 1) {
       await sleep(runtimeConfig.requestDelayMs ?? 1500);
     }
@@ -577,6 +649,7 @@ async function main() {
   const digest = buildDigest({
     date: outputDate,
     leads: scored,
+    scoredCount: filtered.length,
     rejectedCount: freshPosts.length - filtered.length,
     feedResults,
     config: runtimeConfig,
@@ -599,7 +672,7 @@ async function main() {
     candidatesScored: filtered.length,
     leadsIncluded: includedLeads.length,
     outputPath: shouldWriteDigest ? outputPath : "",
-    queryDiagnostics: queryDiagnostics(feedResults),
+    queryDiagnostics: queryDiagnostics(feedResults, scored, runtimeConfig),
     sourcePerformance: sourcePerformanceSummary(feedResults, scored, runtimeConfig.feedback),
     message: partialCoverage
       ? `Partial digest updated with ${scored.length} lead(s); only ${successfulFeeds}/${feedResults.length} feeds succeeded.`
@@ -849,8 +922,9 @@ function selectedScanConfig(config) {
   const requestedMode = process.env.REDDIT_SCAN_MODE || "";
   const scanModes = Array.isArray(config.scanModes) ? config.scanModes : [];
   const archetypePacks = normalizeArchetypePacks(config.archetypePacks ?? []);
+  const patternFamilies = normalizePatternFamilies(config.patternFamilies);
   const scanMode = requestedMode
-    ? scanModes.find((mode) => slug(mode.id || mode.label) === slug(requestedMode))
+    ? scanModes.find((mode) => scanModeMatches(mode, requestedMode))
     : scanModes[0] ?? null;
 
   if (!scanMode) {
@@ -860,16 +934,18 @@ function selectedScanConfig(config) {
       channels: config.channels ?? [],
       searchQueries: config.searchQueries ?? [],
       archetypePacks,
+      patternFamilies,
       feedback: config.feedback,
     };
   }
 
   const selectedArchetypes = archetypesForScanMode(scanMode, archetypePacks);
+  const includeArchetypeChannels = scanMode.includeArchetypeChannels !== false;
   const expandedChannels = dedupeChannels([
     ...(scanMode.channels ?? config.channels ?? []),
-    ...selectedArchetypes.flatMap((pack) => pack.channels),
+    ...(includeArchetypeChannels ? selectedArchetypes.flatMap((pack) => pack.channels) : []),
   ]);
-  const expandedSearchQueries = dedupeStrings([
+  const expandedSearchQueries = dedupeSearchQueries([
     ...(scanMode.searchQueries ?? config.searchQueries ?? []),
     ...selectedArchetypes.flatMap((pack) => pack.searchQueries),
   ]);
@@ -883,11 +959,38 @@ function selectedScanConfig(config) {
       description: scanMode.description || "",
     },
     archetypePacks: selectedArchetypes,
+    patternFamilies,
     channels: expandedChannels,
     searchQueries: expandedSearchQueries,
     feedback: config.feedback,
     minSuccessfulFeeds: scanMode.minSuccessfulFeeds ?? config.minSuccessfulFeeds,
   };
+}
+
+function scanModeMatches(mode, requestedMode) {
+  const requested = slug(requestedMode);
+  const ids = [
+    mode.id,
+    mode.label,
+    ...(Array.isArray(mode.aliases) ? mode.aliases : []),
+  ].map((value) => slug(value));
+  return ids.includes(requested);
+}
+
+function normalizePatternFamilies(families) {
+  const source = Array.isArray(families) && families.length ? families : defaultPatternFamilies;
+  return source
+    .map((family) => ({
+      id: slug(family.id || family.label).replace(/-/g, "_"),
+      label: family.label || family.id || "Pattern family",
+      defaultOutreachPosture: allowedOutreachPostures.has(family.defaultOutreachPosture)
+        ? family.defaultOutreachPosture
+        : "watch",
+      requires: Array.isArray(family.requires)
+        ? family.requires.map((field) => String(field || "").trim()).filter(Boolean)
+        : [],
+    }))
+    .filter((family) => family.id && family.requires.length);
 }
 
 function normalizeArchetypePacks(packs) {
@@ -938,17 +1041,45 @@ function dedupeChannels(channels) {
   return deduped;
 }
 
-function dedupeStrings(values) {
+function dedupeSearchQueries(values) {
   const seen = new Set();
   const deduped = [];
   for (const value of values) {
-    const normalized = String(value || "").trim();
-    const key = normalized.toLowerCase();
-    if (!normalized || seen.has(key)) continue;
+    const normalized = normalizeSearchQuery(value);
+    const key = normalized.query.toLowerCase();
+    if (!normalized.query || seen.has(key)) continue;
     seen.add(key);
     deduped.push(normalized);
   }
   return deduped;
+}
+
+function normalizeSearchQuery(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const query = String(value.query || value.q || "").trim();
+    const id = slug(value.id || value.label || query);
+    return {
+      id,
+      query,
+      label: value.label || query,
+      patternFamily: slug(value.patternFamily || value.pattern || "").replace(/-/g, "_"),
+      vertical: slug(value.vertical || "any").replace(/-/g, "_"),
+      failureMode: slug(value.failureMode || "").replace(/-/g, "_"),
+      expectedSignal: String(value.expectedSignal || value.signal || "").trim(),
+      fallbackQuery: String(value.fallbackQuery || "").trim(),
+    };
+  }
+  const query = String(value || "").trim();
+  return {
+    id: slug(query).slice(0, 80),
+    query,
+    label: query,
+    patternFamily: "",
+    vertical: "any",
+    failureMode: "",
+    expectedSignal: "",
+    fallbackQuery: "",
+  };
 }
 
 function normalizeChannels(config) {
@@ -995,7 +1126,11 @@ function limitChannels(channels) {
 function limitSearchQueries(queries) {
   const match = process.env.REDDIT_SEARCH_MATCH;
   const matchedQueries = match
-    ? queries.filter((query) => String(query).toLowerCase().includes(match.toLowerCase()))
+    ? queries.filter((query) =>
+        [query.id, query.label, query.query, query.patternFamily, query.vertical, query.failureMode]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(match.toLowerCase())),
+      )
     : queries;
 
   const rawLimit = process.env.REDDIT_SEARCH_LIMIT;
@@ -1015,10 +1150,12 @@ async function fetchChannel(channel, options) {
 }
 
 async function fetchSearchQuery(query, options) {
+  const querySpec = normalizeSearchQuery(query);
   if (!options.token) {
     return {
       ok: false,
-      url: `reddit-search:${query}`,
+      url: `reddit-search:${searchQueryId(querySpec)}`,
+      query: querySpec,
       status: "missing_oauth_token",
       error: "Search discovery requires Reddit OAuth.",
       posts: [],
@@ -1026,7 +1163,7 @@ async function fetchSearchQuery(query, options) {
   }
 
   const params = new URLSearchParams({
-    q: query,
+    q: querySpec.query,
     sort: "new",
     t: "month",
     limit: String(options.limit),
@@ -1046,7 +1183,8 @@ async function fetchSearchQuery(query, options) {
     if (!response.ok || !body) {
       return {
         ok: false,
-        url: `reddit-search:${query}`,
+        url: `reddit-search:${searchQueryId(querySpec)}`,
+        query: querySpec,
         status: response.status,
         error: JSON.stringify(body).slice(0, 200),
         posts: [],
@@ -1055,23 +1193,39 @@ async function fetchSearchQuery(query, options) {
 
     return {
       ok: true,
-      url: `reddit-search:${query}`,
+      url: `reddit-search:${searchQueryId(querySpec)}`,
+      query: querySpec,
       status: response.status,
       posts: parseRedditListing(body, {
         subreddit: "search",
         sourceMode: "search",
-        sourceDetail: query,
+        sourceDetail: searchQueryId(querySpec),
+        sourceQuery: querySpec.query,
+        sourcePatternFamily: querySpec.patternFamily,
+        sourceVertical: querySpec.vertical,
+        sourceFailureMode: querySpec.failureMode,
       }),
     };
   } catch (error) {
     return {
       ok: false,
-      url: `reddit-search:${query}`,
+      url: `reddit-search:${searchQueryId(querySpec)}`,
+      query: querySpec,
       status: "network_error",
       error: error instanceof Error ? error.message : String(error),
       posts: [],
     };
   }
+}
+
+function searchQueryId(query) {
+  const querySpec = normalizeSearchQuery(query);
+  return querySpec.id || slug(querySpec.query).slice(0, 80) || querySpec.query;
+}
+
+function searchQueryLabel(query) {
+  const querySpec = normalizeSearchQuery(query);
+  return querySpec.label || querySpec.query || querySpec.id;
 }
 
 async function enrichCandidatesWithCommentContext(posts, options) {
@@ -1300,6 +1454,10 @@ function parseRedditListing(body, channel) {
       commentCount: Number.isFinite(post.num_comments) ? post.num_comments : 0,
       sourceMode: channel.sourceMode || "subreddit_new",
       sourceDetail: channel.sourceDetail || `r/${post.subreddit || channel.subreddit}`,
+      sourceQuery: channel.sourceQuery || "",
+      sourcePatternFamily: channel.sourcePatternFamily || "",
+      sourceVertical: channel.sourceVertical || "",
+      sourceFailureMode: channel.sourceFailureMode || "",
     };
   });
 }
@@ -1346,9 +1504,14 @@ function parseFeed(xml, feedUrl) {
 
 function matchPost(post, scanConfig = {}) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
+  const families = normalizePatternFamilies(scanConfig.patternFamilies);
   const structuredEvidence = collectStructuredEvidence(text);
-  const patternMatches = matchPatternFamilies(structuredEvidence);
-  const negativePersonas = matchNegativePersonas(text, scanConfig.feedback?.negativePersonas ?? []);
+  const patternMatches = matchPatternFamilies(structuredEvidence, families);
+  const negativePersonas = matchNegativePersonas(text, scanConfig.feedback?.negativePersonas ?? [])
+    .filter((persona) =>
+      !isAllowedStuckBuilderPersonaMatch(persona, structuredEvidence) &&
+      !isAllowedToolShoppingPersonaMatch(persona, structuredEvidence)
+    );
   const hardNegativePersonas = negativePersonas.filter((persona) => persona.hardReject);
   const matchedKeywords = termsInText(text, positiveTerms);
   const communityPainMatches = termsInText(text, communityPainTerms);
@@ -1374,9 +1537,11 @@ function matchPost(post, scanConfig = {}) {
     budgetEvidence: structuredEvidence.budgetEvidence,
     toolShoppingEvidence: structuredEvidence.toolShoppingEvidence,
     vendorEvidence: structuredEvidence.vendorEvidence,
+    partnerEvidence: structuredEvidence.partnerEvidence,
     negativeEvidence: [...structuredEvidence.negativeEvidence, ...negativePersonas.flatMap((persona) => persona.evidence)],
     patternMatches,
-    primaryPattern: primaryPatternMatch(patternMatches),
+    primaryPattern: primaryPatternMatch(patternMatches, families),
+    patternFamilies: families,
     negativePersonas,
     negativePersona: primaryNegativePersona(negativePersonas)?.id ?? "",
     hardNegativePersonas,
@@ -1398,8 +1563,9 @@ function collectStructuredEvidence(text) {
   const businessEvidence = termsInText(text, businessEvidenceTerms);
   const toolShoppingEvidence = termsInText(text, toolShoppingEvidenceTerms);
   const vendorEvidence = termsInText(text, vendorEvidenceTerms);
+  const partnerEvidence = termsInText(text, partnerEvidenceTerms);
   const budgetEvidence = [
-    ...termsInText(text, ["willing to pay", "paid help", "open to paid help", "budget", "quote", "fee", "pay for"]),
+    ...termsInText(text, ["willing to pay", "paid help", "open to paid help", "paid opportunity", "paid implementation", "budget", "quote", "fee", "pay for"]),
     ...(/\$\s?\d+|\b\d+\s?(usd|cad|gbp|aud)\b/i.test(text) ? ["explicit money"] : []),
   ];
   const negativeEvidence = termsInText(text, negativeTerms);
@@ -1412,12 +1578,13 @@ function collectStructuredEvidence(text) {
     budgetEvidence,
     toolShoppingEvidence,
     vendorEvidence,
+    partnerEvidence,
     negativeEvidence,
   };
 }
 
-function matchPatternFamilies(evidence) {
-  return patternFamilies
+function matchPatternFamilies(evidence, families = defaultPatternFamilies) {
+  return families
     .map((family) => {
       const missing = family.requires.filter((field) => (evidence[field] ?? []).length === 0);
       const matchedEvidence = Object.fromEntries(
@@ -1434,9 +1601,9 @@ function matchPatternFamilies(evidence) {
     .filter((family) => family.matched);
 }
 
-function primaryPatternMatch(matches) {
+function primaryPatternMatch(matches, families = defaultPatternFamilies) {
   if (!matches.length) return "";
-  const order = new Map(patternFamilies.map((family, index) => [family.id, index]));
+  const order = new Map(families.map((family, index) => [family.id, index]));
   return [...matches].sort((a, b) => {
     const score = patternPriority(b) - patternPriority(a);
     if (score !== 0) return score;
@@ -1445,10 +1612,18 @@ function primaryPatternMatch(matches) {
 }
 
 function patternPriority(pattern) {
-  if (pattern.id === "direct_paid_help") return 40 + pattern.evidenceCount;
+  if (pattern.id === "stuck_builder_ceiling") return 50 + pattern.evidenceCount;
+  if (pattern.id === "direct_implementation_request") return 45 + pattern.evidenceCount;
+  if (pattern.id === "vendor_platform_with_scope") return 44 + pattern.evidenceCount;
+  if (pattern.id === "tool_shopping_with_implementation_pain") {
+    const toolEvidence = pattern.evidence?.toolShoppingEvidence ?? [];
+    const explicitToolShopping = toolEvidence.some((term) =>
+      ["which tool", "what tool", "which software", "what software", "best tool", "best software"].includes(term)
+    );
+    return 20 + pattern.evidenceCount + (explicitToolShopping ? 25 : 0);
+  }
+  if (pattern.id === "partner_overflow_implementation") return 34 + pattern.evidenceCount;
   if (pattern.id === "operational_pain_advice") return 30 + pattern.evidenceCount;
-  if (pattern.id === "tool_shopping_with_pain") return 20 + pattern.evidenceCount;
-  if (pattern.id === "vendor_specialist_with_scope") return 10 + pattern.evidenceCount;
   return pattern.evidenceCount;
 }
 
@@ -1467,6 +1642,24 @@ function primaryNegativePersona(personas) {
     if (a.hardReject !== b.hardReject) return a.hardReject ? -1 : 1;
     return b.evidence.length - a.evidence.length || a.id.localeCompare(b.id);
   })[0];
+}
+
+function isAllowedStuckBuilderPersonaMatch(persona, evidence) {
+  if (persona.id !== "seller-shilling-own-tool") return false;
+  const sellerEvidence = persona.evidence ?? [];
+  const onlyBuiltPhrase = sellerEvidence.length > 0 &&
+    sellerEvidence.every((term) => ["i built", "i made"].includes(term));
+  if (!onlyBuiltPhrase) return false;
+  return (evidence.requestEvidence?.length ?? 0) > 0 &&
+    (evidence.currentSystemEvidence?.length ?? 0) > 0 &&
+    (evidence.painEvidence?.length ?? 0) > 0;
+}
+
+function isAllowedToolShoppingPersonaMatch(persona, evidence) {
+  if (persona.id !== "generic-best-tool-question") return false;
+  return (evidence.toolShoppingEvidence?.length ?? 0) > 0 &&
+    (evidence.workflowEvidence?.length ?? 0) > 0 &&
+    (evidence.painEvidence?.length ?? 0) > 0;
 }
 
 function matchArchetypes(text, archetypePacks) {
@@ -1511,6 +1704,7 @@ function shouldKeepPost(post) {
   if (post.hardNegativePersonas.length > 0) return false;
   if (post.hardNegativeMatches.length > 0) return false;
   if (/\bfor hire\b/i.test(post.title)) return false;
+  if (isEmploymentPost(post)) return false;
   if (isRoleSeekerPost(post)) return false;
   if (isPartnerOrCofounderPost(post)) return false;
   if (isMarketResearchPost(post)) return false;
@@ -1584,10 +1778,12 @@ function sourceStatsPriority(stats) {
 }
 
 function patternPriorityForPost(post) {
-  if (post.primaryPattern === "direct_paid_help") return 55;
+  if (post.primaryPattern === "stuck_builder_ceiling") return 62;
+  if (post.primaryPattern === "direct_implementation_request") return 58;
+  if (post.primaryPattern === "vendor_platform_with_scope") return 44;
+  if (post.primaryPattern === "tool_shopping_with_implementation_pain") return 42;
+  if (post.primaryPattern === "partner_overflow_implementation") return 40;
   if (post.primaryPattern === "operational_pain_advice") return 38;
-  if (post.primaryPattern === "tool_shopping_with_pain") return 24;
-  if (post.primaryPattern === "vendor_specialist_with_scope") return 10;
   return 0;
 }
 
@@ -1595,7 +1791,11 @@ function selectCandidatePortfolio(posts, scanConfig, config) {
   const maxCandidates = config.maxLlmCandidates ?? 25;
   const maxPerSource = config.maxCandidatesPerSource ?? maxCandidates;
   const maxPerLeadType = config.maxCandidatesPerLeadType ?? maxCandidates;
+  const maxPerPatternFamily = config.maxCandidatesPerPatternFamily ?? maxCandidates;
+  const maxPerVertical = config.maxCandidatesPerVertical ?? maxCandidates;
   const minCommentFirst = config.minCommentFirstCandidates ?? 0;
+  const minDirectRequest = config.minDirectRequestCandidates ?? 0;
+  const maxEmploymentOrPartner = config.maxEmploymentOrPartnerCandidates ?? 0;
   const maxToolOutsideToolMode = config.maxToolSpecificCandidatesOutsideToolMode ?? maxCandidates;
   const isToolMode = scanConfig.scanMode?.id === "tool-specific-automation";
   const sorted = [...posts].sort((a, b) => candidatePriority(b) - candidatePriority(a));
@@ -1603,6 +1803,9 @@ function selectCandidatePortfolio(posts, scanConfig, config) {
   const seen = new Set();
   const sourceCounts = new Map();
   const leadTypeCounts = new Map();
+  const patternCounts = new Map();
+  const verticalCounts = new Map();
+  let employmentOrPartnerCount = 0;
   let toolSpecificCount = 0;
 
   function add(post, { ignoreCaps = false } = {}) {
@@ -1611,18 +1814,34 @@ function selectCandidatePortfolio(posts, scanConfig, config) {
     if (seen.has(key)) return false;
     const sourceKey = candidateSourceKey(post);
     const leadType = post.leadType || "unclassified";
+    const pattern = post.primaryPattern || "unclassified";
+    const vertical = post.vertical || "unclassified";
     const isToolSpecific = isToolSpecificCandidate(post);
+    const isEmploymentOrPartner = isEmploymentPost(post) || isPartnerOrCofounderPost(post);
     if (!ignoreCaps) {
       if ((sourceCounts.get(sourceKey) ?? 0) >= maxPerSource) return false;
       if ((leadTypeCounts.get(leadType) ?? 0) >= maxPerLeadType) return false;
+      if ((patternCounts.get(pattern) ?? 0) >= maxPerPatternFamily) return false;
+      if ((verticalCounts.get(vertical) ?? 0) >= maxPerVertical) return false;
+      if (isEmploymentOrPartner && employmentOrPartnerCount >= maxEmploymentOrPartner) return false;
       if (!isToolMode && isToolSpecific && toolSpecificCount >= maxToolOutsideToolMode) return false;
     }
     seen.add(key);
     selected.push(post);
     sourceCounts.set(sourceKey, (sourceCounts.get(sourceKey) ?? 0) + 1);
     leadTypeCounts.set(leadType, (leadTypeCounts.get(leadType) ?? 0) + 1);
+    patternCounts.set(pattern, (patternCounts.get(pattern) ?? 0) + 1);
+    verticalCounts.set(vertical, (verticalCounts.get(vertical) ?? 0) + 1);
+    if (isEmploymentOrPartner) employmentOrPartnerCount += 1;
     if (isToolSpecific) toolSpecificCount += 1;
     return true;
+  }
+
+  const directRequestCandidates = sorted.filter((post) => isDirectRequestPattern(post));
+  for (const post of directRequestCandidates) {
+    const currentDirect = selected.filter((candidate) => isDirectRequestPattern(candidate)).length;
+    if (currentDirect >= minDirectRequest) break;
+    add(post);
   }
 
   const archetypes = scanConfig.archetypePacks ?? [];
@@ -1656,6 +1875,11 @@ function selectCandidatePortfolio(posts, scanConfig, config) {
   return selected;
 }
 
+function isDirectRequestPattern(post) {
+  return ["direct_implementation_request", "stuck_builder_ceiling"].includes(post.primaryPattern) ||
+    hasExplicitPaidProject(post);
+}
+
 function candidateKey(post) {
   return post.url || `${post.author}:${normalizeComparableTitle(post.title)}`;
 }
@@ -1675,6 +1899,7 @@ function defaultOutreachPosture(post, score = 3) {
   if (
     post.hardNegativePersonas?.length ||
     isSellerOrBuilderPost(post) ||
+    isEmploymentPost(post) ||
     isRoleSeekerPost(post) ||
     isPartnerOrCofounderPost(post) ||
     isMarketResearchPost(post) ||
@@ -1692,7 +1917,7 @@ function defaultOutreachPosture(post, score = 3) {
     return post.outreachPosture;
   }
   if (post.primaryPattern) {
-    const family = patternFamilies.find((pattern) => pattern.id === post.primaryPattern);
+    const family = normalizePatternFamilies(post.patternFamilies).find((pattern) => pattern.id === post.primaryPattern);
     if (family?.defaultOutreachPosture) return family.defaultOutreachPosture;
   }
   if (score <= 3) return "watch";
@@ -1705,6 +1930,7 @@ function normalizeOutreachPosture(value, post, score) {
   if (
     post.negativeMatches?.length ||
     isSellerOrBuilderPost(post) ||
+    isEmploymentPost(post) ||
     isRoleSeekerPost(post) ||
     isPartnerOrCofounderPost(post) ||
     isMarketResearchPost(post) ||
@@ -1714,7 +1940,7 @@ function normalizeOutreachPosture(value, post, score) {
     return score <= 2 ? "ignore" : "watch";
   }
   if (isVendorSeededPost(post)) return "watch";
-  if (posture === "dm_now" && !hasExplicitPaidProject(post) && post.primaryPattern !== "direct_paid_help") {
+  if (posture === "dm_now" && !hasExplicitPaidProject(post) && !["direct_implementation_request", "stuck_builder_ceiling"].includes(post.primaryPattern)) {
     posture = score >= 4 ? "dm_if_engaged" : "watch";
   }
   if (score <= 3 && ["dm_now", "dm_if_engaged"].includes(posture)) {
@@ -1798,12 +2024,14 @@ function isReplyTodayLead(lead, config) {
     (hasExplicitPaidProject(lead) && hasDomainFit) ||
     (hasDirectRequest && hasBestLeadSignal(lead) && hasConsultingBuyerIntent(lead) && hasDomainFit) ||
     (hasDirectRequest && isAdviceShapedOperationalPain(lead) && hasConsultingBuyerIntent(lead) && hasDomainFit);
+  const hasManualResponsePath = Boolean(lead.url && lead.author && lead.author !== "unknown");
   return (lead.fitScore ?? lead.score ?? 0) >= minFit &&
     (lead.replyabilityScore ?? 0) >= 4 &&
     (lead.hardNegativePersonas?.length ?? 0) === 0 &&
     !lead.negativePersona &&
     !scoreReason.includes("llm scoring failed") &&
     !isSellerOrBuilderPost(lead) &&
+    !isEmploymentPost(lead) &&
     !isRoleSeekerPost(lead) &&
     !isPartnerOrCofounderPost(lead) &&
     !isMarketResearchPost(lead) &&
@@ -1811,10 +2039,20 @@ function isReplyTodayLead(lead, config) {
     !isPersonalCreativeContent(lead) &&
     !isVendorSeededPost(lead) &&
     !isDigestFalsePositive(lead) &&
-    !(isEmploymentPost(lead) && !hasConsultingBuyerIntent(lead)) &&
+    hasClassifiedFit(lead) &&
+    hasManualResponsePath &&
     hasMainDigestSignal &&
     !["ignore", "watch"].includes(lead.outreachPosture || "") &&
     !["ignore", "watch"].includes(lead.recommendedAction || "");
+}
+
+function hasClassifiedFit(lead) {
+  return Boolean(
+    (lead.category && lead.category !== "other") ||
+    (lead.leadType && lead.leadType !== "other") ||
+    (lead.vertical && lead.vertical !== "other") ||
+    isTrustedAutomationSource(lead),
+  );
 }
 
 function scoreDeterministically(post) {
@@ -1824,6 +2062,7 @@ function scoreDeterministically(post) {
   if (
     post.hardNegativePersonas.length > 0 ||
     isSellerOrBuilderPost(post) ||
+    isEmploymentPost(post) ||
     isRoleSeekerPost(post) ||
     isPartnerOrCofounderPost(post) ||
     isMarketResearchPost(post) ||
@@ -1838,7 +2077,7 @@ function scoreDeterministically(post) {
   } else if (hasExplicitPaidProject(post)) {
     fitScore = 5;
     replyabilityScore = 5;
-  } else if (post.primaryPattern === "direct_paid_help") {
+  } else if (post.primaryPattern === "direct_implementation_request" || post.primaryPattern === "stuck_builder_ceiling") {
     fitScore = 5;
     replyabilityScore = 5;
   } else if (isAdviceShapedOperationalPain(post)) {
@@ -1847,10 +2086,13 @@ function scoreDeterministically(post) {
   } else if (post.primaryPattern === "operational_pain_advice") {
     fitScore = 4;
     replyabilityScore = 4;
-  } else if (post.primaryPattern === "tool_shopping_with_pain") {
+  } else if (post.primaryPattern === "tool_shopping_with_implementation_pain") {
     fitScore = 4;
     replyabilityScore = 4;
-  } else if (post.primaryPattern === "vendor_specialist_with_scope") {
+  } else if (post.primaryPattern === "vendor_platform_with_scope") {
+    fitScore = 3;
+    replyabilityScore = 3;
+  } else if (post.primaryPattern === "partner_overflow_implementation") {
     fitScore = 3;
     replyabilityScore = 3;
   } else if (category !== "other" && hasSpecificWorkflowPain(post) && hasBusinessContext(post)) {
@@ -1928,7 +2170,12 @@ async function scoreWithLlm(post, config, apiKey) {
     budgetEvidence: post.budgetEvidence,
     toolShoppingEvidence: post.toolShoppingEvidence,
     vendorEvidence: post.vendorEvidence,
+    partnerEvidence: post.partnerEvidence,
     negativeEvidence: post.negativeEvidence,
+    sourceQuery: post.sourceQuery,
+    sourcePatternFamily: post.sourcePatternFamily,
+    sourceVertical: post.sourceVertical,
+    commentContext: post.commentContext ?? null,
     negativePersonas: post.negativePersonas?.map((persona) => ({
       id: persona.id,
       label: persona.label,
@@ -1999,7 +2246,7 @@ async function scoreWithLlm(post, config, apiKey) {
               },
               pattern: {
                 type: "string",
-                enum: ["direct_paid_help", "operational_pain_advice", "tool_shopping_with_pain", "vendor_specialist_with_scope", "unclassified"],
+                enum: normalizePatternFamilies(config.patternFamilies).map((family) => family.id).concat("unclassified"),
               },
               negativePersona: { type: "string" },
             },
@@ -2045,7 +2292,7 @@ function normalizeLlmScore(post, parsed, config) {
     : 1;
   let replyabilityScore = Math.min(
     fitScore,
-    hasExplicitPaidProject(post) || post.primaryPattern === "direct_paid_help"
+    hasExplicitPaidProject(post) || ["direct_implementation_request", "stuck_builder_ceiling"].includes(post.primaryPattern)
       ? 5
       : hasRequestIntent(post) || isAdviceShapedOperationalPain(post)
         ? 4
@@ -2070,11 +2317,11 @@ function normalizeLlmScore(post, parsed, config) {
     fitScore = 5;
     replyabilityScore = Math.max(replyabilityScore, 5);
   }
-  if (post.primaryPattern === "direct_paid_help") {
+  if (post.primaryPattern === "direct_implementation_request" || post.primaryPattern === "stuck_builder_ceiling") {
     fitScore = Math.max(fitScore, 5);
     replyabilityScore = Math.max(replyabilityScore, 5);
   }
-  if (post.primaryPattern === "operational_pain_advice" || post.primaryPattern === "tool_shopping_with_pain") {
+  if (post.primaryPattern === "operational_pain_advice" || post.primaryPattern === "tool_shopping_with_implementation_pain") {
     fitScore = Math.max(fitScore, 4);
     replyabilityScore = Math.max(replyabilityScore, 4);
   }
@@ -2094,6 +2341,10 @@ function normalizeLlmScore(post, parsed, config) {
     fitScore = Math.min(fitScore, 2);
     replyabilityScore = Math.min(replyabilityScore, 1);
   }
+  if (isEmploymentPost(post)) {
+    fitScore = Math.min(fitScore, 2);
+    replyabilityScore = Math.min(replyabilityScore, 1);
+  }
   if (isRoleSeekerPost(post)) {
     fitScore = Math.min(fitScore, 2);
     replyabilityScore = Math.min(replyabilityScore, 1);
@@ -2106,7 +2357,6 @@ function normalizeLlmScore(post, parsed, config) {
     fitScore = Math.min(fitScore, 2);
     replyabilityScore = Math.min(replyabilityScore, 1);
   }
-  if (isEmploymentPost(post) && !hasConsultingBuyerIntent(post)) fitScore = Math.min(fitScore, 3);
   if (isMarketResearchPost(post)) {
     fitScore = Math.min(fitScore, 3);
     replyabilityScore = Math.min(replyabilityScore, 2);
@@ -2161,7 +2411,7 @@ function normalizeLlmScore(post, parsed, config) {
     failureMode,
     outreachPosture,
     recommendedAction,
-    pattern: patternFamilies.some((family) => family.id === parsed.pattern)
+    pattern: normalizePatternFamilies(config.patternFamilies).some((family) => family.id === parsed.pattern)
       ? parsed.pattern
       : (post.primaryPattern || "unclassified"),
     negativePersona: normalizeNegativePersonaId(parsed.negativePersona, post.negativePersona),
@@ -2192,13 +2442,18 @@ function uniqueNonEmpty(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
-function buildDigest({ date, leads, rejectedCount, feedResults, config, scanMode, rejectionSummary, sourcePerformance, partialCoverage }) {
+function buildDigest({ date, leads, scoredCount, rejectedCount, feedResults, config, scanMode, rejectionSummary, sourcePerformance, partialCoverage }) {
   const sorted = [...leads].sort(compareLeadsForDigest);
   const best = sorted.filter((lead) => isReplyTodayLead(lead, config));
-  const maybe = sorted.filter((lead) => !isReplyTodayLead(lead, config) && (lead.score >= 3 || lead.replyabilityScore >= 3));
+  const maybe = sorted.filter((lead) =>
+    !isReplyTodayLead(lead, config) &&
+    !["ignore"].includes(lead.outreachPosture || "") &&
+    !["ignore"].includes(lead.recommendedAction || "") &&
+    (lead.score >= 3 || lead.replyabilityScore >= 3)
+  );
   const feedErrors = feedResults.filter((result) => !result.ok);
   const sourceMix = sourceMixSummary(sorted);
-  const searchDiagnostics = queryDiagnostics(feedResults);
+  const searchDiagnostics = queryDiagnostics(feedResults, sorted, config);
 
   return [
     `# Reddit Lead Scanner Digest - ${date}`,
@@ -2208,7 +2463,7 @@ function buildDigest({ date, leads, rejectedCount, feedResults, config, scanMode
     `Scan mode: ${scanMode?.label ?? "Legacy config"}`,
     "Reddit-only: yes",
     `Posts fetched: ${feedResults.reduce((count, result) => count + (result.posts?.length ?? 0), 0)}`,
-    `Candidates scored: ${leads.length}`,
+    `Candidates scored: ${scoredCount ?? leads.length}`,
     `Candidates included: ${best.length}`,
     `Replyable leads: ${best.length}`,
     `Watch items: ${maybe.length}`,
@@ -2227,7 +2482,7 @@ function buildDigest({ date, leads, rejectedCount, feedResults, config, scanMode
     "",
     searchDiagnostics.length
       ? searchDiagnostics
-          .map((item) => `- ${item.query}: ${item.status}, ${item.fetchedPosts} posts`)
+          .map((item) => `- ${item.query}${item.patternFamily ? ` (${item.patternFamily})` : ""}: ${item.status}, ${item.fetchedPosts} posts, ${item.candidatesScored ?? 0} scored, ${item.replyable ?? 0} replyable, ${item.watch ?? 0} watch`)
           .join("\n")
       : "No global search queries were run.",
     "",
@@ -2284,6 +2539,11 @@ function formatLead(lead) {
     `- Lead type: ${lead.leadType || "other"}`,
     `- Vertical: ${lead.vertical || "other"}`,
     `- Failure mode: ${lead.failureMode || "other"}`,
+    `- Outreach posture: ${lead.outreachPosture || "unknown"}`,
+    `- Recommended action: ${lead.recommendedAction || "unknown"}`,
+    ...(lead.sourceQuery ? [`- Source query: ${lead.sourceQuery}`] : []),
+    ...(lead.sourcePatternFamily ? [`- Source query pattern: ${lead.sourcePatternFamily}`] : []),
+    ...(lead.sourceVertical ? [`- Source query vertical: ${lead.sourceVertical}`] : []),
   ].join("\n");
 }
 
@@ -2313,14 +2573,41 @@ function formatCounts(counts) {
     .join(", ");
 }
 
-function queryDiagnostics(feedResults) {
+function queryDiagnostics(feedResults, scoredLeads = [], config = { minScore: 4 }) {
+  const outcomesByQuery = countQueryOutcomes(scoredLeads, config);
   return feedResults
     .filter((result) => String(result.url || "").startsWith("reddit-search:"))
-    .map((result) => ({
-      query: result.url.replace(/^reddit-search:/, ""),
-      status: result.ok ? "ok" : String(result.status || "error"),
-      fetchedPosts: result.posts?.length ?? 0,
-    }));
+    .map((result) => {
+      const id = result.query?.id || result.url.replace(/^reddit-search:/, "");
+      const outcomes = outcomesByQuery.get(id) ?? {};
+      return {
+        query: result.query?.label || result.query?.query || id,
+        id,
+        patternFamily: result.query?.patternFamily || "",
+        vertical: result.query?.vertical || "",
+        status: result.ok ? "ok" : String(result.status || "error"),
+        fetchedPosts: result.posts?.length ?? 0,
+        candidatesScored: outcomes.candidatesScored ?? 0,
+        replyable: outcomes.replyable ?? 0,
+        watch: outcomes.watch ?? 0,
+        rejected: outcomes.rejected ?? 0,
+      };
+    });
+}
+
+function countQueryOutcomes(scoredLeads, config) {
+  const counts = new Map();
+  for (const lead of scoredLeads) {
+    if (lead.sourceMode !== "search") continue;
+    const id = String(lead.sourceDetail || "unknown");
+    const row = counts.get(id) ?? { candidatesScored: 0, replyable: 0, watch: 0, rejected: 0 };
+    row.candidatesScored += 1;
+    if (isReplyTodayLead(lead, config)) row.replyable += 1;
+    if (lead.recommendedAction === "watch") row.watch += 1;
+    if (lead.recommendedAction === "ignore") row.rejected += 1;
+    counts.set(id, row);
+  }
+  return counts;
 }
 
 function sourcePerformanceSummary(feedResults, scoredLeads, feedback = {}) {
@@ -2330,9 +2617,12 @@ function sourcePerformanceSummary(feedResults, scoredLeads, feedback = {}) {
   for (const result of feedResults) {
     const fetched = result.posts?.length ?? 0;
     if (String(result.url || "").startsWith("reddit-search:")) {
-      const query = result.url.replace(/^reddit-search:/, "");
+      const query = result.query?.id || result.url.replace(/^reddit-search:/, "");
       queryRows.set(query, {
         id: query,
+        label: result.query?.label || result.query?.query || query,
+        patternFamily: result.query?.patternFamily || "",
+        vertical: result.query?.vertical || "",
         fetched,
         status: result.ok ? "ok" : String(result.status || "error"),
         historical: feedback?.sourcePerformance?.queries?.[query.toLowerCase()] ?? null,
@@ -2427,12 +2717,14 @@ function rejectionReason(post) {
   const hasDiscoverySignal =
     post.matchedKeywords?.length > 0 ||
     post.communityPainMatches?.length > 0 ||
-    post.archetypeMatches?.length > 0;
+    post.archetypeMatches?.length > 0 ||
+    post.patternMatches?.length > 0;
   if (!hasDiscoverySignal) return "no_discovery_signal";
   if (post.hardNegativeMatches?.length > 0) return "hard_negative";
   if (isSellerOrBuilderPost(post)) return "seller_or_builder";
+  if (isEmploymentPost(post)) return "employment_only";
   if (isRoleSeekerPost(post)) return "role_seeker";
-  if (isEmploymentPost(post) && !hasConsultingBuyerIntent(post)) return "employment_only";
+  if (isPartnerOrCofounderPost(post)) return "partner_or_cofounder";
   if (isMarketResearchPost(post)) return "market_research";
   if ((post.negativeMatches?.length ?? 0) > 0 && (post.buyingIntentMatches?.length ?? 0) === 0) {
     return "negative_without_buying_intent";
@@ -2473,7 +2765,7 @@ function categorize(post) {
 
 function hasRequestIntent(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /looking for|need help|recommend|recommendations|which .* use|anyone .* use|how do i|how do you|what system|what tools?|when did you|is there a better way|where do i start|seeking|paid help|paid opportunity|hire|consultant|freelancer|developer|build this|need someone|help setting up|open to paid help/.test(
+  return /looking for|need help|recommend|recommendations|which .* use|anyone .* use|how do i|how do you|what system|what tools?|when did you|is there a better way|where do i start|seeking|paid help|paid opportunity|paid implementation|hire|consultant|freelancer|developer|build this|need someone|help setting up|open to paid help|help me finish|take over parts|review what i(?:'ve| have) built/.test(
     text,
   );
 }
@@ -2481,10 +2773,10 @@ function hasRequestIntent(post) {
 function hasExplicitPaidProject(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   if (isRoleSeekerPost(post) || isEmploymentPost(post)) return false;
-  const explicitHire = /\b(hire someone to|need to hire someone to|need someone to|looking for someone to|paid help|open to paid help|willing to pay|take my money|consultant|developer|freelancer)\b/.test(
+  const explicitHire = /\b(hire someone to|need to hire someone to|need someone to|looking for someone to|looking for someone experienced|paid help|paid opportunity|paid implementation|open to paid help|willing to pay|take my money|consultant|developer|freelancer|help me finish|take over parts|review what i(?:'ve| have) built)\b/.test(
     text,
   );
-  const projectWork = /build|develop|software|automation|automate|workflow|crm|pdf|report|spreadsheet|excel|internal tool|recruiting|staffing|scheduling|intake|applicants?|follow up|follow-up/.test(
+  const projectWork = /build|develop|software|automation|automate|workflow|workflows|ai workflow|business process automation|custom system|claude|chatgpt|crm|pdf|report|spreadsheet|excel|internal tool|recruiting|staffing|scheduling|intake|applicants?|follow up|follow-up|property management|real estate|rental|tenant/.test(
     text,
   );
   return explicitHire && projectWork;
@@ -2492,44 +2784,56 @@ function hasExplicitPaidProject(post) {
 
 function hasSpecificWorkflowPain(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /manual|copy.?paste|spreadsheet|google sheets|excel|crm|follow[- ]?up|invoice|receipt|pdf|report|dashboard|bookkeeping|reconciliation|onboarding|offboarding|intake|form submissions?|lead routing|pipeline|inventory|orders?|fulfillment|client portal|data cleanup|api|zapier|make|n8n|airtable|notion|hubspot|pipedrive|zoho|quickbooks|xero|power bi|looker|data entry|every day|every week|every month|takes forever|too slow|mess|chaotic|stuck|can't figure|cant figure|desperate|job boards?|not bringing in anyone|need help finding|can't find|cant find|recruiting|staffing|applicants?|candidates?|screening|scheduling|busy season|missed calls?|customer messages?|quote requests?|buried in emails|can't keep track|cant keep track|whiteboard|checklist|sop|standard operating|project profitability|job costing|budget|cost to complete|k-1|pbc|client documents?|client docs?|brief drift|scorecard|handoff|bank transactions?|matching invoices?/.test(
+  return /manual|copy.?paste|spreadsheet|google sheets|excel|crm|follow[- ]?up|invoice|receipt|pdf|report|dashboard|bookkeeping|reconciliation|onboarding|offboarding|intake|form submissions?|lead routing|pipeline|inventory|orders?|fulfillment|client portal|data cleanup|api|zapier|make|n8n|airtable|notion|hubspot|pipedrive|zoho|quickbooks|xero|power bi|looker|data entry|every day|every week|every month|takes forever|too slow|spending too much time|mess|chaotic|stuck|hit(?:ting)? a ceiling|can't figure|cant figure|desperate|job boards?|not bringing in anyone|need help finding|can't find|cant find|recruiting|staffing|applicants?|candidates?|screening|scheduling|busy season|missed calls?|customer messages?|quote requests?|buried in emails|can't keep track|cant keep track|whiteboard|checklist|sop|standard operating|project profitability|job costing|budget|cost to complete|k-1|pbc|client documents?|client docs?|brief drift|scorecard|handoff|bank transactions?|matching invoices?|custom system|source of truth|business process automation|ai workflows?|claude|chatgpt|property management|real estate|rentals?|tenants?|maintenance|turnover/.test(
     text,
   );
 }
 
 function hasBusinessContext(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /business|company|agency|client|customer|lead|sales|team|department|contractor|freelancer|employee|shopify|store|ecommerce|bookkeeping|accounting|tax|firm|practice|real estate|realtor|msp|service business|consultancy|consulting|startup|founder|ops|operations|revenue|orders?|invoices?|prospects?|pipeline|warehouse|inventory|tickets?|staff|staffing|recruit|recruiting|applicants?|candidates?|nurses?|drivers?|dispatch|appointments?/.test(
+  return /business|company|agency|client|customer|lead|sales|team|department|contractor|freelancer|employee|shopify|store|ecommerce|retail|bookkeeping|accounting|tax|firm|practice|real estate|realtor|property|properties|property management|property manager|rentals?|tenants?|portfolio|msp|service business|consultancy|consulting|startup|founder|ops|operations|revenue|orders?|invoices?|prospects?|pipeline|warehouse|inventory|tickets?|staff|staffing|recruit|recruiting|applicants?|candidates?|nurses?|drivers?|dispatch|appointments?|nonprofit|donors?|clinic|healthcare/.test(
     text,
   );
 }
 
 function isSellerOrBuilderPost(post) {
   const text = `${post.title}\n${post.summary}\n${post.subreddit || ""}`.toLowerCase();
+  if (
+    /\b(paid opportunity|looking for someone experienced|help me finish|take over parts|review what i(?:'ve| have) built)\b/.test(text) &&
+    /\b(hit(?:ting)? a ceiling|spending too much time|custom system|existing system|workflow)\b/.test(text)
+  ) {
+    return false;
+  }
   return /\b(i built|i made|i launched|i created|my app|my product|my tool|my agency|our product|looking for feedback|honest feedback|feedback on my|showcase|case study|available for|for hire|hire me|looking for clients|bookpromotion|startups?_promotion|u_[a-z0-9_-]+|unpopular opinion|must-have features|best affordable|when .* stops scaling|what we learned after|how we built|what you can copy today|finally tackled|saving my sanity|ways to automate|explained in plain english)\b/.test(
     text,
   );
 }
 
 function isEmploymentPost(post) {
-  const text = `${post.title}\n${post.summary}`.toLowerCase();
+  const text = `${post.title}\n${post.summary}\n${post.subreddit || ""}`.toLowerCase();
+  const jobSubreddit = /\b(virtualassistant4hire|jobph|forhire|hireawriter|freelance_forhire|slavelabour|remotejobs|jobopenings|jobs)\b/i.test(
+    String(post.subreddit || ""),
+  );
   const hiringTitle = /^\s*(\[hiring\]|\(hiring\)|hiring\b|job:|remote job\b)/i.test(
     post.title,
   );
   const roleTerms =
-    /\b(full[- ]?time|part[- ]?time|salary|hourly|per hour|\/hr|usd\/hr|remote role|job posting|job description|assistant|virtual assistant|sales rep|sales guy|appointment setter|closer|internship)\b/.test(
+    /\b(full[- ]?time|part[- ]?time|salary|hourly|per hour|\/hr|usd\/hr|remote role|job posting|job description|assistant|virtual assistant|sales rep|sales guy|appointment setter|closer|internship|practice manager|operations manager|executive operations|for ph applicants only|applicants only)\b/.test(
       text,
     );
+  const roleRequest = /\b(hiring|we are hiring|looking for an?|looking to hire an?|need an?)\b.+\b(manager|assistant|va|employee|staff member|rep|setter|closer|applicant)\b/.test(
+    text,
+  );
   const lowWage = /\$ ?\d{1,2}\s*[-–]\s*\$ ?\d{1,2}\s*\/?(hr|hour)?|\b\d{1,2}\s*usd\/hr\b/.test(
     text,
   );
-  return hiringTitle || (roleTerms && lowWage);
+  return jobSubreddit || hiringTitle || (roleTerms && lowWage) || roleRequest;
 }
 
 function isRoleSeekerPost(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const explicitSeeker =
-    /\b(looking for a role|looking for work|looking for a job|looking for .* role|looking for .* position|need a .* job|need .* job urgently|job hunt|job hunting|how can .* become|become an? .*engineer|visa somewhere|chase a visa|open to remote or on-site|open to work|seeking a role|seeking work|seeking a job|job search|my resume|resume review|portfolio review|hire me|for hire|available for freelance|available for contract|referral fee)\b/.test(
+    /\b(looking for a role|looking for work|looking for a job|looking for .* role|looking for .* position|looking for .* freelance projects|looking for .* projects|need a .* job|need .* job urgently|job hunt|job hunting|how can .* become|become an? .*engineer|visa somewhere|chase a visa|open to remote or on-site|open to work|seeking a role|seeking work|seeking a job|job search|my resume|resume review|portfolio review|hire me|for hire|available for freelance|available for contract|referral fee)\b/.test(
       text,
     );
   const titleSeeker = /^\s*(looking for|seeking)\b.+\b(job|role|position|opportunity|work)\b/i.test(
@@ -2540,7 +2844,7 @@ function isRoleSeekerPost(post) {
 
 function isPartnerOrCofounderPost(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
-  return /\b(co[- ]?founder|technical co[- ]?founder|founding engineer|full[- ]?stack developer|sales\/outreach partner|outreach partner|business partner|equity only|rev share|revenue share|partner with me|join me to build)\b/.test(
+  return /\b(co[- ]?founder|technical co[- ]?founder|founding engineer|full[- ]?stack developer|sales\/outreach partner|outreach partner|business partner|equity only|rev share|revenue share|partner with me|join me to build|collaborator|collab partner|mentor .*bring it to life|bring it to life|help me bring .* to life)\b/.test(
     text,
   );
 }
@@ -2554,7 +2858,7 @@ function isMarketResearchPost(post) {
 
 function isPromotionalOrEducationalPost(post) {
   const text = `${post.title}\n${post.summary}\n${post.subreddit || ""}`.toLowerCase();
-  return /\b(here'?s how|here is how|guide to|ultimate guide|case study|roi comparison|honest breakdown|key highlights|market review|do not let .* trap you|warning:|speed to the lead|why .* win more|how to reduce|12 ways to|10 ways to|must-have|explained in plain english|inside the algorithm|became .* heroes|what you can copy today|using ai in unique ways|welcome to .* read first|introduce yourself|read first)\b/.test(
+  return /\b(here'?s how|here is how|guide to|ultimate guide|case study|roi comparison|honest breakdown|key highlights|market review|do not let .* trap you|warning:|speed to the lead|why .* win more|how to reduce|12 ways to|10 ways to|step[- ]by[- ]step|prompts to run|apis and webhooks are where|must-have|explained in plain english|inside the algorithm|became .* heroes|what you can copy today|using ai in unique ways|welcome to .* read first|introduce yourself|read first)\b/.test(
     text,
   );
 }
@@ -2568,6 +2872,7 @@ function isVendorSeededPost(post) {
 
 function isPersonalCreativeContent(post) {
   const text = `${post.title}\n${post.summary}\n${post.subreddit || ""}`.toLowerCase();
+  if (/\bnot a business workflow\b/.test(text)) return true;
   const personalCreativeSignals =
     /\b(anime|manga|fandom|fanfic|fan fiction|character essay|an essay|literary analysis|poem|poetry|short story|scary stories?|dating|relationship advice|roleplay|cosplay|gameplay|gaming)\b/.test(
       text,
@@ -2579,7 +2884,7 @@ function isPersonalCreativeContent(post) {
 function hasConsultingDomainFit(post) {
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const implementationTerms =
-    /\b(automate|automation|automator|script|workflow|zapier|make\.com|make com|n8n|airtable|notion|crm|hubspot|salesforce|pipedrive|zoho|spreadsheet|excel|google sheets|dashboard|reporting|report automation|pdf workflow|forms?|intake|lead routing|pipeline|onboarding|offboarding|reconciliation|invoice|bookkeeping|quickbooks|xero|api integration|internal tool|client portal|data cleanup|manual process|copy.?paste|scheduling|screening|applicants?|candidates?|staffing|recruiting|customer messages?|quote requests?)\b/.test(
+    /\b(automate|automation|automator|script|workflow|workflows|ai workflow|ai workflows|business process automation|custom system|source of truth|claude|chatgpt|zapier|make\.com|make com|n8n|airtable|notion|crm|hubspot|salesforce|pipedrive|zoho|spreadsheet|excel|google sheets|dashboard|reporting|report automation|pdf workflow|forms?|intake|lead routing|pipeline|onboarding|offboarding|reconciliation|invoice|bookkeeping|quickbooks|xero|api integration|internal tool|client portal|data cleanup|manual process|copy.?paste|scheduling|screening|applicants?|candidates?|staffing|recruiting|customer messages?|quote requests?)\b/.test(
       text,
     );
   if (!implementationTerms) return false;
@@ -2631,7 +2936,7 @@ function hasConsultingBuyerIntent(post) {
     );
   }
   const asksForPaidHelp =
-    /\b(hire someone|need to hire someone|paid help|open to paid help|willing to pay|take my money|consultant|freelancer|contractor|developer|expert|build this for me|need someone to|looking for someone to|help setting up)\b/.test(
+    /\b(hire someone|need to hire someone|paid help|paid opportunity|paid implementation|open to paid help|willing to pay|take my money|consultant|freelancer|contractor|developer|expert|build this for me|need someone to|looking for someone to|looking for someone experienced|help setting up|help me finish|take over parts|review what i(?:'ve| have) built)\b/.test(
       text,
     );
   const implementationPain =
@@ -2656,7 +2961,7 @@ function hasBestLeadSignal(post) {
   ) return false;
   const text = `${post.title}\n${post.summary}`.toLowerCase();
   const strongPain =
-    /\b(struggling|struggle|problem|pain|painful|mess|messy|manual|copy.?paste|takes forever|too slow|stuck|can't figure|cant figure|desperate|chaotic|broken|overwhelmed|moving off|switching from|migrate|migration|setup|set up|integrate|integration|reconciliation|manual reporting|difficult reporting|reporting issue|reporting problem|job boards? not|not bringing in anyone|can't find|cant find|need help finding|busy season|missed calls?|too many messages|buried in emails|can't keep track|cant keep track|screening applicants|scheduling mess)\b/.test(
+    /\b(struggling|struggle|problem|pain|painful|mess|messy|manual|copy.?paste|takes forever|too slow|spending too much time|stuck|hit(?:ting)? a ceiling|can't figure|cant figure|desperate|chaotic|broken|overwhelmed|moving off|switching from|migrate|migration|setup|set up|integrate|integration|reconciliation|manual reporting|difficult reporting|reporting issue|reporting problem|job boards? not|not bringing in anyone|can't find|cant find|need help finding|busy season|missed calls?|too many messages|buried in emails|can't keep track|cant keep track|screening applicants|scheduling mess)\b/.test(
       text,
     );
   const genericAdviceTitle =
@@ -2664,7 +2969,7 @@ function hasBestLeadSignal(post) {
       post.title,
     );
   const asksForImplementationHelp =
-    /\b(need help|looking for help|help setting up|need a solution|need someone to|looking for someone to|can someone help|where do i start)\b/.test(
+    /\b(need help|looking for help|help setting up|need a solution|need someone to|looking for someone to|looking for someone experienced|can someone help|where do i start|help me finish|take over parts|review what i(?:'ve| have) built)\b/.test(
       text,
     );
   if (genericAdviceTitle && !strongPain && !asksForImplementationHelp) return false;
@@ -2711,11 +3016,11 @@ function isAdviceShapedOperationalPain(post) {
     );
   if (!asksForAdvice) return false;
   const hasCurrentSystem =
-    /\b(spreadsheet|spreadsheets|excel|google sheets|email|emails|inbox|whiteboard|texts?|photos?|manual|crm|accounting software|ats|pdf|portal|quickbooks|xero|paper|checklist)\b/.test(text);
+    /\b(spreadsheet|spreadsheets|excel|google sheets|email|emails|inbox|whiteboard|texts?|photos?|manual|crm|accounting software|ats|pdf|portal|quickbooks|xero|paper|checklist|custom system|existing system|source of truth|one place|claude|chatgpt|airtable)\b/.test(text);
   const hasRecurrence =
     /\b(daily|weekly|monthly|every project|every day|every time|many clients|multiple clients|hundreds|busy season|multiple departments|20 employees|team|as we'?ve grown|taken on more work)\b/.test(text);
   const hasConsequence =
-    /\b(missed follow[- ]?up|late k-?1s?|amended returns?|slow quotes?|lost leads?|hard to see|harder to get a quick view|takes forever|buried|not scalable|outgrown|outgrowing|reinventing the wheel|can't keep track|cant keep track|messy|chaotic|breaks|held up)\b/.test(text);
+    /\b(missed follow[- ]?up|late k-?1s?|amended returns?|slow quotes?|lost leads?|hard to see|harder to get a quick view|takes forever|spending too much time|hit(?:ting)? a ceiling|buried|not scalable|outgrown|outgrowing|reinventing the wheel|can't keep track|cant keep track|messy|chaotic|breaks|held up)\b/.test(text);
   const evidenceCount = [
     hasBusinessContext(post),
     hasCurrentSystem,
