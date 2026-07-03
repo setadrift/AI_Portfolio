@@ -1,6 +1,171 @@
 {
   "ingestionMode": "oauth",
+  "patternFamilies": [
+    {
+      "id": "direct_implementation_request",
+      "label": "Direct implementation request",
+      "defaultOutreachPosture": "dm_now",
+      "requires": ["requestEvidence", "workflowEvidence"]
+    },
+    {
+      "id": "stuck_builder_ceiling",
+      "label": "Stuck builder / ceiling hit",
+      "defaultOutreachPosture": "dm_now",
+      "requires": ["requestEvidence", "currentSystemEvidence", "painEvidence"]
+    },
+    {
+      "id": "operational_pain_advice",
+      "label": "Operational pain advice",
+      "defaultOutreachPosture": "comment_first",
+      "requires": ["currentSystemEvidence", "painEvidence", "businessEvidence"]
+    },
+    {
+      "id": "tool_shopping_with_implementation_pain",
+      "label": "Tool shopping with implementation pain",
+      "defaultOutreachPosture": "comment_first",
+      "requires": ["toolShoppingEvidence", "workflowEvidence", "painEvidence"]
+    },
+    {
+      "id": "vendor_platform_with_scope",
+      "label": "Vendor/platform specialist with broad scope",
+      "defaultOutreachPosture": "watch",
+      "requires": ["vendorEvidence", "workflowEvidence", "requestEvidence"]
+    },
+    {
+      "id": "partner_overflow_implementation",
+      "label": "Partner / overflow implementation demand",
+      "defaultOutreachPosture": "dm_if_engaged",
+      "requires": ["partnerEvidence", "workflowEvidence", "businessEvidence"]
+    }
+  ],
   "archetypePacks": [
+    {
+      "id": "source-of-truth-sprawl",
+      "label": "Source of truth sprawl",
+      "vertical": "cross_industry_ops",
+      "failureMode": "source_of_truth_sprawl",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "entrepreneur", "label": "Entrepreneur", "subreddit": "Entrepreneur" }
+      ],
+      "searchQueries": [
+        { "id": "source-truth-spreadsheets", "query": "\"source of truth\" (spreadsheet OR airtable OR CRM OR operations)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "multiple systems or spreadsheets causing handoff or visibility pain" },
+        { "id": "one-place-operations", "query": "\"one place\" (clients OR customers OR projects OR operations) \"spreadsheet\"", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "operator wants consolidation across messy tools" }
+      ],
+      "positiveSignals": ["source of truth", "one place", "spreadsheet", "crm", "airtable", "clients", "projects"],
+      "painSignals": ["too many tools", "messy", "manual", "can't keep track", "hard to see", "consolidate"],
+      "rejectSignals": ["template", "course", "market research"]
+    },
+    {
+      "id": "manual-document-intake",
+      "label": "Manual document intake",
+      "vertical": "cross_industry_ops",
+      "failureMode": "manual_document_intake",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "bookkeeping", "label": "Bookkeeping", "subreddit": "bookkeeping" }
+      ],
+      "searchQueries": [
+        { "id": "manual-document-intake", "query": "\"manual\" \"client documents\" (pdf OR receipts OR forms)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "recurring document collection or classification pain" },
+        { "id": "split-rename-documents", "query": "\"split\" \"rename\" \"documents\" \"manual\"", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "specific repetitive document workflow" }
+      ],
+      "positiveSignals": ["documents", "client documents", "pdf", "receipts", "forms", "ocr", "split", "rename"],
+      "painSignals": ["manual", "takes forever", "chasing", "missing", "busy season"],
+      "rejectSignals": ["personal tax question", "refund", "template"]
+    },
+    {
+      "id": "followup-scheduling-leakage",
+      "label": "Follow-up and scheduling leakage",
+      "vertical": "cross_industry_ops",
+      "failureMode": "followup_and_scheduling_leakage",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" }
+      ],
+      "searchQueries": [
+        { "id": "missed-followups", "query": "\"missed follow up\" (clients OR customers OR leads OR sales)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "missed response or follow-up causing revenue leakage" },
+        { "id": "scheduling-mess", "query": "\"scheduling mess\" (clients OR staff OR appointments OR contractors)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "manual scheduling or dispatch breakdown" }
+      ],
+      "positiveSignals": ["follow up", "follow-up", "scheduling", "appointments", "leads", "clients", "customers", "dispatch"],
+      "painSignals": ["missed", "mess", "manual", "too many", "lost", "can't keep up"],
+      "rejectSignals": ["lead gen agency", "cold email", "seo agency"]
+    },
+    {
+      "id": "reporting-visibility-gap",
+      "label": "Reporting visibility gap",
+      "vertical": "cross_industry_ops",
+      "failureMode": "reporting_visibility_gap",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "dataengineering", "label": "Data Engineering", "subreddit": "dataengineering" }
+      ],
+      "searchQueries": [
+        { "id": "manual-reporting", "query": "\"manual reporting\" (dashboard OR spreadsheet OR clients OR team)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "recurring reporting is manual or unreliable" },
+        { "id": "hard-to-see-kpis", "query": "\"hard to see\" (dashboard OR numbers OR kpis OR profitability)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "visibility gap tied to business decisions" }
+      ],
+      "positiveSignals": ["report", "reporting", "dashboard", "kpi", "numbers", "spreadsheet", "profitability"],
+      "painSignals": ["manual", "hard to see", "takes forever", "not reliable", "visibility"],
+      "rejectSignals": ["tutorial", "course", "portfolio review"]
+    },
+    {
+      "id": "workflow-build-ceiling",
+      "label": "Workflow build ceiling",
+      "vertical": "cross_industry_ops",
+      "failureMode": "workflow_build_ceiling",
+      "defaultOutreachPosture": "dm_now",
+      "channels": [
+        { "id": "automator", "label": "Automator", "subreddit": "Automator" },
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" }
+      ],
+      "searchQueries": [
+        { "id": "paid-opportunity-ai-workflow", "query": "\"paid opportunity\" (\"AI workflow\" OR automation OR \"custom system\")", "patternFamily": "stuck_builder_ceiling", "vertical": "cross_industry_ops", "expectedSignal": "buyer has built part of a workflow and wants paid expert help" },
+        { "id": "help-finish-custom-system", "query": "\"help me finish\" (\"custom system\" OR automation OR workflow OR airtable OR claude)", "patternFamily": "stuck_builder_ceiling", "vertical": "cross_industry_ops", "expectedSignal": "stuck builder asks for implementation help" },
+        { "id": "hit-ceiling-workflow", "query": "\"hit a ceiling\" (workflow OR automation OR spreadsheet OR airtable OR claude)", "patternFamily": "stuck_builder_ceiling", "vertical": "cross_industry_ops", "expectedSignal": "clear ceiling hit with a concrete workflow" }
+      ],
+      "positiveSignals": ["paid opportunity", "custom system", "ai workflow", "automation", "workflow", "claude", "airtable"],
+      "painSignals": ["hit a ceiling", "spending too much time", "stuck", "help me finish", "take over parts"],
+      "rejectSignals": ["portfolio review", "resume", "job seeker", "co-founder"]
+    },
+    {
+      "id": "data-cleanup-migration",
+      "label": "Data cleanup and migration",
+      "vertical": "cross_industry_ops",
+      "failureMode": "data_cleanup_and_migration",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "crm", "label": "CRM", "subreddit": "CRM" }
+      ],
+      "searchQueries": [
+        { "id": "moving-from-spreadsheet", "query": "\"moving from spreadsheet\" (CRM OR airtable OR system)", "patternFamily": "tool_shopping_with_implementation_pain", "vertical": "cross_industry_ops", "expectedSignal": "migration away from spreadsheets with cleanup pain" },
+        { "id": "data-cleanup-migration", "query": "\"data cleanup\" (migration OR CRM OR spreadsheet OR airtable)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "cleanup or migration is blocking implementation" }
+      ],
+      "positiveSignals": ["data cleanup", "migration", "moving from spreadsheet", "crm", "airtable", "spreadsheet"],
+      "painSignals": ["messy", "manual", "duplicates", "outgrown", "can't import"],
+      "rejectSignals": ["affiliate", "vendor", "best crm"]
+    },
+    {
+      "id": "team-tasking-handoff",
+      "label": "Team tasking and handoff",
+      "vertical": "cross_industry_ops",
+      "failureMode": "team_tasking_and_handoff",
+      "defaultOutreachPosture": "comment_first",
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" }
+      ],
+      "searchQueries": [
+        { "id": "team-handoff-spreadsheet", "query": "\"handoff\" (team OR clients OR projects) \"spreadsheet\"", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "manual team or client handoff causes recurring misses" },
+        { "id": "who-is-doing-what", "query": "\"who is doing what\" (tasks OR team OR projects)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "task ownership visibility problem" }
+      ],
+      "positiveSignals": ["handoff", "tasks", "team", "projects", "checklist", "who is doing what"],
+      "painSignals": ["missed", "forget", "hard to track", "manual", "recurring"],
+      "rejectSignals": ["personal productivity", "student", "habit tracker"]
+    },
     {
       "id": "service-project-profitability",
       "label": "Service project profitability",
@@ -192,6 +357,72 @@
   ],
   "scanModes": [
     {
+      "id": "direct-requests-search-first",
+      "label": "Direct requests search-first",
+      "description": "Default Reddit scan: global search first for explicit implementation requests and stuck-builder workflow pain; subreddit feeds are supplemental only.",
+      "includeArchetypeChannels": false,
+      "archetypePackIds": [
+        "source-of-truth-sprawl",
+        "manual-document-intake",
+        "followup-scheduling-leakage",
+        "reporting-visibility-gap",
+        "workflow-build-ceiling",
+        "data-cleanup-migration",
+        "team-tasking-handoff",
+        "service-project-profitability",
+        "daily-team-tasking",
+        "sop-client-onboarding",
+        "recruiting-handoff-drift",
+        "tax-document-intake",
+        "invoice-payment-reconciliation",
+        "crm-source-of-truth",
+        "local-service-revenue-leak"
+      ],
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "entrepreneur", "label": "Entrepreneur", "subreddit": "Entrepreneur" },
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" },
+        { "id": "automator", "label": "Automator", "subreddit": "Automator" },
+        { "id": "airtable", "label": "Airtable", "subreddit": "Airtable" }
+      ],
+      "searchQueries": [
+        { "id": "paid-implementation-workflow", "query": "\"paid implementation\" (workflow OR automation OR spreadsheet OR CRM OR airtable)", "patternFamily": "direct_implementation_request", "vertical": "cross_industry_ops", "expectedSignal": "explicit paid implementation request with concrete workflow" },
+        { "id": "paid-opportunity-workflow", "query": "\"paid opportunity\" (workflow OR automation OR \"custom system\" OR \"AI workflow\")", "patternFamily": "direct_implementation_request", "vertical": "cross_industry_ops", "expectedSignal": "explicit paid opportunity for automation or workflow help" },
+        { "id": "need-someone-build-workflow", "query": "\"need someone to build\" (workflow OR automation OR spreadsheet OR CRM OR dashboard)", "patternFamily": "direct_implementation_request", "vertical": "cross_industry_ops", "expectedSignal": "direct request for someone to build an operational workflow" },
+        { "id": "looking-for-someone-experienced", "query": "\"looking for someone experienced\" (automation OR workflow OR CRM OR airtable OR spreadsheet)", "patternFamily": "direct_implementation_request", "vertical": "cross_industry_ops", "expectedSignal": "buyer asks for experienced implementer" },
+        { "id": "help-finish-built-system", "query": "\"help me finish\" (\"custom system\" OR workflow OR automation OR airtable OR claude)", "patternFamily": "stuck_builder_ceiling", "vertical": "cross_industry_ops", "expectedSignal": "OP has started building and needs expert completion" },
+        { "id": "review-what-built", "query": "\"review what I've built\" (workflow OR automation OR system OR airtable OR claude)", "patternFamily": "stuck_builder_ceiling", "vertical": "cross_industry_ops", "expectedSignal": "OP wants an expert to assess and finish a built workflow" },
+        { "id": "take-over-parts", "query": "\"take over parts\" (workflow OR automation OR system OR spreadsheet)", "patternFamily": "stuck_builder_ceiling", "vertical": "cross_industry_ops", "expectedSignal": "implementation delegation request" },
+        { "id": "manual-process-business", "query": "\"manual process\" (business OR clients OR customers OR team) (spreadsheet OR email OR CRM)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "manual process pain with business context" },
+        { "id": "tool-shopping-with-migration", "query": "\"which tool\" (migrate OR migration OR automate OR workflow OR spreadsheet OR CRM)", "patternFamily": "tool_shopping_with_implementation_pain", "vertical": "cross_industry_ops", "expectedSignal": "tool shopping tied to implementation or migration pain" },
+        { "id": "vendor-specialist-scope", "query": "\"consultant\" (HubSpot OR Salesforce OR Airtable OR Zapier OR Make) (migration OR setup OR automation)", "patternFamily": "vendor_platform_with_scope", "vertical": "cross_industry_ops", "expectedSignal": "platform specialist request with scoped work" }
+      ]
+    },
+    {
+      "id": "latent-operations-pain",
+      "label": "Latent operations pain",
+      "description": "Global search for advice-shaped operations problems that may be useful comment-first leads when they have current system, pain, and business context.",
+      "includeArchetypeChannels": false,
+      "archetypePackIds": [
+        "source-of-truth-sprawl",
+        "manual-document-intake",
+        "followup-scheduling-leakage",
+        "reporting-visibility-gap",
+        "data-cleanup-migration",
+        "team-tasking-handoff"
+      ],
+      "channels": [
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" },
+        { "id": "sweatystartup", "label": "Sweaty Startup", "subreddit": "sweatystartup" }
+      ],
+      "searchQueries": [
+        { "id": "outgrown-spreadsheets", "query": "\"outgrown spreadsheets\" OR \"outgrowing spreadsheets\"", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "operator has outgrown manual spreadsheet workflow" },
+        { "id": "buried-in-emails", "query": "\"buried in emails\" (clients OR customers OR leads OR operations)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "email-based operations pain" },
+        { "id": "cant-keep-track-business", "query": "\"can't keep track\" (clients OR customers OR projects OR orders OR applicants)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "visibility pain in a business workflow" },
+        { "id": "takes-forever-manual", "query": "\"takes forever\" \"manual\" (spreadsheet OR documents OR reporting OR invoices)", "patternFamily": "operational_pain_advice", "vertical": "cross_industry_ops", "expectedSignal": "specific recurring manual workload" }
+      ]
+    },
+    {
       "id": "direct-requests",
       "label": "Direct requests",
       "description": "Reddit-only scan for people directly asking for paid help, someone to build or fix a workflow, or practical recommendations tied to concrete workflow pain.",
@@ -271,9 +502,10 @@
       ]
     },
     {
-      "id": "staffing-recruiting",
+      "id": "recruiting-staffing-ops",
       "label": "Staffing and recruiting",
       "description": "Global and community scans for businesses trying to find, screen, schedule, or follow up with workers and contractors.",
+      "aliases": ["staffing-recruiting"],
       "archetypePackIds": [
         "recruiting-handoff-drift"
       ],
@@ -326,6 +558,94 @@
         "\"follow up\" \"quotes\" \"manual\"",
         "\"dispatch\" \"spreadsheet\"",
         "\"busy season\" \"customers\" \"help\""
+      ]
+    },
+    {
+      "id": "property-real-estate-ops",
+      "label": "Property and real estate ops",
+      "description": "Global searches for property, real estate, rental, tenant, maintenance, and portfolio operations workflows.",
+      "includeArchetypeChannels": false,
+      "archetypePackIds": [
+        "source-of-truth-sprawl",
+        "workflow-build-ceiling",
+        "followup-scheduling-leakage",
+        "reporting-visibility-gap"
+      ],
+      "channels": [
+        { "id": "realestateinvesting", "label": "Real Estate Investing", "subreddit": "realestateinvesting" },
+        { "id": "landlord", "label": "Landlord", "subreddit": "Landlord" },
+        { "id": "propertymanagement", "label": "Property Management", "subreddit": "PropertyManagement" },
+        { "id": "realtors", "label": "Realtors", "subreddit": "realtors" }
+      ],
+      "searchQueries": [
+        { "id": "property-custom-system-paid", "query": "\"paid opportunity\" (property OR rental OR tenant OR \"real estate\") (automation OR workflow OR \"custom system\")", "patternFamily": "direct_implementation_request", "vertical": "property_real_estate_ops", "expectedSignal": "paid property operations implementation request" },
+        { "id": "property-management-spreadsheet", "query": "\"property management\" (spreadsheet OR airtable OR CRM) (manual OR automate OR workflow)", "patternFamily": "operational_pain_advice", "vertical": "property_real_estate_ops", "expectedSignal": "manual property management operations pain" },
+        { "id": "tenant-maintenance-workflow", "query": "\"tenant\" \"maintenance\" (workflow OR spreadsheet OR automate OR system)", "patternFamily": "operational_pain_advice", "vertical": "property_real_estate_ops", "expectedSignal": "tenant or maintenance workflow pain" }
+      ]
+    },
+    {
+      "id": "accounting-document-ops",
+      "label": "Accounting document ops",
+      "description": "Search-first accounting, tax, bookkeeping, document intake, receipt, invoice, and reconciliation workflows.",
+      "includeArchetypeChannels": false,
+      "archetypePackIds": [
+        "manual-document-intake",
+        "tax-document-intake",
+        "invoice-payment-reconciliation",
+        "reporting-visibility-gap"
+      ],
+      "channels": [
+        { "id": "taxpros", "label": "Tax Pros", "subreddit": "taxpros" },
+        { "id": "bookkeeping", "label": "Bookkeeping", "subreddit": "bookkeeping" },
+        { "id": "accounting", "label": "Accounting", "subreddit": "Accounting" }
+      ],
+      "searchQueries": [
+        { "id": "client-documents-manual", "query": "\"client documents\" \"manual\" (tax OR bookkeeping OR accounting)", "patternFamily": "operational_pain_advice", "vertical": "tax_accounting", "expectedSignal": "manual client document intake" },
+        { "id": "receipts-ocr-workflow", "query": "\"receipts\" \"OCR\" (workflow OR automate OR bookkeeping)", "patternFamily": "operational_pain_advice", "vertical": "tax_accounting", "expectedSignal": "document extraction or receipt workflow" },
+        { "id": "invoice-reconciliation-spreadsheet", "query": "\"invoice reconciliation\" (spreadsheet OR manual OR QuickBooks OR Xero)", "patternFamily": "operational_pain_advice", "vertical": "finance_ops", "expectedSignal": "manual invoice reconciliation pain" }
+      ]
+    },
+    {
+      "id": "ecommerce-retail-ops",
+      "label": "Ecommerce and retail ops",
+      "description": "Search-first ecommerce and retail operations workflows across orders, inventory, fulfillment, reporting, and customer follow-up.",
+      "includeArchetypeChannels": false,
+      "archetypePackIds": [
+        "source-of-truth-sprawl",
+        "followup-scheduling-leakage",
+        "reporting-visibility-gap",
+        "data-cleanup-migration"
+      ],
+      "channels": [
+        { "id": "shopify", "label": "Shopify", "subreddit": "shopify" },
+        { "id": "ecommerce", "label": "Ecommerce", "subreddit": "ecommerce" },
+        { "id": "smallbusiness", "label": "Small business", "subreddit": "smallbusiness" }
+      ],
+      "searchQueries": [
+        { "id": "shopify-spreadsheet-automation", "query": "\"Shopify\" \"spreadsheet\" (automate OR workflow OR manual)", "patternFamily": "operational_pain_advice", "vertical": "ecommerce_retail_ops", "expectedSignal": "Shopify workflow still handled in spreadsheets" },
+        { "id": "inventory-manual-reporting", "query": "\"inventory\" \"manual\" (spreadsheet OR reporting OR dashboard)", "patternFamily": "operational_pain_advice", "vertical": "ecommerce_retail_ops", "expectedSignal": "manual inventory or reporting workflow" },
+        { "id": "orders-fulfillment-workflow", "query": "\"orders\" \"fulfillment\" (workflow OR automate OR spreadsheet)", "patternFamily": "operational_pain_advice", "vertical": "ecommerce_retail_ops", "expectedSignal": "order or fulfillment handoff problem" }
+      ]
+    },
+    {
+      "id": "data-reporting-ops",
+      "label": "Data and reporting ops",
+      "description": "Search-first data team and analytics workflow pain around reporting, dashboards, pipelines, and manual stakeholder updates.",
+      "includeArchetypeChannels": false,
+      "archetypePackIds": [
+        "reporting-visibility-gap",
+        "data-cleanup-migration",
+        "team-tasking-handoff"
+      ],
+      "channels": [
+        { "id": "dataengineering", "label": "Data Engineering", "subreddit": "dataengineering" },
+        { "id": "businessintelligence", "label": "Business Intelligence", "subreddit": "BusinessIntelligence" },
+        { "id": "analytics", "label": "Analytics", "subreddit": "analytics" }
+      ],
+      "searchQueries": [
+        { "id": "manual-stakeholder-reporting", "query": "\"manual reporting\" (stakeholders OR dashboard OR data pipeline)", "patternFamily": "operational_pain_advice", "vertical": "data_reporting_ops", "expectedSignal": "manual stakeholder reporting workflow" },
+        { "id": "dashboard-source-truth", "query": "\"source of truth\" (dashboard OR reporting OR data pipeline)", "patternFamily": "operational_pain_advice", "vertical": "data_reporting_ops", "expectedSignal": "data source of truth issue" },
+        { "id": "data-cleanup-dashboard", "query": "\"data cleanup\" (dashboard OR reporting OR pipeline)", "patternFamily": "operational_pain_advice", "vertical": "data_reporting_ops", "expectedSignal": "cleanup blocking reporting automation" }
       ]
     },
     {
@@ -429,8 +749,12 @@
   "maxLlmCandidates": 60,
   "maxCandidatesPerSource": 12,
   "maxCandidatesPerLeadType": 10,
+  "maxCandidatesPerPatternFamily": 15,
+  "maxCandidatesPerVertical": 12,
+  "minDirectRequestCandidates": 20,
   "minCommentFirstCandidates": 15,
   "maxToolSpecificCandidatesOutsideToolMode": 12,
+  "maxEmploymentOrPartnerCandidates": 0,
   "commentContextEnabled": true,
   "commentContextCandidateLimit": 15,
   "commentLimitPerPost": 20,

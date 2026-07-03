@@ -37,6 +37,9 @@ export interface RedditLead {
   freeToPursuePath: string;
   recommendedAction: string;
   commentContext: string;
+  sourceQuery: string;
+  sourcePatternFamily: string;
+  sourceVertical: string;
   matchedLeadTypes: string;
   matchEvidence: string;
   reason: string;
@@ -105,8 +108,15 @@ export interface LeadRunStatus {
   message: string;
   queryDiagnostics?: Array<{
     query: string;
+    id?: string;
+    patternFamily?: string;
+    vertical?: string;
     status: string | number;
     fetchedPosts: number;
+    candidatesScored?: number;
+    replyable?: number;
+    watch?: number;
+    rejected?: number;
   }>;
   feedErrors: Array<{
     url: string;
@@ -958,6 +968,9 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         freeToPursuePath: bulletValue(block, "Free-to-pursue path"),
         recommendedAction: bulletValue(block, "Recommended action"),
         commentContext: bulletValue(block, "Comment context"),
+        sourceQuery: bulletValue(block, "Source query"),
+        sourcePatternFamily: bulletValue(block, "Source query pattern"),
+        sourceVertical: bulletValue(block, "Source query vertical"),
         matchedLeadTypes: bulletValue(block, "Matched lead types"),
         matchEvidence: bulletValue(block, "Match evidence"),
         reason: bulletValue(block, "Why it matched"),
