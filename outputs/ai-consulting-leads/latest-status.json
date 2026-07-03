@@ -1,12 +1,12 @@
 {
   "ok": true,
-  "generatedAt": "2026-07-02T13:20:06Z",
-  "successfulFeeds": 24,
-  "totalFeeds": 24,
-  "fetchedPosts": 18,
+  "generatedAt": "2026-07-03T13:18:38Z",
+  "successfulFeeds": 38,
+  "totalFeeds": 38,
+  "fetchedPosts": 33,
   "candidatesScored": 18,
-  "leadsIncluded": 4,
-  "outputPath": "/Users/duncananderson/Desktop/AI_Portfolio/worktrees/slot-1/outputs/ai-consulting-leads/2026-07-02.md",
-  "message": "Codex automation lead scan completed with strict posted-date freshness filtering.",
+  "leadsIncluded": 6,
+  "outputPath": "/Users/duncananderson/Desktop/AI_Portfolio/worktrees/slot-1/outputs/ai-consulting-leads/2026-07-03.md",
+  "message": "Codex automation lead scan completed; disallowed marketplace leads excluded from stored output.",
   "feedErrors": []
 }
