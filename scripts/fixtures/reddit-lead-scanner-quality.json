@@ -97,9 +97,10 @@
       "summary": "Any recommendations for a simple CRM? I am just comparing options and do not have a specific process or migration problem yet.",
       "expected": {
         "scoreMin": 1,
-        "scoreMax": 3,
-        "replyabilityScore": 3,
-        "posture": "watch",
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
         "leadType": "",
         "negativePersona": "generic-best-tool-question"
       }
@@ -114,6 +115,7 @@
         "scoreMax": 2,
         "replyabilityScore": 1,
         "posture": "ignore",
+        "replyToday": false,
         "negativePersona": "seller-shilling-own-tool"
       }
     },
@@ -127,6 +129,7 @@
         "scoreMax": 2,
         "replyabilityScore": 1,
         "posture": "ignore",
+        "replyToday": false,
         "leadType": "",
         "negativePersona": "job-seeker-or-for-hire"
       }
@@ -141,6 +144,7 @@
         "fitScore": 5,
         "replyabilityScore": 5,
         "posture": "dm_now",
+        "replyToday": true,
         "leadType": "crm-source-of-truth",
         "pattern": "direct_implementation_request",
         "negativePersona": ""
@@ -156,6 +160,7 @@
         "fitScore": 5,
         "replyabilityScore": 5,
         "posture": "dm_now",
+        "replyToday": true,
         "leadType": "",
         "pattern": "direct_implementation_request",
         "negativePersona": ""
@@ -171,6 +176,7 @@
         "fitScore": 5,
         "replyabilityScore": 5,
         "posture": "dm_now",
+        "replyToday": true,
         "leadType": "workflow-build-ceiling",
         "pattern": "stuck_builder_ceiling",
         "negativePersona": ""
@@ -231,6 +237,7 @@
         "scoreMax": 3,
         "replyabilityScore": 1,
         "posture": "ignore",
+        "replyToday": false,
         "leadType": "",
         "negativePersona": "generic-ai-chatter"
       }
@@ -245,6 +252,7 @@
         "scoreMax": 2,
         "replyabilityScore": 1,
         "posture": "ignore",
+        "replyToday": false,
         "leadType": "",
         "negativePersona": "market-research-or-validation"
       }
@@ -259,6 +267,7 @@
         "scoreMax": 2,
         "replyabilityScore": 1,
         "posture": "ignore",
+        "replyToday": false,
         "leadType": "",
         "negativePersona": "market-research-or-validation"
       }
@@ -273,6 +282,7 @@
         "scoreMax": 2,
         "replyabilityScore": 1,
         "posture": "ignore",
+        "replyToday": false,
         "leadType": "",
         "negativePersona": "job-seeker-or-for-hire"
       }
@@ -287,6 +297,7 @@
         "scoreMax": 2,
         "replyabilityScore": 1,
         "posture": "ignore",
+        "replyToday": false,
         "negativePersona": "seller-shilling-own-tool"
       }
     },
@@ -314,6 +325,7 @@
         "scoreMax": 2,
         "replyabilityScore": 1,
         "posture": "ignore",
+        "replyToday": false,
         "leadType": "",
         "negativePersona": ""
       }
@@ -326,10 +338,156 @@
       "expected": {
         "scoreMin": 1,
         "scoreMax": 3,
-        "replyabilityScore": 2,
-        "posture": "watch",
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
         "leadType": "service-project-profitability",
         "negativePersona": "low-budget-or-tiny"
+      }
+    },
+    {
+      "id": "bi-dashboard-annoyance-market-research",
+      "subreddit": "BusinessIntelligence",
+      "title": "What’s the most annoying part of building BI dashboards as a developer?",
+      "summary": "I'm curious what other developers find painful when building dashboards. Is it data modeling, stakeholder requests, or visualization? Just trying to understand the problem space.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "leadType": "",
+        "negativePersona": ""
+      }
+    },
+    {
+      "id": "metabase-dashboard-content-marketing",
+      "subreddit": "MarketingScience",
+      "title": "Built a Marketing Performance Analytics Dashboard in Metabase",
+      "summary": "I built a marketing performance analytics dashboard in Metabase and wanted to share the setup. This is a case study and walkthrough of the dashboard for anyone building something similar.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "negativePersona": "seller-shilling-own-tool"
+      }
+    },
+    {
+      "id": "legal-compliance-content-post",
+      "subreddit": "C_Level",
+      "title": "As an Austrian CEO, am I liable for money laundering loopholes in AI vendor payments?",
+      "summary": "This is a legal and compliance discussion about CEO liability, anti-money-laundering controls, and governance obligations. I am not asking for automation implementation help.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "leadType": "",
+        "negativePersona": ""
+      }
+    },
+    {
+      "id": "referral-code-spam",
+      "subreddit": "SaaS",
+      "title": "Best affordable AI CRM with referral code",
+      "summary": "Use my referral code to get a discount on this AI CRM. Promo code and affiliate link inside.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "leadType": "",
+        "negativePersona": "seller-shilling-own-tool"
+      }
+    },
+    {
+      "id": "event-attendee-history-crm",
+      "subreddit": "CRM",
+      "title": "Software to track individual attendee history across events, without Wild Apricot pricing?",
+      "summary": "We run nonprofit member events and group ticket purchases are breaking our current system. One buyer can pay for five people, but we need each attendee stored as their own contact with event attendance history. A lightweight CRM plus event form sounds right; any recommendations?",
+      "expected": {
+        "score": 4,
+        "fitScore": 4,
+        "replyabilityScore": 4,
+        "posture": "comment_first",
+        "replyToday": true,
+        "leadType": "crm-source-of-truth",
+        "pattern": "tool_shopping_with_implementation_pain",
+        "negativePersona": ""
+      }
+    },
+    {
+      "id": "first-paying-customer-ai-agent-story",
+      "subreddit": "SideProject",
+      "title": "I Finally Got My First Paying Customer for the AI Agent Platform I Have Been Building. Here Is What Building It Actually Taught Me",
+      "summary": "I built an AI agent platform and this is a story about getting my first paying customer, what I learned, and how the product is evolving. This is not a request for automation consulting help.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "negativePersona": "seller-shilling-own-tool"
+      }
+    },
+    {
+      "id": "analytics-automation-unsung-hero",
+      "subreddit": "OfflineLLMHelp",
+      "title": "Why Analytics Automation Is the Unsung Hero of Modern Business (and How to Use It Fast)",
+      "summary": "A thought-leadership article about why analytics automation matters and how teams can use it quickly. It is educational content, not someone asking for implementation help.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "negativePersona": ""
+      }
+    },
+    {
+      "id": "aionui-vendor-ish-post",
+      "subreddit": "automation",
+      "title": "AionUi looks useful if your team is losing hours turning AI outputs into decks, spreadsheets, and repeatable weekly work",
+      "summary": "This post talks about a product looking useful for teams and describes possible use cases. It is not the buyer asking for help with their own workflow.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "negativePersona": "seller-shilling-own-tool"
+      }
+    },
+    {
+      "id": "recruitment-agencies-story-post",
+      "subreddit": "automation",
+      "title": "I looked at how recruitment agencies handle their old candidates and kind of couldn't believe it",
+      "summary": "A story-style post about recruitment agencies and candidate workflows, written as commentary rather than a buyer request for help.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "negativePersona": "seller-shilling-own-tool"
+      }
+    },
+    {
+      "id": "tax-advisory-for-founders",
+      "subreddit": "StartupsHelpStartups",
+      "title": "Tax advisory for founders",
+      "summary": "General tax advisory content for founders. This is not an automation, CRM, reporting, document, or internal-tool implementation request.",
+      "expected": {
+        "scoreMin": 1,
+        "scoreMax": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "negativePersona": ""
       }
     }
   ]

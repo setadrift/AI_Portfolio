@@ -326,8 +326,8 @@
         "\"client source of truth\" CRM",
         "\"moving from spreadsheet\" CRM"
       ],
-      "positiveSignals": ["crm", "source of truth", "follow up", "sms", "donor", "pipeline", "spreadsheet", "hubspot", "pipedrive", "zoho"],
-      "painSignals": ["moving from spreadsheet", "adoption", "messy", "too many tools", "manual follow up", "lost leads"],
+      "positiveSignals": ["crm", "source of truth", "follow up", "sms", "donor", "member", "members", "event", "events", "attendee", "attendees", "attendance history", "contact", "contacts", "pipeline", "spreadsheet", "hubspot", "pipedrive", "zoho"],
+      "painSignals": ["moving from spreadsheet", "adoption", "messy", "too many tools", "manual follow up", "lost leads", "group ticket", "group purchase", "current system", "breaking"],
       "rejectSignals": ["best crm", "affiliate", "vendor"]
     },
     {

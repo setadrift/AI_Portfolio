@@ -71,7 +71,7 @@ async function persistSourceLeads(supabase, source) {
 }
 
 function shouldReplaceMissingLeads(source) {
-  return source.id !== "reddit" || source.status?.ingestionMode === "cleanup";
+  return source.id !== "reddit" || source.status?.preserveHistoricalActiveRows !== true;
 }
 
 function parseLeads(markdown, sourceId) {
