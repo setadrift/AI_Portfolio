@@ -25,26 +25,35 @@ export default function sitemap(): MetadataRoute.Sitemap {
     });
 
     pages.push({
-      url: `${SITE.url}${prefix}/automation-rescue`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.9,
-    });
-
-    pages.push({
       url: `${SITE.url}${prefix}/ai-consulting-small-business`,
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.9,
     });
 
-    for (const vertical of WORKFLOW_VERTICALS) {
+    pages.push({
+      url: `${SITE.url}${prefix}/work-samples`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    });
+
+    if (locale === "en") {
       pages.push({
-        url: `${SITE.url}${prefix}/ai-workflow-audit/${vertical.slug}`,
+        url: `${SITE.url}/automation-rescue`,
         lastModified: new Date(),
         changeFrequency: "weekly",
-        priority: 0.85,
+        priority: 0.9,
       });
+
+      for (const vertical of WORKFLOW_VERTICALS) {
+        pages.push({
+          url: `${SITE.url}/ai-workflow-audit/${vertical.slug}`,
+          lastModified: new Date(),
+          changeFrequency: "weekly",
+          priority: 0.85,
+        });
+      }
     }
 
     for (const project of PROJECTS) {

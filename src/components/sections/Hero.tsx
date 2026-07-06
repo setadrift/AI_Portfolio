@@ -3,6 +3,8 @@ import Button from "@/components/ui/Button";
 
 export default function Hero() {
   const t = useTranslations("hero");
+  const cardInputs = t.raw("cardInputs") as string[];
+  const cardOutputs = t.raw("cardOutputs") as string[];
 
   return (
     <section className="relative overflow-hidden px-6 pb-20 pt-32 md:pb-28 md:pt-44">
@@ -30,7 +32,7 @@ export default function Hero() {
         <div className="animate-fade-in-up delay-3 border border-border bg-white p-5 shadow-[0_18px_60px_rgba(26,26,46,0.07)]">
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
             <div className="space-y-3">
-              {["Inbox", "Sheets", "PDFs"].map((item) => (
+              {cardInputs.map((item) => (
                 <div
                   key={item}
                   className="border border-border bg-background px-3 py-2 text-sm text-cream-muted"
@@ -41,9 +43,9 @@ export default function Hero() {
             </div>
             <div className="h-px w-12 bg-border" />
             <div className="border border-cream bg-cream p-4 text-white">
-              <p className="font-display text-2xl leading-tight">Operating system</p>
+              <p className="font-display text-2xl leading-tight">{t("cardTitle")}</p>
               <div className="mt-5 space-y-3">
-                {["Owner", "Status", "Next step"].map((item) => (
+                {cardOutputs.map((item) => (
                   <div
                     key={item}
                     className="flex items-center justify-between border-b border-white/15 pb-2 text-sm text-white/75"

@@ -72,7 +72,7 @@ export default function Contact() {
             rel="noreferrer"
             className="mt-6 inline-flex border border-accent px-5 py-3 text-sm font-medium uppercase tracking-wide text-accent transition-colors hover:bg-[#EFF6FF]"
           >
-            Book a discovery call
+            {t("bookCall")}
           </BookingConversionLink>
         </div>
 

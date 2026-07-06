@@ -1,18 +1,34 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import AiWorkflowAuditForm from "@/components/ads/AiWorkflowAuditForm";
 import Button from "@/components/ui/Button";
 import { BOOKING_URL, PROJECTS, SITE } from "@/lib/constants";
 
-export const metadata: Metadata = {
-  title: "48-Hour Automation Rescue for Make, n8n, Airtable and CRM Workflows",
-  description:
-    "A focused troubleshooting and rebuild offer for broken Make, n8n, Airtable, Zapier, API, CRM, and AI workflow automations.",
-  alternates: {
-    canonical: `${SITE.url}/automation-rescue`,
-  },
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+
+  return {
+    title: "48-Hour Automation Rescue for Make, n8n, Airtable and CRM Workflows",
+    description:
+      "A focused troubleshooting and rebuild offer for broken Make, n8n, Airtable, Zapier, API, CRM, and AI workflow automations.",
+    alternates: {
+      canonical: `${SITE.url}/automation-rescue`,
+    },
+    robots:
+      locale === "fr"
+        ? {
+            index: false,
+            follow: true,
+          }
+        : undefined,
+  };
+}
 
 const rescueFits = [
   "A Make, n8n, Zapier, Airtable, or CRM workflow works sometimes but breaks when the data shape changes.",
@@ -118,6 +134,10 @@ export default async function AutomationRescuePage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
+  if (locale !== "en") {
+    redirect("/automation-rescue");
+  }
+
   setRequestLocale(locale);
 
   const localePrefix = locale === "en" ? "/en" : `/${locale}`;
