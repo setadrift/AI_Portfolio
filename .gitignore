@@ -26,6 +26,7 @@
 *.pem
 __pycache__/
 *.py[cod]
+/.tmp/
 
 # debug
 npm-debug.log*

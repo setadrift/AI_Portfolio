@@ -128,33 +128,40 @@ export async function generateWillowOpsBrief(input: WillowOpsBriefInput): Promis
     return buildFallbackBrief(input);
   }
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    body: JSON.stringify({
-      model: "gpt-4.1-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an operations automation assistant for a luxury interior design business. Be conservative. Do not invent dates, prices, approvals, suppliers, or client decisions. Return only valid JSON.",
-        },
-        {
-          role: "user",
-          content: [
-            "Create a structured project/discovery brief for an internal team.",
-            "Return JSON with: summary, risks, missingInformation, discoveryQuestions, internalNextActions, outlookDraft { subject, body }, reviewRequired.",
-            "",
-            JSON.stringify(input, null, 2),
-          ].join("\n"),
-        },
-      ],
-      response_format: { type: "json_object" },
-    }),
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
+  let res: Response;
+
+  try {
+    res = await fetch("https://api.openai.com/v1/chat/completions", {
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an operations automation assistant for a luxury interior design business. Be conservative. Do not invent dates, prices, approvals, suppliers, or client decisions. Return only valid JSON.",
+          },
+          {
+            role: "user",
+            content: [
+              "Create a structured project/discovery brief for an internal team.",
+              "Return JSON with: summary, risks, missingInformation, discoveryQuestions, internalNextActions, outlookDraft { subject, body }, reviewRequired.",
+              "",
+              JSON.stringify(input, null, 2),
+            ].join("\n"),
+          },
+        ],
+        response_format: { type: "json_object" },
+      }),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch {
+    return buildFallbackBrief(input);
+  }
 
   if (!res.ok) {
     return buildFallbackBrief(input);
