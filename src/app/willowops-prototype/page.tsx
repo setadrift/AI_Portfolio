@@ -44,13 +44,15 @@ export default function WillowOpsPrototypePage() {
       <ScenarioRunner />
 
       <section style={{ marginTop: 56 }}>
-        <h2 style={{ fontSize: 20, marginBottom: 8 }}>Next step</h2>
+        <h2 style={{ fontSize: 20, marginBottom: 8 }}>
+          Why I put this together
+        </h2>
         <p style={{ fontSize: 16, color: "#374151" }}>
-          If this direction is useful, the paid first step is to pick one real
-          data-entry task, define the target fields together, and run a
-          review-first pilot before connecting anything to a live system. The
-          question of where approved records should ultimately live stays open
-          until the fields are trusted.
+          This is not meant to prescribe the first project. I built it as a
+          small example of how I would approach the work: start with a real
+          operational pain point, keep the scope narrow, make the output easy
+          for the team to review, and only connect systems once the process is
+          trusted.
         </p>
       </section>
     </main>
