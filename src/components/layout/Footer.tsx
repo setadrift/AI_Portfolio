@@ -25,7 +25,7 @@ export default function Footer() {
 
         <div className="flex flex-col items-center gap-4 border-t border-white/10 pt-10 sm:flex-row sm:justify-between">
           <p className="text-sm text-footer-text">
-            &copy; {new Date().getFullYear()} {SITE.name}. {SITE.tagline}
+            &copy; {new Date().getFullYear()} {SITE.name}. {t("tagline")}
           </p>
           <div className="flex items-center gap-6">
             <a

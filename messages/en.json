@@ -17,7 +17,10 @@
     "headingLine2": "your team still tracks by hand.",
     "description": "I help owner-led businesses turn inboxes, spreadsheets, PDFs, calls, and follow-up into internal systems people actually use.",
     "cta": "Send the workflow",
-    "ctaSecondary": "See proof"
+    "ctaSecondary": "See proof",
+    "cardInputs": ["Inbox", "Sheets", "PDFs"],
+    "cardTitle": "Operating system",
+    "cardOutputs": ["Owner", "Status", "Next step"]
   },
   "projects": {
     "label": "Portfolio",
@@ -108,12 +111,28 @@
     "successHeading": "Message sent.",
     "successMessage": "Thanks for reaching out. I'll get back to you soon.",
     "sendAnother": "Send another message",
-    "genericError": "Something went wrong."
+    "genericError": "Something went wrong.",
+    "bookCall": "Book a discovery call"
   },
   "footer": {
     "heading": "Send one messy workflow.",
     "description": "A useful system starts with a specific operating problem, not a broad AI transformation pitch.",
-    "getInTouch": "Send the workflow"
+    "getInTouch": "Send the workflow",
+    "tagline": "Practical AI systems."
+  },
+  "workflowForm": {
+    "heading": "What workflow is costing time?",
+    "contextPrefix": "Context",
+    "nameLabel": "Name",
+    "emailLabel": "Work email",
+    "workflowLabel": "Workflow",
+    "workflowPlaceholder": "Example: every week we manually copy data from Airtable into spreadsheets, summarize it, and send status emails.",
+    "helperText": "A few plain sentences is enough. Current tools, volume, or urgency can go here if they matter.",
+    "submit": "Request an audit",
+    "sending": "Sending...",
+    "successHeading": "Request received.",
+    "successBody": "I will review the workflow details and reply directly. If it looks like a fit, the next step is a practical audit of the workflow, tools, handoffs, and automation options.",
+    "genericError": "Something went wrong."
   },
   "notFound": {
     "code": "404",

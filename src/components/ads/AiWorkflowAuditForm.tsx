@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import Button from "@/components/ui/Button";
 
 type Status = "idle" | "loading" | "success" | "error";
@@ -112,8 +113,11 @@ type AiWorkflowAuditFormProps = {
 export default function AiWorkflowAuditForm({
   contextLabel = "AI workflow audit",
   defaultWorkflow = "",
-  workflowPlaceholder = "Example: every week we manually copy data from Airtable into spreadsheets, summarize it, and send status emails.",
+  workflowPlaceholder,
 }: AiWorkflowAuditFormProps) {
+  const t = useTranslations("workflowForm");
+  const effectiveWorkflowPlaceholder =
+    workflowPlaceholder ?? t("workflowPlaceholder");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -160,7 +164,7 @@ export default function AiWorkflowAuditForm({
 
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
-        throw new Error(data.error || "Something went wrong.");
+        throw new Error(data.error || t("genericError"));
       }
 
       window.gtag?.("event", "conversion", {
@@ -190,7 +194,7 @@ export default function AiWorkflowAuditForm({
     } catch (err) {
       setStatus("error");
       setErrorMsg(
-        err instanceof Error ? err.message : "Something went wrong.",
+        err instanceof Error ? err.message : t("genericError"),
       );
     }
   }
@@ -204,12 +208,10 @@ export default function AiWorkflowAuditForm({
     return (
       <div className="border border-border bg-white p-8 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         <h2 className="mb-3 font-display text-3xl text-cream">
-          Request received.
+          {t("successHeading")}
         </h2>
         <p className="text-cream-muted">
-          I will review the workflow details and reply directly. If it looks
-          like a fit, the next step is a practical audit of the workflow,
-          tools, handoffs, and automation options.
+          {t("successBody")}
         </p>
       </div>
     );
@@ -237,11 +239,11 @@ export default function AiWorkflowAuditForm({
 
       <div className="mb-6">
         <h2 className="font-display text-3xl text-cream">
-          What workflow is costing time?
+          {t("heading")}
         </h2>
         {contextLabel !== "AI workflow audit" && (
           <p className="mt-3 text-sm leading-6 text-cream-muted">
-            Context: {contextLabel}
+            {t("contextPrefix")}: {contextLabel}
           </p>
         )}
       </div>
@@ -249,7 +251,7 @@ export default function AiWorkflowAuditForm({
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="name" className={labelStyles}>
-            Name
+            {t("nameLabel")}
           </label>
           <input
             id="name"
@@ -261,7 +263,7 @@ export default function AiWorkflowAuditForm({
         </div>
         <div>
           <label htmlFor="email" className={labelStyles}>
-            Work email
+            {t("emailLabel")}
           </label>
           <input
             id="email"
@@ -276,7 +278,7 @@ export default function AiWorkflowAuditForm({
 
       <div className="mt-5">
         <label htmlFor="workflow" className={labelStyles}>
-          Workflow
+          {t("workflowLabel")}
         </label>
         <textarea
           id="workflow"
@@ -284,14 +286,13 @@ export default function AiWorkflowAuditForm({
           rows={6}
           value={form.workflow}
           onChange={(e) => setForm({ ...form, workflow: e.target.value })}
-          placeholder={workflowPlaceholder}
+          placeholder={effectiveWorkflowPlaceholder}
           className={inputStyles}
         />
       </div>
 
       <p className="mt-5 text-sm text-cream-muted">
-        A few plain sentences is enough. Current tools, volume, or urgency can
-        go here if they matter.
+        {t("helperText")}
       </p>
 
       {status === "error" && (
@@ -300,7 +301,7 @@ export default function AiWorkflowAuditForm({
 
       <div className="mt-6">
         <Button type="submit" disabled={status === "loading"}>
-          {status === "loading" ? "Sending..." : "Request an audit"}
+          {status === "loading" ? t("sending") : t("submit")}
         </Button>
       </div>
     </form>

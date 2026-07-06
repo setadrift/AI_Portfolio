@@ -17,7 +17,10 @@
     "headingLine2": "que votre équipe suit encore à la main.",
     "description": "J'aide les entreprises dirigées par leur propriétaire à transformer courriels, feuilles de calcul, PDF, appels et suivis en systèmes internes réellement utilisés.",
     "cta": "Envoyer le workflow",
-    "ctaSecondary": "Voir les preuves"
+    "ctaSecondary": "Voir les preuves",
+    "cardInputs": ["Courriels", "Feuilles", "PDF"],
+    "cardTitle": "Système opérationnel",
+    "cardOutputs": ["Responsable", "Statut", "Prochaine étape"]
   },
   "projects": {
     "label": "Portfolio",
@@ -108,12 +111,28 @@
     "successHeading": "Message envoyé.",
     "successMessage": "Merci de m'avoir écrit. Je vous reviens sous peu.",
     "sendAnother": "Envoyer un autre message",
-    "genericError": "Une erreur est survenue."
+    "genericError": "Une erreur est survenue.",
+    "bookCall": "Réserver un appel découverte"
   },
   "footer": {
     "heading": "Envoyez un workflow désordonné.",
     "description": "Un système utile commence par un problème opérationnel précis, pas par un grand discours de transformation IA.",
-    "getInTouch": "Envoyer le workflow"
+    "getInTouch": "Envoyer le workflow",
+    "tagline": "Systèmes IA pratiques."
+  },
+  "workflowForm": {
+    "heading": "Quel workflow vous coûte du temps?",
+    "contextPrefix": "Contexte",
+    "nameLabel": "Nom",
+    "emailLabel": "Courriel professionnel",
+    "workflowLabel": "Workflow",
+    "workflowPlaceholder": "Exemple : chaque semaine, nous copions manuellement des données d'Airtable vers des feuilles de calcul, les résumons, puis envoyons des courriels de statut.",
+    "helperText": "Quelques phrases simples suffisent. Les outils actuels, le volume ou l'urgence peuvent être ajoutés s'ils comptent.",
+    "submit": "Demander un audit",
+    "sending": "Envoi en cours...",
+    "successHeading": "Demande reçue.",
+    "successBody": "Je vais examiner les détails du workflow et vous répondre directement. Si cela semble pertinent, la prochaine étape est un audit pratique du workflow, des outils, des transferts et des options d'automatisation.",
+    "genericError": "Une erreur est survenue."
   },
   "notFound": {
     "code": "404",
