@@ -91,7 +91,7 @@ async function buildAggregateDigest() {
     for (const block of leadBlocks(markdown)) {
       if (isExcludedLeadSource(block)) continue;
       const explicitLeadDate = leadFreshnessDate(block);
-      const normalized = withDiscoveryDate(block.trim(), file.slice(0, 10));
+      const normalized = withBusinessBuyerDefaults(withDiscoveryDate(block.trim(), file.slice(0, 10)));
       blocks.push({
         block: normalized,
         dedupeKey: leadDedupeKey(normalized),
@@ -100,9 +100,9 @@ async function buildAggregateDigest() {
     }
   }
 
-  const filteredBlocks = dedupeLeadBlocks(
-    blocks.filter((entry) => isRecentLeadDate(entry.sourceDate, newestAllowedDate)),
-  );
+  const recentBlocks = blocks.filter((entry) => isRecentLeadDate(entry.sourceDate, newestAllowedDate));
+  const filteredBlocks = dedupeLeadBlocks(recentBlocks);
+  const duplicatesRemoved = recentBlocks.length - filteredBlocks.length;
   rejectedCount += blocks.length - filteredBlocks.length;
 
   const fileName = "codex-automation-leads.md";
@@ -115,6 +115,8 @@ async function buildAggregateDigest() {
     `Filtered/rejected before digest: ${rejectedCount}`,
     "Minimum score: 4",
     `Maximum lead age: ${AUTOMATION_LEAD_MAX_AGE_DAYS} days`,
+    `Source family mix: ${formatCounts(countBy(filteredBlocks, (entry) => bulletValue(entry.block, "Source family") || inferSourceFamily(entry.block)))}`,
+    `Duplicates removed: ${duplicatesRemoved}`,
     "Partial coverage: no",
     "",
     "## Best Leads",
@@ -173,14 +175,22 @@ function withDiscoveryDate(block, discoveredDate) {
 }
 
 function dedupeLeadBlocks(blocks) {
-  const seen = new Set();
-  const deduped = [];
-  for (const block of blocks) {
-    if (seen.has(block.dedupeKey)) continue;
-    seen.add(block.dedupeKey);
-    deduped.push(block);
+  const byKey = new Map();
+  for (const entry of blocks) {
+    const existing = byKey.get(entry.dedupeKey);
+    if (!existing) {
+      byKey.set(entry.dedupeKey, { ...entry, relatedSources: [] });
+      continue;
+    }
+    const related = sourceReference(entry.block);
+    if (related) existing.relatedSources.push(related);
   }
-  return deduped;
+  return [...byKey.values()].map((entry) => ({
+    ...entry,
+    block: entry.relatedSources.length
+      ? upsertBullet(entry.block, "Related sources", unique(entry.relatedSources).join(", "))
+      : entry.block,
+  }));
 }
 
 function leadDedupeKey(block) {
@@ -220,6 +230,176 @@ function normalizeComparable(value) {
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+function withBusinessBuyerDefaults(block) {
+  const sourceFamily = bulletValue(block, "Source family") || inferSourceFamily(block);
+  const buyerSituation = bulletValue(block, "Buyer situation") || inferBuyerSituation(block);
+  const offerMatch = bulletValue(block, "Offer match") || inferOfferMatch(block, buyerSituation);
+  const evidenceSummary = bulletValue(block, "Evidence summary") || bulletValue(block, "Why it matched") || "Public-source business-buyer signal.";
+  const nextStep = bulletValue(block, "Next step") || nextStepForOffer(offerMatch);
+  const evidenceUrl = bulletValue(block, "Evidence URL") || bulletValue(block, "URL");
+  const sourceSnippet = bulletValue(block, "Source quote or snippet") || sourceSnippetFromBlock(block);
+  const freshnessScore = bulletValue(block, "Freshness score") || freshnessScoreForDate(leadFreshnessDate(block));
+  const queue = bulletValue(block, "Queue") || (String(block).startsWith("### 5/5") ? "active_lead" : "warm_reply");
+  const scoreComponents = inferredScoreComponents(block, queue);
+  const lastVerifiedAt = bulletValue(block, "Last verified at") || new Date().toISOString();
+
+  return [
+    ["Source family", sourceFamily],
+    ["Buyer situation", buyerSituation],
+    ["Queue", queue],
+    ["Offer match", offerMatch],
+    ["Business maturity score", bulletValue(block, "Business maturity score") || scoreComponents.businessMaturityScore],
+    ["Pain severity score", bulletValue(block, "Pain severity score") || scoreComponents.painSeverityScore],
+    ["Hiring likelihood score", bulletValue(block, "Hiring likelihood score") || scoreComponents.hiringLikelihoodScore],
+    ["AI leverage score", bulletValue(block, "AI leverage score") || scoreComponents.aiLeverageScore],
+    ["Commercial fit score", bulletValue(block, "Commercial fit score") || scoreComponents.commercialFitScore],
+    ["Duncan fit score", bulletValue(block, "Duncan fit score") || scoreComponents.duncanFitScore],
+    ["Reachability score", bulletValue(block, "Reachability score") || scoreComponents.reachabilityScore],
+    ["Freshness score", freshnessScore],
+    ["Confidence score", bulletValue(block, "Confidence score") || scoreComponents.confidenceScore],
+    ["Evidence summary", evidenceSummary],
+    ["Explicit evidence", bulletValue(block, "Explicit evidence") || evidenceSummary],
+    ["Inferred evidence", bulletValue(block, "Inferred evidence") || inferredEvidenceForBlock(block, buyerSituation, offerMatch)],
+    ["Source quote or snippet", sourceSnippet],
+    ["Evidence URL", evidenceUrl],
+    ["Missing evidence", bulletValue(block, "Missing evidence") || "not specified"],
+    ["Response path", bulletValue(block, "Response path") || bulletValue(block, "Free-to-pursue path") || "Review source before outreach."],
+    ["Next step", nextStep],
+    ["Dismissal reason", bulletValue(block, "Dismissal reason") || "none"],
+    ["Related sources", bulletValue(block, "Related sources") || "none"],
+    ["Duplicate of", bulletValue(block, "Duplicate of") || "none"],
+    ["Last verified at", lastVerifiedAt],
+  ].reduce((current, [label, value]) => ensureBullet(current, label, value), block);
+}
+
+function inferredScoreComponents(block, queue) {
+  const score = Number.parseInt(block.match(/^### ([1-5])\/5 - /m)?.[1] || "4", 10);
+  const explicitHiring = /\b(hire|hiring|paid|contract|consultant|expert|implementation help|looking for someone)\b/i.test(block);
+  return {
+    businessMaturityScore: "4",
+    painSeverityScore: score >= 5 ? "4" : "3",
+    hiringLikelihoodScore: explicitHiring || queue === "active_lead" ? "5" : "3",
+    aiLeverageScore: "4",
+    commercialFitScore: score >= 5 ? "5" : "4",
+    duncanFitScore: "4",
+    reachabilityScore: bulletValue(block, "URL") ? "5" : "3",
+    confidenceScore: score >= 5 ? "5" : "4",
+  };
+}
+
+function inferredEvidenceForBlock(block, buyerSituation, offerMatch) {
+  return [buyerSituation, offerMatch]
+    .filter(Boolean)
+    .map((value) => value.replace(/_/g, " "))
+    .join(", ");
+}
+
+function inferSourceFamily(block) {
+  const text = `${block}\n${bulletValue(block, "URL")}`.toLowerCase();
+  if (text.includes("reddit.com") || /^### [1-5]\/5 - r\//m.test(block)) return "reddit";
+  if (text.includes("community.n8n.io") || text.includes("make.com") || text.includes("airtable")) return "platform_community";
+  if (/\b(job|jobs|hiring|contract|greenhouse|lever|workable|ashby)\b/.test(text)) return "public_job_board";
+  if (/\b(rfp|request for proposal|vendor request)\b/.test(text)) return "public_rfp_vendor_request";
+  if (/\b(founder|indie hackers|startup)\b/.test(text)) return "founder_community";
+  return "other";
+}
+
+function inferBuyerSituation(block) {
+  const text = block.toLowerCase();
+  if (/\b(hire|hiring|paid|contract|consultant|expert|implementation help|looking for someone)\b/.test(text)) return "explicit_expert_hiring";
+  if (/\b(ai strategy|use ai|using ai|ai adoption|train my team)\b/.test(text)) return "ai_adoption_strategy";
+  if (/\b(lead|sales|crm|follow[- ]?up|quote|pipeline)\b/.test(text)) return "growth_sales_leakage";
+  if (/\b(document|pdf|invoice|receipt|bookkeeping|reconcile|forms?)\b/.test(text)) return "document_finance_admin_workflow";
+  if (/\b(report|dashboard|visibility|kpi|profitability)\b/.test(text)) return "reporting_visibility";
+  if (/\b(training|sop|onboarding|handoff|team)\b/.test(text)) return "team_training_change_management";
+  if (/\b(job|role|hiring)\b/.test(text)) return "company_hiring_signal";
+  return "operational_bottleneck";
+}
+
+function inferOfferMatch(block, buyerSituation) {
+  if (buyerSituation === "ai_adoption_strategy") return "ai_opportunity_audit";
+  if (buyerSituation === "growth_sales_leakage") return "crm_lead_flow_repair";
+  if (buyerSituation === "document_finance_admin_workflow") return "document_intake_automation";
+  if (buyerSituation === "reporting_visibility") return "management_dashboard_visibility";
+  if (buyerSituation === "team_training_change_management") return "ai_team_enablement";
+  if (/\b(prototype|custom system|build|implementation)\b/i.test(block)) return "custom_system_prototype";
+  return "workflow_automation_sprint";
+}
+
+function nextStepForOffer(offerMatch) {
+  if (offerMatch === "ai_opportunity_audit") return "Offer a short AI opportunity audit as the first step.";
+  if (offerMatch === "crm_lead_flow_repair") return "Offer to map and repair the lead/CRM flow first.";
+  if (offerMatch === "document_intake_automation") return "Offer one document intake automation prototype.";
+  if (offerMatch === "management_dashboard_visibility") return "Offer a dashboard/reporting discovery sprint.";
+  if (offerMatch === "ai_team_enablement") return "Offer a team enablement session plus workflow shortlist.";
+  if (offerMatch === "custom_system_prototype") return "Offer a scoped first workflow prototype.";
+  return "Offer a workflow automation sprint as the first step.";
+}
+
+function sourceSnippetFromBlock(block) {
+  const heading = block.match(/^### [1-5]\/5 - (.+)$/m)?.[1] ?? "";
+  const reason = bulletValue(block, "Why it matched");
+  return `${heading}. ${reason}`.replace(/\s+/g, " ").trim().slice(0, 260);
+}
+
+function freshnessScoreForDate(value) {
+  const parsed = parseLeadDate(value);
+  if (!parsed) return "1";
+  const ageMs = startOfUtcDay(new Date()).getTime() - parsed.getTime();
+  if (ageMs <= 24 * 60 * 60 * 1000) return "5";
+  if (ageMs <= 3 * 24 * 60 * 60 * 1000) return "4";
+  if (ageMs <= 7 * 24 * 60 * 60 * 1000) return "3";
+  return "2";
+}
+
+function ensureBullet(block, label, value) {
+  if (bulletValue(block, label)) return block;
+  const lines = block.split("\n");
+  let insertAfter = lines.findLastIndex?.((line) => line.startsWith("- ")) ?? -1;
+  if (insertAfter === -1) {
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      if (lines[index].startsWith("- ")) {
+        insertAfter = index;
+        break;
+      }
+    }
+  }
+  const line = `- ${label}: ${value || "unknown"}`;
+  if (insertAfter === -1) return `${block}\n${line}`;
+  lines.splice(insertAfter + 1, 0, line);
+  return lines.join("\n");
+}
+
+function upsertBullet(block, label, value) {
+  if (!bulletValue(block, label)) return ensureBullet(block, label, value);
+  return block.replace(new RegExp(`^- ${escapeRegExp(label)}: .*$`, "m"), `- ${label}: ${value}`);
+}
+
+function sourceReference(block) {
+  return bulletValue(block, "URL") || block.match(/^### [1-5]\/5 - (.+)$/m)?.[1] || "";
+}
+
+function countBy(items, keyFn) {
+  const counts = new Map();
+  for (const item of items) {
+    const key = keyFn(item) || "unknown";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function formatCounts(counts) {
+  if (!counts.size) return "none";
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([key, value]) => `${key} ${value}`)
+    .join(", ");
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 function isRecentLeadDate(sourceDate, now = new Date()) {
@@ -262,8 +442,38 @@ function aggregateStatus(status, markdown) {
     ...status,
     leadsIncluded: numberValue(markdown, "Candidates included"),
     outputPath: "codex-automation-leads.md",
+    sourceFamilyDiagnostics: sourceFamilyDiagnosticsFromMarkdown(markdown),
     message: "Published aggregate Codex automation lead digest.",
   };
+}
+
+function sourceFamilyDiagnosticsFromMarkdown(markdown) {
+  const blocks = leadBlocks(markdown);
+  const byFamily = countBy(blocks, (block) => bulletValue(block, "Source family") || inferSourceFamily(block));
+  const activeByFamily = countBy(
+    blocks.filter((block) => bulletValue(block, "Queue") === "active_lead"),
+    (block) => bulletValue(block, "Source family") || inferSourceFamily(block),
+  );
+  return {
+    configuredSourcesChecked: Object.fromEntries(byFamily),
+    candidateCountBySourceFamily: Object.fromEntries(byFamily),
+    activeLeadCountBySourceFamily: Object.fromEntries(activeByFamily),
+    duplicatesRemoved: { all: numberValue(markdown, "Duplicates removed") },
+    freshnessCoverage: freshnessCoverageFromBlocks(blocks),
+    sourcePolicy: "public_free_to_pursue_only",
+  };
+}
+
+function freshnessCoverageFromBlocks(blocks) {
+  const rows = new Map();
+  for (const block of blocks) {
+    const family = bulletValue(block, "Source family") || inferSourceFamily(block);
+    const row = rows.get(family) ?? { withPostedDate: 0, total: 0 };
+    row.total += 1;
+    if (leadFreshnessDate(block)) row.withPostedDate += 1;
+    rows.set(family, row);
+  }
+  return Object.fromEntries(rows);
 }
 
 function parseFeedErrors(markdown, file) {

@@ -42,6 +42,31 @@ export interface RedditLead {
   sourceVertical: string;
   matchedLeadTypes: string;
   matchEvidence: string;
+  sourceFamily: string;
+  buyerSituation: string;
+  buyerQueue: string;
+  offerMatch: string;
+  businessMaturityScore: string;
+  painSeverityScore: string;
+  hiringLikelihoodScore: string;
+  aiLeverageScore: string;
+  commercialFitScore: string;
+  duncanFitScore: string;
+  reachabilityScore: string;
+  freshnessScore: string;
+  confidenceScore: string;
+  evidenceSummary: string;
+  explicitEvidence: string;
+  inferredEvidence: string;
+  missingEvidence: string;
+  sourceQuoteOrSnippet: string;
+  evidenceUrl: string;
+  responsePath: string;
+  nextStep: string;
+  dismissalReason: string;
+  relatedSources: string;
+  duplicateOf: string;
+  lastVerifiedAt: string;
   reason: string;
   suggestedComment: string;
   suggestedDm: string;
@@ -118,6 +143,20 @@ export interface LeadRunStatus {
     watch?: number;
     rejected?: number;
   }>;
+  sourceFamilyDiagnostics?: {
+    configuredSourcesChecked?: Record<string, number>;
+    sourcesSkipped?: Array<{ source?: string; reason?: string }>;
+    sourceFetchStatus?: Record<string, { ok?: number; failed?: number }>;
+    candidateCountBySourceFamily?: Record<string, number>;
+    rawCandidateCountBySourceFamily?: Record<string, number>;
+    dedupedCandidateCountBySourceFamily?: Record<string, number>;
+    scoredCountBySourceFamily?: Record<string, number>;
+    rejectedCountByReason?: Record<string, number>;
+    activeLeadCountBySourceFamily?: Record<string, number>;
+    freshnessCoverage?: Record<string, { withPostedDate?: number; total?: number }>;
+    duplicatesRemoved?: Record<string, number>;
+    sourcePolicy?: string;
+  };
   feedErrors: Array<{
     url: string;
     status: string | number;
@@ -973,6 +1012,31 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         sourceVertical: bulletValue(block, "Source query vertical"),
         matchedLeadTypes: bulletValue(block, "Matched lead types"),
         matchEvidence: bulletValue(block, "Match evidence"),
+        sourceFamily: bulletValue(block, "Source family"),
+        buyerSituation: bulletValue(block, "Buyer situation"),
+        buyerQueue: bulletValue(block, "Queue"),
+        offerMatch: bulletValue(block, "Offer match"),
+        businessMaturityScore: bulletValue(block, "Business maturity score"),
+        painSeverityScore: bulletValue(block, "Pain severity score"),
+        hiringLikelihoodScore: bulletValue(block, "Hiring likelihood score"),
+        aiLeverageScore: bulletValue(block, "AI leverage score"),
+        commercialFitScore: bulletValue(block, "Commercial fit score"),
+        duncanFitScore: bulletValue(block, "Duncan fit score"),
+        reachabilityScore: bulletValue(block, "Reachability score"),
+        freshnessScore: bulletValue(block, "Freshness score"),
+        confidenceScore: bulletValue(block, "Confidence score"),
+        evidenceSummary: bulletValue(block, "Evidence summary"),
+        explicitEvidence: bulletValue(block, "Explicit evidence"),
+        inferredEvidence: bulletValue(block, "Inferred evidence"),
+        missingEvidence: bulletValue(block, "Missing evidence"),
+        sourceQuoteOrSnippet: bulletValue(block, "Source quote or snippet"),
+        evidenceUrl: bulletValue(block, "Evidence URL"),
+        responsePath: bulletValue(block, "Response path"),
+        nextStep: bulletValue(block, "Next step"),
+        dismissalReason: bulletValue(block, "Dismissal reason"),
+        relatedSources: bulletValue(block, "Related sources"),
+        duplicateOf: bulletValue(block, "Duplicate of"),
+        lastVerifiedAt: bulletValue(block, "Last verified at"),
         reason: bulletValue(block, "Why it matched"),
         suggestedComment: sectionQuote(block, "Suggested comment"),
         suggestedDm: sectionQuote(block, "Suggested DM"),
@@ -1099,8 +1163,9 @@ function leadScoreValue(lead: RedditLead) {
 function logLeadSourceDiagnostics(sources: LeadSourceDigest[]) {
   const summary = sources.map((source) => source.diagnostic);
   const hasWarning = summary.some((diagnostic) => diagnostic.warning);
-  const log = hasWarning ? console.warn : console.info;
-  log("Admin lead source diagnostics", summary);
+  if (hasWarning) {
+    console.warn("Admin lead source diagnostics", summary);
+  }
 }
 
 function dateFromFileName(fileName: string) {

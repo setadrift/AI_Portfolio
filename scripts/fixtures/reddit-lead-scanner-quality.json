@@ -54,7 +54,9 @@
         "score": 4,
         "fitScore": 4,
         "replyabilityScore": 4,
-        "posture": "dm_if_engaged",
+        "posture": "comment_first",
+        "buyerQueue": "warm_reply",
+        "buyerSituation": "team_training_change_management",
         "leadType": "recruiting-handoff-drift",
         "pattern": "operational_pain_advice",
         "negativePersona": ""
@@ -156,13 +158,32 @@
       "title": "Workflow tasks request",
       "summary": "I need to create 2 relatively easy custom Automator apps but can't seem to get it to work. I'm not that tech-inclined honestly. I am willing to pay for someone's time. App 1 merges a sticker png onto artwork. App 2 creates mp4 and mov files from mp3 audio snippets and artwork. I tried Automator and ffmpeg but didn't get a successful result.",
       "expected": {
+        "score": 2,
+        "fitScore": 2,
+        "replyabilityScore": 1,
+        "posture": "ignore",
+        "replyToday": false,
+        "buyerQueue": "reject",
+        "leadType": "",
+        "pattern": "direct_implementation_request",
+        "negativePersona": ""
+      }
+    },
+    {
+      "id": "clinic-ai-intake-paid-consultant",
+      "subreddit": "smallbusiness",
+      "title": "Need an AI consultant to help our clinic reduce manual intake and follow-up work",
+      "summary": "We run a small healthcare clinic and our admin team is spending hours each week copying patient intake forms into spreadsheets, chasing missing paperwork, and sending follow-up emails. I am looking for someone experienced who can review the process, recommend where AI or automation actually makes sense, and build the first workflow. Open to paid help.",
+      "expected": {
         "score": 5,
         "fitScore": 5,
         "replyabilityScore": 5,
         "posture": "dm_now",
         "replyToday": true,
-        "leadType": "",
-        "pattern": "direct_implementation_request",
+        "buyerQueue": "active_lead",
+        "buyerSituation": "explicit_expert_hiring",
+        "offerMatch": "custom_system_prototype",
+        "pattern": "stuck_builder_ceiling",
         "negativePersona": ""
       }
     },
@@ -221,7 +242,8 @@
         "score": 3,
         "fitScore": 3,
         "replyabilityScore": 3,
-        "posture": "watch",
+        "posture": "comment_first",
+        "buyerQueue": "warm_reply",
         "leadType": "reporting-visibility-gap",
         "pattern": "partner_overflow_implementation",
         "negativePersona": ""
@@ -311,6 +333,7 @@
         "scoreMax": 3,
         "replyabilityScore": 3,
         "posture": "watch",
+        "buyerQueue": "market_intelligence",
         "leadType": "followup-scheduling-leakage",
         "negativePersona": ""
       }
@@ -414,7 +437,8 @@
         "fitScore": 4,
         "replyabilityScore": 4,
         "posture": "comment_first",
-        "replyToday": true,
+        "replyToday": false,
+        "buyerQueue": "warm_reply",
         "leadType": "crm-source-of-truth",
         "pattern": "tool_shopping_with_implementation_pain",
         "negativePersona": ""
