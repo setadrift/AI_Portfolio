@@ -629,7 +629,9 @@ async function main() {
   }
 
   progress(`Fetched ${posts.length} raw posts. Filtering candidates...`);
-  const freshPosts = dedupePosts(posts).filter((post) => {
+  const dedupedPosts = dedupePosts(posts);
+  const duplicatePostsRemoved = Math.max(0, posts.length - dedupedPosts.length);
+  const freshPosts = dedupedPosts.filter((post) => {
     if (!post.publishedAt) return true;
     return now - new Date(post.publishedAt).getTime() <= maxAgeMs;
   });
@@ -669,6 +671,18 @@ async function main() {
   const hasEnoughCoverage = successfulFeeds >= minSuccessfulFeeds;
   const shouldWriteDigest = hasEnoughCoverage || hasLeads;
   const partialCoverage = shouldWriteDigest && !hasEnoughCoverage;
+  const performance = sourcePerformanceSummary(feedResults, scored, runtimeConfig.feedback);
+  const familyDiagnostics = sourceFamilyDiagnostics({
+    feedResults,
+    posts,
+    dedupedPosts,
+    freshPosts,
+    scoredLeads: scored,
+    activeLeads: includedLeads,
+    preScoringRejected,
+    portfolioRejectedCount,
+    duplicatePostsRemoved,
+  });
   const digest = buildDigest({
     date: outputDate,
     leads: scored,
@@ -678,7 +692,8 @@ async function main() {
     config: runtimeConfig,
     scanMode: scanConfig.scanMode,
     rejectionSummary: rejectionReasonSummary(preScoringRejected, portfolioRejectedCount),
-    sourcePerformance: sourcePerformanceSummary(feedResults, scored, runtimeConfig.feedback),
+    sourcePerformance: performance,
+    sourceFamilyDiagnostics: familyDiagnostics,
     partialCoverage,
   });
 
@@ -696,7 +711,8 @@ async function main() {
     leadsIncluded: includedLeads.length,
     outputPath: shouldWriteDigest ? outputPath : "",
     queryDiagnostics: queryDiagnostics(feedResults, scored, runtimeConfig),
-    sourcePerformance: sourcePerformanceSummary(feedResults, scored, runtimeConfig.feedback),
+    sourcePerformance: performance,
+    sourceFamilyDiagnostics: familyDiagnostics,
     message: partialCoverage
       ? `Partial digest updated with ${scored.length} lead(s); only ${successfulFeeds}/${feedResults.length} feeds succeeded.`
       : shouldWriteDigest
@@ -847,6 +863,46 @@ async function runFixtureScoring(config) {
         message: `lead type ${scored.leadType || "blank"} did not match ${expected.leadType || "blank"}`,
       },
       {
+        ok: !expected.buyerQueue || scored.buyerQueue === expected.buyerQueue,
+        message: `buyerQueue ${scored.buyerQueue || "blank"} did not match ${expected.buyerQueue}`,
+      },
+      {
+        ok: !expected.buyerSituation || scored.buyerSituation === expected.buyerSituation,
+        message: `buyerSituation ${scored.buyerSituation || "blank"} did not match ${expected.buyerSituation}`,
+      },
+      {
+        ok: !expected.offerMatch || scored.offerMatch === expected.offerMatch,
+        message: `offerMatch ${scored.offerMatch || "blank"} did not match ${expected.offerMatch}`,
+      },
+      {
+        ok: !expected.sourceFamily || scored.sourceFamily === expected.sourceFamily,
+        message: `sourceFamily ${scored.sourceFamily || "blank"} did not match ${expected.sourceFamily}`,
+      },
+      {
+        ok: scored.score < 4 || hasBusinessBuyerEvidence(scored),
+        message: "score 4+ without business-buyer evidence",
+      },
+      {
+        ok: scored.score < 5 || hasExplicitPaidProject(scored) || isStrictImplementationRequest(scored),
+        message: "score 5 without explicit expert-hiring or implementation evidence",
+      },
+      {
+        ok: scored.buyerQueue !== "active_lead" ||
+          Boolean(
+            scored.url &&
+            scored.buyerSituation &&
+            scored.offerMatch &&
+            scored.evidenceSummary &&
+            scored.explicitEvidence &&
+            scored.nextStep &&
+            scored.businessMaturityScore >= 3 &&
+            scored.aiLeverageScore >= 3 &&
+            scored.commercialFitScore >= 3 &&
+            scored.reachabilityScore >= 4
+          ),
+        message: "active lead missing required buyer evidence, URL, offer, or threshold scores",
+      },
+      {
         ok: !/https?:\/\//i.test(scored.suggestedComment || ""),
         message: "suggested public comment contains a URL",
       },
@@ -904,6 +960,17 @@ async function runFixtureScoring(config) {
         scoredLeads,
         config.feedback,
       ),
+      sourceFamilyDiagnostics: sourceFamilyDiagnostics({
+        feedResults: [{ ok: true, url: "fixture:reddit-lead-scanner-quality", status: "fixture", posts: fixtures }],
+        posts: scoredLeads,
+        dedupedPosts: scoredLeads,
+        freshPosts: scoredLeads,
+        scoredLeads,
+        activeLeads: scoredLeads.filter((lead) => isReplyTodayLead(lead, config)),
+        preScoringRejected: scoredLeads.filter((lead) => lead.score < 3),
+        portfolioRejectedCount: 0,
+        duplicatePostsRemoved: 0,
+      }),
       partialCoverage: false,
     });
     await writeFile(outputPath, digest, "utf8");
@@ -2066,6 +2133,7 @@ function isReplyTodayLead(lead, config) {
     (lead.primaryPattern === "tool_shopping_with_implementation_pain" && hasPublishableLeadEvidence(lead) && hasDomainFit);
   const hasManualResponsePath = Boolean(lead.url && lead.author && lead.author !== "unknown");
   return (lead.fitScore ?? lead.score ?? 0) >= minFit &&
+    lead.buyerQueue === "active_lead" &&
     (lead.replyabilityScore ?? 0) >= 4 &&
     hasPublishableLeadEvidence(lead) &&
     (lead.hardNegativePersonas?.length ?? 0) === 0 &&
@@ -2142,6 +2210,324 @@ function hasWorkflowEvidence(lead) {
 
 function hasBusinessOrTrustedSourceEvidence(lead) {
   return (lead.businessEvidence?.length ?? 0) > 0 || hasBusinessContext(lead) || isTrustedAutomationSource(lead);
+}
+
+function hasBusinessBuyerEvidence(lead) {
+  const operationalEvidence = (lead.businessEvidence ?? []).filter((item) =>
+    !["workflow", "process", "software", "tool", "tools", "app", "apps"].includes(String(item).toLowerCase()),
+  );
+  return operationalEvidence.length > 0 || hasBusinessContext(lead);
+}
+
+function hasBuyerRejectSignal(lead) {
+  return hasHardNegativeSignal(lead) ||
+    [
+      "generic-best-tool-question",
+      "generic-ai-chatter",
+      "low-budget-or-tiny",
+      "market-research-or-validation",
+      "diy-builder-or-technical-founder",
+    ].includes(lead.negativePersona || "") ||
+    (lead.negativePersonas ?? []).some((persona) =>
+      [
+        "generic-best-tool-question",
+        "generic-ai-chatter",
+        "low-budget-or-tiny",
+        "market-research-or-validation",
+        "diy-builder-or-technical-founder",
+      ].includes(persona.id),
+    );
+}
+
+function businessBuyerProfile(lead) {
+  const text = `${lead.title}\n${lead.summary}\n${lead.subreddit || ""}`.toLowerCase();
+  const hardReject = hasBuyerRejectSignal(lead);
+  const businessMaturityScore = hardReject ? 1 : hasBusinessBuyerEvidence(lead) ? 4 : isTrustedAutomationSource(lead) ? 2 : 1;
+  const painSeverityScore = hardReject
+    ? 1
+    : (lead.painEvidence?.length ?? 0) >= 2 || (lead.communityPainMatches?.length ?? 0) > 0
+      ? 4
+      : hasSpecificWorkflowPain(lead)
+        ? 3
+        : 1;
+  const hiringLikelihoodScore = hardReject
+    ? 1
+    : hasExplicitPaidProject(lead)
+      ? 5
+      : isStrictImplementationRequest(lead)
+        ? 4
+        : (lead.requestEvidence?.length ?? 0) > 0
+          ? 3
+          : 1;
+  const aiLeverageScore = hardReject
+    ? 1
+    : hasWorkflowEvidence(lead)
+      ? 4
+      : /\b(ai|chatgpt|claude|automation|automate|workflow|agent|crm|dashboard|reporting|document|invoice|pdf|data)\b/.test(text)
+        ? 3
+        : 1;
+  const commercialFitScore = hardReject
+    ? 1
+    : hasExplicitPaidProject(lead)
+      ? 5
+      : hasBusinessBuyerEvidence(lead) && (painSeverityScore >= 3 || hasRevenueImpact(lead))
+        ? 4
+        : hasBusinessBuyerEvidence(lead)
+          ? 3
+          : 1;
+  const duncanFitScore = hardReject
+    ? 1
+    : aiLeverageScore >= 4 && commercialFitScore >= 3
+      ? 4
+      : aiLeverageScore >= 3 && businessMaturityScore >= 3
+        ? 3
+        : 1;
+  const reachabilityScore = hasReachabilityEvidence(lead) ? 5 : 1;
+  const freshnessScore = freshnessScoreForLead(lead);
+  const explicitCount = [
+    hasBusinessBuyerEvidence(lead),
+    hasExplicitPaidProject(lead) || isStrictImplementationRequest(lead) || (lead.requestEvidence?.length ?? 0) > 0,
+    hasWorkflowEvidence(lead),
+    (lead.painEvidence?.length ?? 0) > 0 || (lead.communityPainMatches?.length ?? 0) > 0,
+    reachabilityScore >= 4,
+  ].filter(Boolean).length;
+  const confidenceScore = hardReject ? 1 : explicitCount >= 4 ? 5 : explicitCount >= 3 ? 4 : explicitCount >= 2 ? 3 : 2;
+  const buyerSituation = buyerSituationForLead(lead);
+  const offerMatch = offerMatchForLead(lead, buyerSituation);
+  const buyerQueue = buyerQueueForLead({
+    hardReject,
+    businessMaturityScore,
+    painSeverityScore,
+    hiringLikelihoodScore,
+    aiLeverageScore,
+    commercialFitScore,
+    duncanFitScore,
+    reachabilityScore,
+    confidenceScore,
+    buyerSituation,
+    lead,
+  });
+  const missingEvidence = missingEvidenceForLead({
+    businessMaturityScore,
+    painSeverityScore,
+    hiringLikelihoodScore,
+    aiLeverageScore,
+    commercialFitScore,
+    reachabilityScore,
+    confidenceScore,
+  });
+
+  return {
+    sourceFamily: "reddit",
+    buyerSituation,
+    buyerQueue,
+    offerMatch,
+    businessMaturityScore,
+    painSeverityScore,
+    hiringLikelihoodScore,
+    aiLeverageScore,
+    commercialFitScore,
+    duncanFitScore,
+    reachabilityScore,
+    freshnessScore,
+    confidenceScore,
+    evidenceSummary: evidenceSummaryForLead(lead, buyerSituation),
+    explicitEvidence: explicitEvidenceForLead(lead),
+    inferredEvidence: inferredEvidenceForLead(lead, buyerSituation),
+    missingEvidence,
+    sourceQuoteOrSnippet: sourceQuoteOrSnippetForLead(lead),
+    evidenceUrl: lead.url || "",
+    responsePath: responsePathForLead(lead, buyerQueue),
+    nextStep: nextStepForLead(buyerQueue, offerMatch),
+    dismissalReason: buyerQueue === "reject" ? rejectionReason(lead) : "",
+    relatedSources: "",
+    duplicateOf: "",
+    lastVerifiedAt: new Date().toISOString(),
+  };
+}
+
+function buyerSituationForLead(lead) {
+  const text = `${lead.title}\n${lead.summary}`.toLowerCase();
+  if (hasExplicitPaidProject(lead) || isStrictImplementationRequest(lead)) return "explicit_expert_hiring";
+  if (/\b(ai|chatgpt|claude|agent|automation)\b/.test(text) && hasBusinessBuyerEvidence(lead)) return "ai_adoption_strategy";
+  if (/\b(lead|sales|quote|follow[- ]?up|missed calls?|customer messages?|pipeline|crm)\b/.test(text)) return "growth_sales_leakage";
+  if (/\b(document|pdf|invoice|receipt|reconcil|bookkeeping|forms?|data entry)\b/.test(text)) return "document_finance_admin_workflow";
+  if (/\b(report|dashboard|visibility|kpi|profitability|numbers|metrics)\b/.test(text)) return "reporting_visibility";
+  if (/\b(sop|training|onboarding|team|handoff|checklist|staff)\b/.test(text)) return "team_training_change_management";
+  if (hasBusinessBuyerEvidence(lead) && hasSpecificWorkflowPain(lead)) return "operational_bottleneck";
+  return "market_intelligence";
+}
+
+function offerMatchForLead(lead, buyerSituation) {
+  if (buyerSituation === "ai_adoption_strategy") return "ai_opportunity_audit";
+  if (buyerSituation === "growth_sales_leakage") return "crm_lead_flow_repair";
+  if (buyerSituation === "document_finance_admin_workflow") return "document_intake_automation";
+  if (buyerSituation === "reporting_visibility") return "management_dashboard_visibility";
+  if (buyerSituation === "team_training_change_management") return "ai_team_enablement";
+  if (buyerSituation === "explicit_expert_hiring" && /prototype|custom system|build|implement/.test(`${lead.title}\n${lead.summary}`.toLowerCase())) {
+    return "custom_system_prototype";
+  }
+  if (hasWorkflowEvidence(lead)) return "workflow_automation_sprint";
+  return "not_a_fit";
+}
+
+function buyerQueueForLead({
+  hardReject,
+  businessMaturityScore,
+  painSeverityScore,
+  hiringLikelihoodScore,
+  aiLeverageScore,
+  commercialFitScore,
+  duncanFitScore,
+  reachabilityScore,
+  confidenceScore,
+  lead,
+}) {
+  if (hardReject) return "reject";
+  if (isVendorSeededPost(lead)) return "market_intelligence";
+  if (businessMaturityScore < 3) return "reject";
+  if (reachabilityScore < 4) return "reject";
+  if (commercialFitScore < 3) return "reject";
+  if (hiringLikelihoodScore >= 4 && aiLeverageScore >= 3 && duncanFitScore >= 3 && confidenceScore >= 3) {
+    return "active_lead";
+  }
+  if (painSeverityScore >= 3 && aiLeverageScore >= 3 && duncanFitScore >= 3) return "warm_reply";
+  if (hasBusinessBuyerEvidence(lead)) return "market_intelligence";
+  return "reject";
+}
+
+function hasRevenueImpact(lead) {
+  const text = `${lead.title}\n${lead.summary}`.toLowerCase();
+  return /\b(revenue|sales|leads?|quotes?|customers?|clients?|profit|margin|conversion|pipeline|bookings?|invoices?|payments?)\b/.test(text);
+}
+
+function freshnessScoreForLead(lead) {
+  if (!lead.publishedAt) return 1;
+  const ageMs = Date.now() - new Date(lead.publishedAt).getTime();
+  if (!Number.isFinite(ageMs) || ageMs < 0) return 1;
+  const ageHours = ageMs / (60 * 60 * 1000);
+  if (ageHours <= 24) return 5;
+  if (ageHours <= 72) return 4;
+  if (ageHours <= 168) return 3;
+  if (ageHours <= 336) return 2;
+  return 1;
+}
+
+function sourceQuoteOrSnippetForLead(lead) {
+  return `${lead.title || ""} ${lead.summary || ""}`
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 260);
+}
+
+function missingEvidenceForLead(scores) {
+  const missing = [];
+  if (scores.businessMaturityScore < 3) missing.push("business context");
+  if (scores.painSeverityScore < 3) missing.push("specific pain");
+  if (scores.hiringLikelihoodScore < 4) missing.push("explicit hiring intent");
+  if (scores.aiLeverageScore < 3) missing.push("AI/systems leverage");
+  if (scores.commercialFitScore < 3) missing.push("commercial fit");
+  if (scores.reachabilityScore < 4) missing.push("public response path");
+  if (scores.confidenceScore < 3) missing.push("explicit evidence");
+  return missing.join(", ");
+}
+
+function evidenceSummaryForLead(lead, buyerSituation) {
+  const evidence = [
+    hasBusinessBuyerEvidence(lead) ? "business context" : "",
+    hasExplicitPaidProject(lead) ? "paid/expert request" : isStrictImplementationRequest(lead) ? "implementation help request" : "",
+    hasWorkflowEvidence(lead) ? "workflow pain" : "",
+    hasRevenueImpact(lead) ? "commercial impact" : "",
+    buyerSituation ? formatLabel(buyerSituation) : "",
+  ].filter(Boolean);
+  return evidence.length ? evidence.join("; ") : "No strong buyer evidence.";
+}
+
+function explicitEvidenceForLead(lead) {
+  return [
+    ...(lead.businessEvidence ?? []),
+    ...(lead.requestEvidence ?? []),
+    ...(lead.workflowEvidence ?? []),
+    ...(lead.painEvidence ?? []),
+    ...(lead.budgetEvidence ?? []),
+  ].slice(0, 10).join(", ");
+}
+
+function inferredEvidenceForLead(lead, buyerSituation) {
+  const inferred = [];
+  if (hasRevenueImpact(lead)) inferred.push("commercial impact likely");
+  if (buyerSituation && buyerSituation !== "market_intelligence") inferred.push(formatLabel(buyerSituation));
+  if (isTrustedAutomationSource(lead) && !hasBusinessBuyerEvidence(lead)) inferred.push("tool-community context only");
+  return inferred.join(", ");
+}
+
+function responsePathForLead(lead, buyerQueue) {
+  if (buyerQueue === "reject") return "No action.";
+  if (buyerQueue === "active_lead" && hasExplicitPaidProject(lead)) return "Public reply or DM if community norms allow.";
+  if (buyerQueue === "warm_reply") return "Helpful public comment first.";
+  return "Review source before outreach.";
+}
+
+function nextStepForLead(buyerQueue, offerMatch) {
+  if (buyerQueue === "active_lead") return `Offer ${formatLabel(offerMatch)} as a first step.`;
+  if (buyerQueue === "warm_reply") return "Leave a useful public reply; do not hard sell.";
+  if (buyerQueue === "market_intelligence") return "Save for positioning and query tuning.";
+  return "Reject or use only for feedback tuning.";
+}
+
+function formatLabel(value) {
+  return String(value || "").replace(/_/g, " ");
+}
+
+function enrichBusinessBuyerLead(lead) {
+  const profile = businessBuyerProfile(lead);
+  let fitScore = lead.fitScore ?? lead.score ?? 1;
+  let replyabilityScore = lead.replyabilityScore ?? fitScore;
+  let outreachPosture = lead.outreachPosture;
+  let recommendedAction = lead.recommendedAction;
+
+  if (profile.buyerQueue === "active_lead") {
+    fitScore = hasExplicitPaidProject(lead) ? Math.max(fitScore, 5) : Math.max(fitScore, 4);
+    replyabilityScore = Math.max(replyabilityScore, 4);
+    outreachPosture = hasExplicitPaidProject(lead) ? "dm_now" : "dm_if_engaged";
+    recommendedAction = actionForOutreachPosture(outreachPosture);
+  } else if (profile.buyerQueue === "warm_reply") {
+    fitScore = Math.min(Math.max(fitScore, 3), 4);
+    replyabilityScore = Math.min(Math.max(replyabilityScore, 3), 4);
+    outreachPosture = "comment_first";
+    recommendedAction = "comment";
+  } else if (profile.buyerQueue === "market_intelligence") {
+    fitScore = Math.min(fitScore, 3);
+    replyabilityScore = Math.min(replyabilityScore, 3);
+    outreachPosture = "watch";
+    recommendedAction = "watch";
+  } else {
+    fitScore = Math.min(fitScore, 2);
+    replyabilityScore = Math.min(replyabilityScore, 1);
+    outreachPosture = "ignore";
+    recommendedAction = "ignore";
+  }
+
+  if (!hasExplicitPaidProject(lead) && fitScore >= 5) fitScore = 4;
+  if (profile.confidenceScore <= 2) {
+    fitScore = Math.min(fitScore, 3);
+    replyabilityScore = Math.min(replyabilityScore, 3);
+    if (profile.buyerQueue === "active_lead") {
+      profile.buyerQueue = "warm_reply";
+      recommendedAction = "comment";
+      outreachPosture = "comment_first";
+    }
+  }
+
+  return {
+    ...lead,
+    ...profile,
+    score: Math.max(1, Math.min(5, fitScore)),
+    fitScore: Math.max(1, Math.min(5, fitScore)),
+    replyabilityScore: Math.max(1, Math.min(5, replyabilityScore)),
+    outreachPosture,
+    recommendedAction,
+  };
 }
 
 function hasHardNegativeSignal(post) {
@@ -2252,7 +2638,7 @@ function scoreDeterministically(post) {
     : outreachPosture;
   const recommendedAction = actionForOutreachPosture(finalOutreachPosture);
 
-  return {
+  return enrichBusinessBuyerLead({
     ...post,
     score: fitScore,
     fitScore,
@@ -2269,7 +2655,7 @@ function scoreDeterministically(post) {
     scoreReason: "",
     suggestedComment: "",
     suggestedDm: "",
-  };
+  });
 }
 
 async function scoreWithLlm(post, config, apiKey) {
@@ -2534,7 +2920,7 @@ function normalizeLlmScore(post, parsed, config) {
     outreachPosture = "watch";
   }
 
-  return {
+  return enrichBusinessBuyerLead({
     ...post,
     score: fitScore,
     fitScore,
@@ -2553,7 +2939,7 @@ function normalizeLlmScore(post, parsed, config) {
     scoreReason: "",
     suggestedComment: "",
     suggestedDm: "",
-  };
+  });
 }
 
 function normalizeNegativePersonaId(value, fallback = "") {
@@ -2576,7 +2962,7 @@ function uniqueNonEmpty(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
-function buildDigest({ date, leads, scoredCount, rejectedCount, feedResults, config, scanMode, rejectionSummary, sourcePerformance, partialCoverage }) {
+function buildDigest({ date, leads, scoredCount, rejectedCount, feedResults, config, scanMode, rejectionSummary, sourcePerformance, sourceFamilyDiagnostics, partialCoverage }) {
   const sorted = [...leads].sort(compareLeadsForDigest);
   const best = sorted.filter((lead) => isReplyTodayLead(lead, config));
   const maybe = sorted.filter((lead) =>
@@ -2625,6 +3011,10 @@ function buildDigest({ date, leads, scoredCount, rejectedCount, feedResults, con
     "",
     formatSourcePerformance(sourcePerformance),
     "",
+    "## Source Family Diagnostics",
+    "",
+    formatSourceFamilyDiagnostics(sourceFamilyDiagnostics),
+    "",
     "## Reply Today",
     "",
     best.length ? best.map(formatLead).join("\n\n") : "No 4+ leads found.",
@@ -2660,6 +3050,11 @@ function compareLeadsForDigest(a, b) {
 }
 
 function formatLead(lead) {
+  const value = (input, fallback = "") => {
+    if (input === undefined || input === null || input === "") return fallback;
+    return String(input).replace(/\s+/g, " ").trim();
+  };
+
   return [
     `### ${lead.score}/5 - r/${lead.subreddit} - ${lead.title}`,
     "",
@@ -2676,6 +3071,31 @@ function formatLead(lead) {
     `- Failure mode: ${lead.failureMode || "other"}`,
     `- Outreach posture: ${lead.outreachPosture || "unknown"}`,
     `- Recommended action: ${lead.recommendedAction || "unknown"}`,
+    `- Source family: ${value(lead.sourceFamily, "reddit")}`,
+    `- Buyer situation: ${value(lead.buyerSituation, "unknown")}`,
+    `- Queue: ${value(lead.buyerQueue, "unknown")}`,
+    `- Offer match: ${value(lead.offerMatch, "unknown")}`,
+    `- Business maturity score: ${value(lead.businessMaturityScore, "unknown")}`,
+    `- Pain severity score: ${value(lead.painSeverityScore, "unknown")}`,
+    `- Hiring likelihood score: ${value(lead.hiringLikelihoodScore, "unknown")}`,
+    `- AI leverage score: ${value(lead.aiLeverageScore, "unknown")}`,
+    `- Commercial fit score: ${value(lead.commercialFitScore, "unknown")}`,
+    `- Duncan fit score: ${value(lead.duncanFitScore, "unknown")}`,
+    `- Reachability score: ${value(lead.reachabilityScore, "unknown")}`,
+    `- Freshness score: ${value(lead.freshnessScore, "unknown")}`,
+    `- Confidence score: ${value(lead.confidenceScore, "unknown")}`,
+    `- Evidence summary: ${value(lead.evidenceSummary, "unknown")}`,
+    `- Explicit evidence: ${value(lead.explicitEvidence, "none")}`,
+    `- Inferred evidence: ${value(lead.inferredEvidence, "none")}`,
+    `- Missing evidence: ${value(lead.missingEvidence, "none")}`,
+    `- Source quote or snippet: ${value(lead.sourceQuoteOrSnippet, "none")}`,
+    `- Evidence URL: ${value(lead.evidenceUrl, lead.url || "none")}`,
+    `- Response path: ${value(lead.responsePath, "unknown")}`,
+    `- Next step: ${value(lead.nextStep, "unknown")}`,
+    `- Dismissal reason: ${value(lead.dismissalReason, "none")}`,
+    `- Related sources: ${value(lead.relatedSources, "none")}`,
+    `- Duplicate of: ${value(lead.duplicateOf, "none")}`,
+    `- Last verified at: ${value(lead.lastVerifiedAt, "unknown")}`,
     ...(lead.sourceQuery ? [`- Source query: ${lead.sourceQuery}`] : []),
     ...(lead.sourcePatternFamily ? [`- Source query pattern: ${lead.sourcePatternFamily}`] : []),
     ...(lead.sourceVertical ? [`- Source query vertical: ${lead.sourceVertical}`] : []),
@@ -2838,6 +3258,75 @@ function formatSourcePerformanceRow(row) {
     ? `, historical accepted ${row.historical.leadsAccepted ?? row.historical.replyableLeads ?? 0}, rejected ${row.historical.leadsRejected ?? 0}`
     : "";
   return `- ${row.id}: fetched ${row.fetched ?? 0}, scored ${row.scored ?? 0}, replyable ${row.replyable ?? 0}, watch ${row.watch ?? 0}, rejected ${row.rejected ?? 0}${historical}`;
+}
+
+function sourceFamilyDiagnostics({
+  feedResults,
+  posts,
+  dedupedPosts,
+  freshPosts,
+  scoredLeads,
+  activeLeads,
+  preScoringRejected,
+  portfolioRejectedCount,
+  duplicatePostsRemoved,
+}) {
+  const family = "reddit";
+  return {
+    configuredSourcesChecked: { [family]: feedResults.length },
+    sourcesSkipped: [],
+    sourceFetchStatus: {
+      [family]: {
+        ok: feedResults.filter((result) => result.ok).length,
+        failed: feedResults.filter((result) => !result.ok).length,
+      },
+    },
+    candidateCountBySourceFamily: { [family]: freshPosts.length },
+    rawCandidateCountBySourceFamily: { [family]: posts.length },
+    dedupedCandidateCountBySourceFamily: { [family]: dedupedPosts.length },
+    rejectedCountByReason: Object.fromEntries(rejectionReasonSummary(preScoringRejected, portfolioRejectedCount)),
+    activeLeadCountBySourceFamily: { [family]: activeLeads.length },
+    scoredCountBySourceFamily: { [family]: scoredLeads.length },
+    freshnessCoverage: {
+      [family]: {
+        withPostedDate: freshPosts.filter((post) => Boolean(post.publishedAt)).length,
+        total: freshPosts.length,
+      },
+    },
+    duplicatesRemoved: { [family]: duplicatePostsRemoved },
+  };
+}
+
+function formatSourceFamilyDiagnostics(diagnostics) {
+  if (!diagnostics) return "No source-family diagnostics.";
+  return [
+    `- Configured sources checked: ${formatObjectCounts(diagnostics.configuredSourcesChecked)}`,
+    `- Source fetch status: ${formatNestedStatus(diagnostics.sourceFetchStatus)}`,
+    `- Candidates by family: ${formatObjectCounts(diagnostics.candidateCountBySourceFamily)}`,
+    `- Scored by family: ${formatObjectCounts(diagnostics.scoredCountBySourceFamily)}`,
+    `- Active leads by family: ${formatObjectCounts(diagnostics.activeLeadCountBySourceFamily)}`,
+    `- Rejected reasons: ${formatObjectCounts(diagnostics.rejectedCountByReason)}`,
+    `- Freshness coverage: ${formatFreshnessCoverage(diagnostics.freshnessCoverage)}`,
+    `- Duplicates removed: ${formatObjectCounts(diagnostics.duplicatesRemoved)}`,
+  ].join("\n");
+}
+
+function formatObjectCounts(value) {
+  const entries = Object.entries(value ?? {});
+  if (!entries.length) return "none";
+  return entries.map(([key, count]) => `${key} ${count}`).join(", ");
+}
+
+function formatNestedStatus(value) {
+  const entries = Object.entries(value ?? {});
+  if (!entries.length) return "none";
+  return entries.map(([key, row]) => `${key} ok ${row.ok ?? 0}, failed ${row.failed ?? 0}`).join(", ");
+}
+
+function formatFreshnessCoverage(value) {
+  const entries = Object.entries(value ?? {});
+  if (!entries.length) return "none";
+  return entries.map(([key, row]) => `${key} ${row.withPostedDate ?? 0}/${row.total ?? 0}`).join(", ");
 }
 
 function rejectionReasonSummary(posts, portfolioRejectedCount = 0) {

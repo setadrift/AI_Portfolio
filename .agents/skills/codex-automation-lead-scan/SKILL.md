@@ -30,28 +30,33 @@ Run the AI consulting public-source lead research workflow and load the results 
 5. Include only score 4/5 and 5/5 leads in `## Best Leads`; do not pad the digest.
 6. Put uncertain, stale, or unverifiable-date candidates in `## Maybe / Watch` or reject them.
 7. Enforce source diversity. This is a broad public-internet pass, not an Upwork scraper.
-8. Check at least 5 source families when search access allows it: Reddit/local subreddits, automation/vendor communities, freelance/job marketplaces, founder/operator/small-business forums, and general web search results.
+8. Check at least 5 source families when search access allows it: Reddit/local subreddits, automation/vendor communities, freelance/job marketplaces, founder/operator/small-business forums, industry forums, public company hiring pages, public RFP/vendor-request pages, local business groups, and general web search results.
 9. Exclude Upwork entirely. Do not search Upwork, include Upwork links, write Upwork watchlist items, or surface Upwork leads in `## Best Leads`, `## Maybe / Watch`, tracker rows, status summaries, or published admin data.
 10. If one platform dominates the digest, name the non-dominant source families checked and why they did not qualify.
 11. Do not include broad fit-based business-directory leads unless the source also shows a current trigger such as a hiring post, help request, public complaint, explicit tool failure, recent operations change, or consultant request.
 12. Treat partner/overflow opportunities as valid when they show paid implementation demand from an automation agency, freelancer, RevOps consultant, or tool specialist looking for builders, contractors, QA, documentation, or delivery support.
 13. Prioritize leads Duncan can pursue without buying marketplace credits: public comments, platform DMs, partner messages, public job/community replies, or direct contact from a public help request.
-14. After writing the digest and status, run the publisher and verify Supabase has active `automation` rows.
+14. Admit candidates based on business-buyer evidence before tool evidence. Tool names can increase fit only after there is evidence of an existing business, team, client/customer workflow, hiring signal, or commercially meaningful process.
+15. Do not promote generic AI/tool discussion, seller posts, job seekers, consumer support, low-budget one-off tasks, or unverifiable sources to `## Best Leads`.
+16. After writing the digest and status, run the publisher and verify Supabase has active `automation` rows.
 
 ## Procedure
 
 1. Use the provided date argument; otherwise use today's date.
 2. Read `/Users/duncananderson/.codex/automations/ai-consulting-lead-research/automation.toml` for the current recurring prompt.
-3. Search public sources for explicit buying intent around AI automation, Airtable, Zapier, Make, n8n, reporting automation, CRM follow-up, spreadsheet cleanup, document/PDF automation, invoice automation, or custom internal tools. Include direct-client leads and partner/overflow opportunities. Use a deliberately mixed search set:
+3. Search public sources for existing business buyers with operational, growth, customer, finance, reporting, document, team, or AI-adoption problems where hiring an AI-capable expert is plausible. Start from buyer situations before tool terms. Include direct-client leads, company hiring signals, and partner/overflow opportunities. Use a deliberately mixed search set:
    - Reddit public pages and local/business subreddits.
    - Automation/vendor communities such as n8n Community, Airtable Community, Zapier Community, Make Community, Softr/Glide/Notion forums.
    - Public freelance/job marketplaces except Upwork, such as Freelancer, PeoplePerHour, Contra, Wellfound, We Work Remotely, RemoteOK, Craigslist gigs, Kijiji/Craigslist local services, and relevant job boards.
    - Founder/operator/small-business forums such as Indie Hackers, Hacker News hiring/freelance threads, public Alignable-style posts, and industry forums.
-   - General web/search result pages for exact buying-intent phrases.
+   - Public company hiring pages, role posts, RFP/vendor-request pages, and general web/search result pages for exact buying-intent phrases.
 4. Apply this scoring model:
-   - `5/5`: fresh explicit paid ask, hiring post, contractor request, active community help request with budget/contact path, or partner/overflow role with concrete implementation scope.
-   - `4/5`: fresh business workflow pain with clear stakes and a plausible public-reply path, but no explicit budget yet.
-   - `3/5 or lower`: broad tool-shopping, generic AI interest, seller promotion, stale posts, directory businesses, vague jobs, or leads requiring paid marketplace credits before basic qualification.
+   - `5/5`: fresh explicit paid ask, consultant/expert request, contractor request, implementation-help post, or partner/overflow role from a real business with concrete workflow scope, public reachability, and AI/systems fit.
+   - `4/5`: real business workflow pain with clear stakes, public reachability, commercial fit, and a plausible AI/systems intervention, but no explicit budget yet.
+   - `3/5`: warm public reply, company signal, or market-intelligence item. Do not put these in `## Best Leads`.
+   - `1-2`: broad tool-shopping, generic AI interest, seller promotion, job seeker, consumer support, stale posts, directory businesses, vague jobs, low-budget tasks, or leads requiring paid marketplace credits before basic qualification.
+   - A candidate cannot be `4+` without business evidence, AI/systems leverage, commercial fit, reachability, and a source URL.
+   - A candidate cannot be `5/5` without explicit expert-hiring, paid implementation, contract, consultant, or strict implementation-help evidence.
 5. Write the Markdown digest using this shape:
 
 ```md
@@ -73,7 +78,32 @@ Partial coverage: no
 - Author: USER_OR_UNKNOWN
 - Category: crm_lead_followup, reporting_automation, document_pdf_automation, spreadsheet_internal_tools, or other
 - Lead type: direct_client, partner_overflow, or watch
-- Recommended action: comment, dm_if_engaged, dm, partner_note, or watch
+- Recommended action: comment, dm_if_engaged, dm, watch, or ignore
+- Source family: business_owner_community, industry_forum, platform_community, public_job_board, founder_community, local_business_group, professional_services_forum, social_post, public_rfp_vendor_request, reddit, or other
+- Buyer situation: explicit_expert_hiring, ai_adoption_strategy, operational_bottleneck, growth_sales_leakage, knowledge_content_customer_experience, document_finance_admin_workflow, reporting_visibility, team_training_change_management, company_hiring_signal, market_intelligence, or reject
+- Queue: active_lead, warm_reply, company_signal, market_intelligence, or reject
+- Offer match: ai_opportunity_audit, workflow_automation_sprint, ai_team_enablement, crm_lead_flow_repair, document_intake_automation, management_dashboard_visibility, ai_customer_experience_workflow, custom_system_prototype, or not_a_fit
+- Business maturity score: 1-5
+- Pain severity score: 1-5
+- Hiring likelihood score: 1-5
+- AI leverage score: 1-5
+- Commercial fit score: 1-5
+- Duncan fit score: 1-5
+- Reachability score: 1-5
+- Freshness score: 1-5
+- Confidence score: 1-5
+- Evidence summary: concise summary separating business evidence from AI/systems fit
+- Explicit evidence: facts directly stated by the source
+- Inferred evidence: contextual inference, clearly labeled
+- Missing evidence: key gaps, or "none"
+- Source quote or snippet: short source excerpt or summarized source fact
+- Evidence URL: canonical URL used to verify the claim
+- Response path: public/free-to-pursue path
+- Next step: first offer/action Duncan should take
+- Dismissal reason: none, or one of not_business, no_hiring_intent, tool_chatter, generic_discussion, seller_or_agency, job_seeker, consumer_support, stale, bad_source, bad_query, not_duncan_fit, too_small, unreachable, duplicate, missing_public_verification, low_confidence_inference
+- Related sources: comma-separated related URLs/sources, or none
+- Duplicate of: canonical lead key if duplicate, or none
+- Last verified at: ISO_TIMESTAMP
 - Why it matched: concise reason including freshness and buying intent
 - Free-to-pursue path: how Duncan can act without buying marketplace credits, or "paid marketplace gate" if unavoidable
 
@@ -112,6 +142,14 @@ Mention stale/unverified-date rejection count when relevant. If Best Leads are d
   "candidatesScored": 0,
   "leadsIncluded": 0,
   "outputPath": "/Users/duncananderson/Desktop/AI_Portfolio/worktrees/slot-1/outputs/ai-consulting-leads/YYYY-MM-DD.md",
+  "sourceFamilyDiagnostics": {
+    "configuredSourcesChecked": {},
+    "candidateCountBySourceFamily": {},
+    "activeLeadCountBySourceFamily": {},
+    "duplicatesRemoved": {},
+    "freshnessCoverage": {},
+    "sourcePolicy": "public_free_to_pursue_only"
+  },
   "message": "Codex automation lead scan completed.",
   "feedErrors": []
 }

@@ -145,6 +145,15 @@ export default function LeadsDashboard({
           lead.leadType,
           lead.vertical,
           lead.failureMode,
+          lead.sourceFamily,
+          lead.buyerSituation,
+          lead.offerMatch,
+          lead.evidenceSummary,
+          lead.sourceQuoteOrSnippet,
+          lead.evidenceUrl,
+          lead.missingEvidence,
+          lead.nextStep,
+          lead.relatedSources,
           lead.commentContext,
           lead.matchedLeadTypes,
           lead.matchEvidence,
@@ -384,7 +393,7 @@ export default function LeadsDashboard({
               </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight">Leads</h1>
               <p className="mt-1 text-sm text-white/50">
-                Switch between Codex research leads and broad Reddit scan modes, then work each source from one queue.
+                Work the best current leads first. Run scans only when the queue needs refreshing.
               </p>
             </div>
 
@@ -451,62 +460,71 @@ export default function LeadsDashboard({
             ))}
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Metric label="Total" value={rows.length.toString()} />
             <Metric label="Actionable" value={counts.actionable.toString()} />
             <Metric label="Review" value={counts.review.toString()} />
-            <Metric label="Community" value={counts.community_reply.toString()} />
-            <Metric label="Commented" value={counts.commented.toString()} />
-            <Metric label="DM sent" value={counts.dm_sent.toString()} />
-            <Metric label="Dismissed" value={counts.dismissed.toString()} />
+            <Metric
+              label="Worked"
+              value={(counts.commented + counts.dm_sent + counts.dismissed).toString()}
+            />
           </div>
 
-          <div className="mt-3 text-xs text-white/45">
-            {selectedStatus ? (
-              selectedSourceId === "reddit" ? (
-                <>
-                  Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
-                  {selectedStatus.totalFeeds} feeds, {selectedStatus.fetchedPosts} posts,{" "}
-                  {selectedStatus.candidatesScored} scored, scan{" "}
-                  {selectedStatus.scanMode ?? selectedScanMode}, ingestion{" "}
-                  {selectedStatus.ingestionMode ?? "unknown"}.
-                </>
-              ) : (
-                <>
-                  Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
-                  {selectedStatus.totalFeeds} sources, {selectedStatus.fetchedPosts} candidates,{" "}
-                  {selectedStatus.candidatesScored} scored, {selectedStatus.leadsIncluded} loaded.
-                </>
-              )
-            ) : selectedSource?.digest ? (
-              <>
-                Source: {selectedSource.description} Generated {selectedSource.digest.generatedAt || "unknown"},{" "}
-                {selectedSource.digest.leads.length} leads loaded.
-              </>
-            ) : (
-              "No lead source data found."
-            )}
-            {runMessage ? <span className="ml-2 text-white/70">{runMessage}</span> : null}
-          </div>
-          {selectedSource?.diagnostic ? (
-            <div className="mt-2 text-xs text-white/40">
-              Board rows: {selectedSource.diagnostic.parsedLeads} active/displayed; latest file{" "}
-              {selectedSource.diagnostic.fileName || "unknown file"} declared{" "}
-              {selectedSource.diagnostic.declaredCandidates} Best Leads, posted dates{" "}
-              {selectedSource.diagnostic.postedDateCount}/
-              {selectedSource.diagnostic.parsedLeads}
-              {selectedSource.diagnostic.totalHeadingBlocks !==
-              selectedSource.diagnostic.bestLeadBlocks
-                ? `, ignored ${
-                    selectedSource.diagnostic.totalHeadingBlocks -
-                    selectedSource.diagnostic.bestLeadBlocks
-                  } non-Best Leads rows`
-                : ""}
-              {selectedSource.diagnostic.warning ? (
-                <span className="ml-2 text-amber-300/80">{selectedSource.diagnostic.warning}</span>
+          <details className="mt-3 text-xs text-white/45">
+            <summary className="cursor-pointer select-none text-white/55">
+              Run details{runMessage ? ` - ${runMessage}` : ""}
+            </summary>
+            <div className="mt-2 space-y-1">
+              <p>
+                {selectedStatus ? (
+                  selectedSourceId === "reddit" ? (
+                    <>
+                      Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
+                      {selectedStatus.totalFeeds} feeds, {selectedStatus.fetchedPosts} posts,{" "}
+                      {selectedStatus.candidatesScored} scored.
+                    </>
+                  ) : (
+                    <>
+                      Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
+                      {selectedStatus.totalFeeds} sources, {selectedStatus.fetchedPosts} candidates,{" "}
+                      {selectedStatus.candidatesScored} scored, {selectedStatus.leadsIncluded} loaded.
+                    </>
+                  )
+                ) : selectedSource?.digest ? (
+                  <>
+                    Source: {selectedSource.description} Generated{" "}
+                    {selectedSource.digest.generatedAt || "unknown"},{" "}
+                    {selectedSource.digest.leads.length} leads loaded.
+                  </>
+                ) : (
+                  "No lead source data found."
+                )}
+              </p>
+              {selectedSource?.diagnostic ? (
+                <p>
+                  Rows: {selectedSource.diagnostic.parsedLeads}; file{" "}
+                  {selectedSource.diagnostic.fileName || "unknown"}; posted dates{" "}
+                  {selectedSource.diagnostic.postedDateCount}/
+                  {selectedSource.diagnostic.parsedLeads}.
+                  {selectedSource.diagnostic.warning ? (
+                    <span className="ml-2 text-amber-300/80">
+                      {selectedSource.diagnostic.warning}
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
+              {selectedStatus?.sourceFamilyDiagnostics ? (
+                <p>
+                  Source families:{" "}
+                  {formatStatusCounts(selectedStatus.sourceFamilyDiagnostics.activeLeadCountBySourceFamily)}
+                  ; candidates{" "}
+                  {formatStatusCounts(selectedStatus.sourceFamilyDiagnostics.candidateCountBySourceFamily)}
+                  ; duplicates removed{" "}
+                  {formatStatusCounts(selectedStatus.sourceFamilyDiagnostics.duplicatesRemoved)}.
+                </p>
               ) : null}
             </div>
-          ) : null}
+          </details>
           {(isRunning || scanLog.length > 0) && selectedSourceId === "reddit" ? (
             <div className="mt-4 rounded-md border border-white/10 bg-[#151515] p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -694,7 +712,8 @@ export default function LeadsDashboard({
                         <td className="px-4 py-4 align-top">
                           <div className="font-medium leading-5">{lead.title}</div>
                           <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/45">
-                            {lead.reason}
+                            {lead.buyerSituation ? `${formatCategory(lead.buyerSituation)} - ` : ""}
+                            {lead.evidenceSummary || lead.reason}
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top text-white/65">{lead.sourceLabel}</td>
@@ -819,11 +838,46 @@ function LeadDetail({
         <DetailStat label="Score" value={lead.score} />
         <DetailStat label="Posted" value={lead.postedDate || "unknown"} />
         <DetailStat label="Lead type" value={formatLeadType(lead)} />
+        <DetailStat label="Situation" value={formatCategory(lead.buyerSituation || "unknown")} />
+        <DetailStat label="Offer" value={formatCategory(lead.offerMatch || "unknown")} />
         <DetailStat label="Vertical" value={formatCategory(lead.vertical || "other")} />
         <DetailStat label="Failure" value={formatCategory(lead.failureMode || "other")} />
         <DetailStat label="Queue" value={formatQueue(lead.queue)} />
         <DetailStat label="Status" value={statusSummary(lead)} />
       </div>
+
+      {lead.evidenceSummary || lead.missingEvidence || lead.nextStep ? (
+        <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Buyer evidence</h3>
+          {lead.evidenceSummary ? (
+            <p className="mt-2 text-sm leading-6 text-white/65">{lead.evidenceSummary}</p>
+          ) : null}
+          <div className="mt-3 grid gap-2 text-xs text-white/45">
+            {lead.nextStep ? <p><span className="text-white/60">Next:</span> {lead.nextStep}</p> : null}
+            {lead.responsePath ? <p><span className="text-white/60">Path:</span> {lead.responsePath}</p> : null}
+            {lead.missingEvidence ? <p><span className="text-white/60">Missing:</span> {lead.missingEvidence}</p> : null}
+            {lead.sourceQuoteOrSnippet ? <p><span className="text-white/60">Source:</span> {lead.sourceQuoteOrSnippet}</p> : null}
+            {lead.relatedSources && lead.relatedSources !== "none" ? <p><span className="text-white/60">Related:</span> {lead.relatedSources}</p> : null}
+          </div>
+        </section>
+      ) : null}
+
+      {lead.businessMaturityScore || lead.aiLeverageScore || lead.commercialFitScore || lead.confidenceScore ? (
+        <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Fit scores</h3>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/55">
+            <FitScore label="Business" value={lead.businessMaturityScore} />
+            <FitScore label="Pain" value={lead.painSeverityScore} />
+            <FitScore label="Hiring" value={lead.hiringLikelihoodScore} />
+            <FitScore label="AI leverage" value={lead.aiLeverageScore} />
+            <FitScore label="Commercial" value={lead.commercialFitScore} />
+            <FitScore label="Duncan fit" value={lead.duncanFitScore} />
+            <FitScore label="Reach" value={lead.reachabilityScore} />
+            <FitScore label="Freshness" value={lead.freshnessScore} />
+            <FitScore label="Confidence" value={lead.confidenceScore} />
+          </div>
+        </section>
+      ) : null}
 
       {lead.commentContext ? (
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
@@ -892,6 +946,15 @@ function DetailStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-white/10 bg-white/[0.03] p-3">
       <p className="text-xs uppercase tracking-[0.14em] text-white/35">{label}</p>
       <p className="mt-1 truncate text-sm text-white">{value}</p>
+    </div>
+  );
+}
+
+function FitScore({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded border border-white/10 px-2 py-1">
+      <span>{label}</span>
+      <span className="text-white/80">{value || "-"}</span>
     </div>
   );
 }
@@ -1024,6 +1087,11 @@ function queueForLead(lead: RedditLead, state?: LeadState): LeadQueue {
   const normalizedState = state ? normalizeStoredState(state) : undefined;
   if (normalizedState?.dismissed) return "dismissed";
   if (normalizedState?.queue) return normalizedState.queue;
+  if (lead.buyerQueue === "active_lead") return "actionable";
+  if (lead.buyerQueue === "warm_reply") return "community_reply";
+  if (lead.buyerQueue === "company_signal") return "review";
+  if (lead.buyerQueue === "market_intelligence") return "review";
+  if (lead.buyerQueue === "reject") return "dismissed";
   if (lead.recommendedAction === "ignore") return "dismissed";
   if (lead.recommendedAction === "dm" || lead.recommendedAction === "dm_if_engaged") return "actionable";
   if (lead.recommendedAction === "watch") return "review";
@@ -1092,6 +1160,12 @@ function statusSummary(lead: EnrichedLead) {
   return statuses.length ? statuses.join(", ") : formatAction(lead.action);
 }
 
+function formatStatusCounts(counts?: Record<string, number>) {
+  const entries = Object.entries(counts ?? {});
+  if (!entries.length) return "none";
+  return entries.map(([key, value]) => `${formatCategory(key)} ${value}`).join(", ");
+}
+
 function downloadCsv(leads: EnrichedLead[]) {
   const rows = [
     [
@@ -1105,8 +1179,20 @@ function downloadCsv(leads: EnrichedLead[]) {
       "title",
       "category",
       "lead_type",
+      "buyer_situation",
+      "buyer_queue",
+      "offer_match",
+      "source_family",
       "vertical",
       "failure_mode",
+      "commercial_fit_score",
+      "freshness_score",
+      "confidence_score",
+      "evidence_summary",
+      "source_quote_or_snippet",
+      "evidence_url",
+      "missing_evidence",
+      "next_step",
       "comment_context",
       "reason",
       "url",
@@ -1123,8 +1209,20 @@ function downloadCsv(leads: EnrichedLead[]) {
       lead.title,
       lead.category,
       lead.leadType,
+      lead.buyerSituation,
+      lead.buyerQueue,
+      lead.offerMatch,
+      lead.sourceFamily,
       lead.vertical,
       lead.failureMode,
+      lead.commercialFitScore,
+      lead.freshnessScore,
+      lead.confidenceScore,
+      lead.evidenceSummary,
+      lead.sourceQuoteOrSnippet,
+      lead.evidenceUrl,
+      lead.missingEvidence,
+      lead.nextStep,
       lead.commentContext,
       lead.reason,
       lead.url,
