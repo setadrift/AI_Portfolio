@@ -772,6 +772,12 @@ function assignQueue(candidate) {
       rejectionReason: quoteVerification.failed ? "quote_verification_failed" : "no_ownership_quote",
     };
   }
+  if (!hasOwnedBusinessContext(candidate)) {
+    return { queue: "reject", rejectionReason: "missing_owned_business_context" };
+  }
+  if (!hasOperationalWorkflowEvidence(candidate)) {
+    return { queue: "reject", rejectionReason: "missing_operational_workflow" };
+  }
   if (
     classification.intent === "hiring_or_paid_help" &&
     quoteVerification.askVerified &&
@@ -803,6 +809,17 @@ function titleOnlyCap(candidate, queue) {
     return TITLE_ONLY_REPLY_MAX_QUEUE;
   }
   return queue;
+}
+
+function hasOwnedBusinessContext(post) {
+  const text = normalizeForQuote(combinedText(post));
+  const hasFirstPersonOwnership = /\b(?:i|we|our)\b/.test(text);
+  const hasBusinessContext = /\b(?:business|company|agency|practice|clinic|team|staff|employee|client|customer|contracting|shop|store|firm|operations?|bookkeeping|accounting|tax(?:\s+practice)?|preparer)\b/.test(text);
+  return hasFirstPersonOwnership && hasBusinessContext;
+}
+
+function hasOperationalWorkflowEvidence(post) {
+  return /\b(?:process|workflow|handoff|onboard(?:ing)?|intake|follow[ -]?up|quote|lead|appointment|schedule|dispatch|invoice|receipt|reconcil\w*|document|form|spreadsheet|crm|report(?:ing)?|client update|data entry|task)\b/i.test(combinedText(post));
 }
 
 function verifyQuotes(post, classification) {
@@ -913,7 +930,7 @@ function classifierSystemPrompt(config) {
     `Allowed intent labels: ${INTENTS.join(", ")}`,
     "consulting_fit is yes only if a paid AI/workflow implementation engagement would plausibly solve the poster's own problem.",
     "",
-    "problem_ownership_quote must be copied character-for-character from the title or body and must show that the poster owns, operates, manages, or is responsible for the problem.",
+    "problem_ownership_quote must be copied character-for-character from the title or body and must show that the poster owns, operates, manages, or is responsible for a business process.",
     "ask_quote must be copied character-for-character from the title or body and must show a request for help, hiring, paid work, or how-to advice.",
     "If no quote exists, return null. Never paraphrase.",
     "A title-only post can be useful advice, but do not infer paid hiring from title alone unless the title explicitly says pay, hire, paid, consultant, freelancer, or looking for someone.",
@@ -923,6 +940,8 @@ function classifierSystemPrompt(config) {
     "- 'We are building', 'I built', 'we launched', product demos, or feedback requests are builder_showing_product or seller_or_promoter.",
     "- Narrative fiction and off-topic stories are fiction_or_offtopic.",
     "- Personal consumer vendor-selection is consumer with consulting_fit no.",
+    "- Personal purchases, hobbies, music, gaming, and other individual projects are never consulting fit, even when the poster says they will pay.",
+    "- Cash flow, pricing, payroll, hiring, sales, marketing, or growth advice is not consulting fit unless the post also describes a concrete operational workflow or handoff that needs implementation help.",
     "- Job posts and job seekers use the job labels.",
     "- Generic tool shopping without a concrete owned business process should not receive an ownership quote.",
     "",
