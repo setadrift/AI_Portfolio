@@ -500,6 +500,26 @@
         "queue": "reject",
         "rejectionReason": "missing_operational_workflow"
       }
+    },
+    {
+      "id": "game-project-hiring-request",
+      "subreddit": "GameDeveloper",
+      "title": "Need help making my RPG system",
+      "body": "I want a team willing to help me make this game system a finished product. I need coders, artists, and music.",
+      "author": "gamemaker",
+      "classification": {
+        "speaker": "employee_responsible",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "I want a team willing to help me make this game system a finished product.",
+        "ask_quote": "I need coders, artists, and music.",
+        "consulting_fit": "yes",
+        "reply_angle": "Offer development help.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "missing_owned_business_context"
+      }
     }
   ]
 }

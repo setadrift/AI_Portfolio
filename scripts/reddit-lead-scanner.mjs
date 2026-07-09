@@ -814,7 +814,7 @@ function titleOnlyCap(candidate, queue) {
 function hasOwnedBusinessContext(post) {
   const text = normalizeForQuote(combinedText(post));
   const hasFirstPersonOwnership = /\b(?:i|we|our)\b/.test(text);
-  const hasBusinessContext = /\b(?:business|company|agency|practice|clinic|team|staff|employee|client|customer|contracting|shop|store|firm|operations?|bookkeeping|accounting|tax(?:\s+practice)?|preparer)\b/.test(text);
+  const hasBusinessContext = /\b(?:business|company|agency|practice|clinic|client|customer|contracting|shop|store|firm|operations?|bookkeeping|accounting|tax(?:\s+practice)?|preparer)\b/.test(text);
   return hasFirstPersonOwnership && hasBusinessContext;
 }
 
