@@ -209,7 +209,7 @@ async function main() {
     outputPath,
     message: `Wrote Reddit quote-grounded scan with ${surfaced.contact_today.length} contact and ${surfaced.comment_only.length} comment leads.`,
   });
-  await writeState(config, updateStateFromRun(state, allCandidates, surfaced));
+  await writeState(config, updateStateFromRun(state, allCandidates));
 
   console.log(`Wrote ${outputPath}`);
   console.log(`Wrote ${STATUS_PATH}`);
@@ -812,7 +812,7 @@ function titleOnlyCap(candidate, queue) {
 }
 
 function hasOwnedBusinessContext(post) {
-  const text = normalizeForQuote(combinedText(post));
+  const text = normalizeForQuote(combinedText(post).replace(/https?:\/\/\S+/g, ""));
   const hasFirstPersonOwnership = /\b(?:i|we|our)\b/.test(text);
   const hasBusinessContext = /\b(?:business|company|agency|practice|clinic|client|customer|contracting|shop|store|firm|operations?|bookkeeping|accounting|tax(?:\s+practice)?|preparer)\b/.test(text);
   return hasFirstPersonOwnership && hasBusinessContext;
@@ -1180,15 +1180,8 @@ function formatFeedErrors(errors) {
   return errors.map((error) => `- ${error.url}: ${error.status} ${error.error}`).concat("");
 }
 
-function updateStateFromRun(state, candidates, surfaced) {
+function updateStateFromRun(state, candidates) {
   const next = JSON.parse(JSON.stringify(state || emptyState()));
-  for (const lead of [...surfaced.contact_today, ...surfaced.comment_only]) {
-    const source = sourceKey(lead);
-    const stats = next.sourceStats[source] ?? { surfaced: 0, good: 0, lastTen: [] };
-    stats.surfaced += 1;
-    stats.lastTen = [...(stats.lastTen ?? []), "surfaced"].slice(-10);
-    next.sourceStats[source] = stats;
-  }
   for (const candidate of candidates) {
     if (candidate.classification?.speaker === "seller_or_promoter") {
       const author = normalizeAuthor(candidate.author);
