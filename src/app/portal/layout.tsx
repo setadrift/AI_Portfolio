@@ -25,7 +25,7 @@ export default function PortalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body
         className={`${dmSerif.variable} ${outfit.variable} font-body antialiased min-h-screen bg-background text-foreground`}
       >

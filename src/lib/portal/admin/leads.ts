@@ -59,6 +59,15 @@ export interface RedditLead {
   explicitEvidence: string;
   inferredEvidence: string;
   missingEvidence: string;
+  speaker?: string;
+  intent?: string;
+  consultingFit?: string;
+  confidence?: string;
+  ownershipQuote?: string;
+  askQuote?: string;
+  whyNow?: string;
+  replyAngle?: string;
+  rejectionReason?: string;
   sourceQuoteOrSnippet: string;
   evidenceUrl: string;
   responsePath: string;
@@ -131,6 +140,16 @@ export interface LeadRunStatus {
   leadsIncluded: number;
   outputPath: string;
   message: string;
+  rejectCounts?: Record<string, number>;
+  queueCounts?: Record<string, number>;
+  sourceHealth?: Array<{
+    source: string;
+    surfaced: number;
+    markedGood: number;
+    precision: number;
+    quarantined: boolean;
+  }>;
+  quarantinedSources?: string[];
   queryDiagnostics?: Array<{
     query: string;
     id?: string;
@@ -1029,6 +1048,15 @@ function parseLeads(markdown: string, sourceKind: LeadSourceId, sourceDate: stri
         explicitEvidence: bulletValue(block, "Explicit evidence"),
         inferredEvidence: bulletValue(block, "Inferred evidence"),
         missingEvidence: bulletValue(block, "Missing evidence"),
+        speaker: bulletValue(block, "Speaker"),
+        intent: bulletValue(block, "Intent"),
+        consultingFit: bulletValue(block, "Consulting fit"),
+        confidence: bulletValue(block, "Confidence"),
+        ownershipQuote: bulletValue(block, "Ownership quote"),
+        askQuote: bulletValue(block, "Ask quote"),
+        whyNow: bulletValue(block, "Why now"),
+        replyAngle: bulletValue(block, "Reply angle"),
+        rejectionReason: bulletValue(block, "Rejection reason"),
         sourceQuoteOrSnippet: bulletValue(block, "Source quote or snippet"),
         evidenceUrl: bulletValue(block, "Evidence URL"),
         responsePath: bulletValue(block, "Response path"),

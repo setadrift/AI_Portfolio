@@ -1,0 +1,444 @@
+{
+  "fixtures": [
+    {
+      "id": "fpa-content-article",
+      "subreddit": "UnaAI",
+      "title": "Top FP&A technical skills finance teams need in 2026",
+      "body": "Finance teams need better forecasting, automation, dashboards, and business workflows. This guide explains the technical skills every FP&A team should learn.",
+      "author": "contentposter",
+      "classification": {
+        "speaker": "content_marketer",
+        "intent": "sharing_content",
+        "problem_ownership_quote": null,
+        "ask_quote": null,
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "prefilter_denylisted_subreddit"
+      }
+    },
+    {
+      "id": "scanner-fiction",
+      "subreddit": "TalesFromTheCreeps",
+      "title": "The Scanner",
+      "body": "The scanner hummed in the corner. Every workflow in the office moved by itself, and then the lights went out.",
+      "author": "storywriter",
+      "classification": {
+        "speaker": "fiction_or_offtopic",
+        "intent": "other",
+        "problem_ownership_quote": null,
+        "ask_quote": null,
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "prefilter_denylisted_subreddit"
+      }
+    },
+    {
+      "id": "landlord-pm-vendor-selection",
+      "subreddit": "PropertyManagement",
+      "title": "Should I switch property management companies?",
+      "body": "I own one rental and hired a PM company. They miss calls and tenants complain. Should I switch companies or give them another chance?",
+      "author": "landlord123",
+      "classification": {
+        "speaker": "consumer",
+        "intent": "asking_how_to_solve_own_problem",
+        "problem_ownership_quote": "I own one rental and hired a PM company.",
+        "ask_quote": "Should I switch companies or give them another chance?",
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "speaker_consumer"
+      }
+    },
+    {
+      "id": "dubai-app-listicle",
+      "subreddit": "AIDevelopmentSolution",
+      "title": "Top real estate app development companies in Dubai",
+      "body": "Here is our list of the best real estate app development companies for businesses looking to build AI-enabled apps.",
+      "author": "seoagency",
+      "classification": {
+        "speaker": "seller_or_promoter",
+        "intent": "promoting",
+        "problem_ownership_quote": null,
+        "ask_quote": null,
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "prefilter_denylisted_subreddit"
+      }
+    },
+    {
+      "id": "visual-agent-builder",
+      "subreddit": "AI_Agents",
+      "title": "We are building a visual developer agent",
+      "body": "We are building a visual developer agent that automates parts of frontend work. Looking for feedback from other builders.",
+      "author": "builderperson",
+      "classification": {
+        "speaker": "builder_showing_product",
+        "intent": "promoting",
+        "problem_ownership_quote": null,
+        "ask_quote": "Looking for feedback from other builders.",
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "prefilter_denylisted_subreddit"
+      }
+    },
+    {
+      "id": "anthropic-job-post",
+      "subreddit": "MachineLearningJobs",
+      "title": "Head of AI Automation role",
+      "body": "📍 Location: San Francisco. Salary range $180,000-$240,000. About Company: We are hiring a full-time automation lead.",
+      "author": "recruiter",
+      "classification": {
+        "speaker": "job_poster",
+        "intent": "other",
+        "problem_ownership_quote": null,
+        "ask_quote": null,
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "prefilter_denylisted_subreddit"
+      }
+    },
+    {
+      "id": "tenant-retention-guide",
+      "subreddit": "realestateainews",
+      "title": "Tenant Retention AI Agents Development: A Complete Implementation Guide",
+      "body": "One conversation keeps coming up whenever I speak with commercial real estate owners. This complete implementation guide explains tenant retention AI agents.",
+      "author": "proptechcontent",
+      "classification": {
+        "speaker": "content_marketer",
+        "intent": "sharing_content",
+        "problem_ownership_quote": null,
+        "ask_quote": null,
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "prefilter_denylisted_subreddit"
+      }
+    },
+    {
+      "id": "treasury-guide-content",
+      "subreddit": "smallbusiness",
+      "title": "Treasury automation guide for small firms",
+      "body": "Many small firms struggle with cash visibility. This article explains how treasury automation can help.",
+      "author": "newsletteracct",
+      "classification": {
+        "speaker": "content_marketer",
+        "intent": "sharing_content",
+        "problem_ownership_quote": null,
+        "ask_quote": null,
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "speaker_content_marketer"
+      }
+    },
+    {
+      "id": "b2b-marketing-guide",
+      "subreddit": "Entrepreneur",
+      "title": "B2B marketing automation guide",
+      "body": "Companies waste hours on manual workflows. Here is how marketers should package AI agents for B2B clients.",
+      "author": "growthwriter",
+      "classification": {
+        "speaker": "content_marketer",
+        "intent": "sharing_content",
+        "problem_ownership_quote": null,
+        "ask_quote": null,
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "speaker_content_marketer"
+      }
+    },
+    {
+      "id": "crm-promo",
+      "subreddit": "CRM",
+      "title": "Our CRM now automates client follow-up",
+      "body": "We launched a CRM that automates client follow-up, dashboards, and workflows. Use my code CRM20 for a discount.",
+      "author": "crmseller",
+      "classification": {
+        "speaker": "seller_or_promoter",
+        "intent": "promoting",
+        "problem_ownership_quote": null,
+        "ask_quote": null,
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "prefilter_promo_marker"
+      }
+    },
+    {
+      "id": "job-seeker-resume",
+      "subreddit": "freelance",
+      "title": "Resume review for automation specialist role",
+      "body": "I am looking for work and open to an automation or CRM job. Can someone review my resume and portfolio?",
+      "author": "jobhunter",
+      "classification": {
+        "speaker": "job_seeker",
+        "intent": "other",
+        "problem_ownership_quote": null,
+        "ask_quote": "Can someone review my resume and portfolio?",
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "speaker_job"
+      }
+    },
+    {
+      "id": "market-research-validation",
+      "subreddit": "Entrepreneur",
+      "title": "Would small businesses pay for this AI ops tool?",
+      "body": "I am validating a startup idea for an AI ops tool. Do you actually need this or is the market too crowded?",
+      "author": "founderresearch",
+      "classification": {
+        "speaker": "builder_showing_product",
+        "intent": "other",
+        "problem_ownership_quote": null,
+        "ask_quote": "Do you actually need this or is the market too crowded?",
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "speaker_builder"
+      }
+    },
+    {
+      "id": "legal-compliance-question",
+      "subreddit": "smallbusiness",
+      "title": "Can I automate employee medical record handling?",
+      "body": "We run a small business and I want to know if it is legal to automate employee medical record handling with AI. What rules apply?",
+      "author": "bizowner",
+      "classification": {
+        "speaker": "operator",
+        "intent": "asking_how_to_solve_own_problem",
+        "problem_ownership_quote": "We run a small business and I want to know if it is legal to automate employee medical record handling with AI.",
+        "ask_quote": "What rules apply?",
+        "consulting_fit": "no",
+        "reply_angle": null,
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "consulting_fit_no"
+      }
+    },
+    {
+      "id": "explicit-paid-airtable-crm",
+      "subreddit": "Airtable",
+      "title": "Need to hire someone to build Airtable CRM follow-up workflow",
+      "body": "We are a small consultancy moving from spreadsheet tracking to an Airtable CRM source of truth. I need someone to build this for me with client follow up, SMS reminders, and reporting. Open to paid help.",
+      "author": "consultancyops",
+      "classification": {
+        "speaker": "operator",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "We are a small consultancy moving from spreadsheet tracking to an Airtable CRM source of truth.",
+        "ask_quote": "I need someone to build this for me with client follow up, SMS reminders, and reporting.",
+        "consulting_fit": "yes",
+        "reply_angle": "Offer a short audit of their current spreadsheet-to-Airtable workflow before building.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "contact_today",
+        "rejectionReason": ""
+      }
+    },
+    {
+      "id": "clinic-ai-intake-paid-consultant",
+      "subreddit": "smallbusiness",
+      "title": "Need an AI consultant to help our clinic reduce manual intake and follow-up work",
+      "body": "We run a small healthcare clinic and our admin team is spending hours each week copying patient intake forms into spreadsheets, chasing missing paperwork, and sending follow-up emails. I am looking for someone experienced who can review the process, recommend where AI or automation actually makes sense, and build the first workflow. Open to paid help.",
+      "author": "clinicowner",
+      "classification": {
+        "speaker": "operator",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "We run a small healthcare clinic and our admin team is spending hours each week copying patient intake forms into spreadsheets, chasing missing paperwork, and sending follow-up emails.",
+        "ask_quote": "I am looking for someone experienced who can review the process, recommend where AI or automation actually makes sense, and build the first workflow.",
+        "consulting_fit": "yes",
+        "reply_angle": "Lead with intake mapping and a low-risk first workflow.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "contact_today",
+        "rejectionReason": ""
+      }
+    },
+    {
+      "id": "project-profitability-comment",
+      "subreddit": "smallbusiness",
+      "title": "How do you keep track of project profitability while work is still in progress?",
+      "body": "We are a service business using spreadsheets alongside email to keep track of client projects. It is becoming harder to get a quick view of budgets, progress, profitability, and who is working on what as we take on more work. Did you improve your spreadsheet process or realize you had outgrown it?",
+      "author": "serviceops",
+      "classification": {
+        "speaker": "operator",
+        "intent": "asking_how_to_solve_own_problem",
+        "problem_ownership_quote": "We are a service business using spreadsheets alongside email to keep track of client projects.",
+        "ask_quote": "Did you improve your spreadsheet process or realize you had outgrown it?",
+        "consulting_fit": "yes",
+        "reply_angle": "Suggest mapping the job-costing workflow before choosing a tool.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "comment_only",
+        "rejectionReason": ""
+      }
+    },
+    {
+      "id": "tax-doc-intake-comment",
+      "subreddit": "taxpros",
+      "title": "AI workflow for splitting, renaming, and classifying client tax documents?",
+      "body": "Tax practice busy season problem. Clients upload one giant PDF with K-1s, PBC items, receipts, and client documents. We manually split, rename, classify, and chase missing items before preparer review. What workflow are firms using?",
+      "author": "taxpartner",
+      "classification": {
+        "speaker": "employee_responsible",
+        "intent": "asking_how_to_solve_own_problem",
+        "problem_ownership_quote": "We manually split, rename, classify, and chase missing items before preparer review.",
+        "ask_quote": "What workflow are firms using?",
+        "consulting_fit": "yes",
+        "reply_angle": "Suggest separating intake standardization from document classification automation.",
+        "confidence": "medium"
+      },
+      "expected": {
+        "queue": "comment_only",
+        "rejectionReason": ""
+      }
+    },
+    {
+      "id": "stuck-builder-rental-paid-review",
+      "subreddit": "smallbusiness",
+      "title": "Need paid review of our rental ops automation",
+      "body": "We run a 12-person short-term rental business and I built a rough Airtable plus Zapier system for cleaner schedules and guest follow-up. It is breaking now that we have more properties. I am willing to pay someone experienced to review it and rebuild the parts I got wrong.",
+      "author": "rentalops",
+      "classification": {
+        "speaker": "operator",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "We run a 12-person short-term rental business and I built a rough Airtable plus Zapier system for cleaner schedules and guest follow-up.",
+        "ask_quote": "I am willing to pay someone experienced to review it and rebuild the parts I got wrong.",
+        "consulting_fit": "yes",
+        "reply_angle": "Offer a short systems review focused on brittle handoffs.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "contact_today",
+        "rejectionReason": ""
+      }
+    },
+    {
+      "id": "hallucinated-quote",
+      "subreddit": "smallbusiness",
+      "title": "Manual invoice workflow is getting messy",
+      "body": "We run a small shop and invoices are taking too long. How do you handle this?",
+      "author": "shopops",
+      "classification": {
+        "speaker": "operator",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "We run a 30-person shop and invoices are taking too long.",
+        "ask_quote": "I am willing to pay for a consultant.",
+        "consulting_fit": "yes",
+        "reply_angle": "Offer invoice workflow mapping.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "quote_verification_failed"
+      }
+    },
+    {
+      "id": "ownership-no-ask",
+      "subreddit": "bookkeeping",
+      "title": "Month end is manual",
+      "body": "We run bookkeeping for 30 small clients and month end reconciliation is still manual across QuickBooks, bank exports, and spreadsheets.",
+      "author": "bookkeeper",
+      "classification": {
+        "speaker": "operator",
+        "intent": "venting_no_ask",
+        "problem_ownership_quote": "We run bookkeeping for 30 small clients and month end reconciliation is still manual across QuickBooks, bank exports, and spreadsheets.",
+        "ask_quote": null,
+        "consulting_fit": "yes",
+        "reply_angle": "Watch as market intel on reconciliation pain.",
+        "confidence": "medium"
+      },
+      "expected": {
+        "queue": "watch",
+        "rejectionReason": ""
+      }
+    },
+    {
+      "id": "generic-best-crm",
+      "subreddit": "CRM",
+      "title": "Best CRM for a small business?",
+      "body": "Any recommendations for a simple CRM? I am just comparing options and do not have a specific process or migration problem yet.",
+      "author": "toolshopper",
+      "classification": {
+        "speaker": "operator",
+        "intent": "tool_shopping_with_own_pain",
+        "problem_ownership_quote": null,
+        "ask_quote": "Any recommendations for a simple CRM?",
+        "consulting_fit": "adjacent",
+        "reply_angle": null,
+        "confidence": "medium"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "no_ownership_quote"
+      }
+    },
+    {
+      "id": "title-only-own-problem",
+      "subreddit": "Airtable",
+      "title": "We spend hours every week manually copying client intake forms into Airtable. How do you handle this?",
+      "body": "",
+      "author": "opslead",
+      "classification": {
+        "speaker": "operator",
+        "intent": "asking_how_to_solve_own_problem",
+        "problem_ownership_quote": "We spend hours every week manually copying client intake forms into Airtable.",
+        "ask_quote": "How do you handle this?",
+        "consulting_fit": "yes",
+        "reply_angle": "Ask about intake sources and whether the bottleneck is collection or classification.",
+        "confidence": "medium"
+      },
+      "expected": {
+        "queue": "comment_only",
+        "rejectionReason": ""
+      }
+    }
+  ]
+}
