@@ -439,6 +439,27 @@
         "queue": "comment_only",
         "rejectionReason": ""
       }
+    },
+    {
+      "id": "open-search-explicit-paid-request",
+      "subreddit": "smallbusiness",
+      "title": "Looking for someone to fix our client onboarding handoffs",
+      "body": "I run a small agency and our team keeps copying intake details between forms, email, and project plans. We are missing follow-ups and I need to hire someone experienced to rebuild the process.",
+      "author": "agencyoperator",
+      "fetchStage": "open_search",
+      "classification": {
+        "speaker": "operator",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "I run a small agency and our team keeps copying intake details between forms, email, and project plans.",
+        "ask_quote": "I need to hire someone experienced to rebuild the process.",
+        "consulting_fit": "yes",
+        "reply_angle": "Ask where client handoffs break before recommending a rebuild.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "contact_today",
+        "rejectionReason": ""
+      }
     }
   ]
 }

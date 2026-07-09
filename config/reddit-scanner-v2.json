@@ -11,18 +11,13 @@
     "smallbusiness",
     "smallbusinessowner",
     "sweatystartup",
-    "Entrepreneur",
     "agency",
     "msp",
     "taxpros",
     "bookkeeping",
     "accounting",
-    "CRM",
-    "Airtable",
-    "Notion",
     "PropertyManagement",
-    "recruiting",
-    "freelance"
+    "recruiting"
   ],
   "denylist": [
     "UnaAI",
@@ -42,28 +37,28 @@
   ],
   "searchQueries": [
     {
-      "id": "willing-to-pay-workflow",
-      "query": "\"willing to pay\" (automate OR workflow OR spreadsheet)"
+      "id": "paid-help-owned-process",
+      "query": "\"willing to pay\" (\"my business\" OR \"our team\" OR clients OR customers)"
     },
     {
-      "id": "looking-for-someone-build",
-      "query": "\"looking for someone to\" (build OR automate OR \"set up\")"
+      "id": "looking-for-help-owned-work",
+      "query": "\"looking for someone\" (\"our process\" OR \"our team\" OR clients OR operations)"
     },
     {
-      "id": "can-anyone-help-business",
-      "query": "\"can anyone help\" (\"my business\" OR \"my clients\" OR \"our team\")"
+      "id": "need-help-running-business",
+      "query": "\"need help\" (\"my business\" OR \"our team\" OR \"our clients\")"
     },
     {
-      "id": "cant-figure-out-workflow",
-      "query": "\"I can't figure out how to\" (spreadsheet OR CRM OR PDF OR invoices)"
+      "id": "recurring-work-taking-hours",
+      "query": "\"we spend hours\" (copying OR chasing OR updating OR reconciling OR scheduling)"
     },
     {
-      "id": "we-spend-hours-manual",
-      "query": "\"we spend hours\" (manual OR spreadsheet OR copy)"
+      "id": "process-breaking-followup",
+      "query": "\"keep missing\" (follow up OR follow-up OR clients OR customers OR appointments)"
     },
     {
-      "id": "need-to-hire-workflow",
-      "query": "\"need to hire someone\" (workflow OR automation OR CRM)"
+      "id": "need-to-hire-operations-help",
+      "query": "\"need to hire someone\" (operations OR process OR reporting OR client)"
     }
   ],
   "allowlistedSubredditQueries": [
@@ -76,6 +71,5 @@
     "contact_today": 3,
     "comment_only": 5,
     "watch": 5
-  },
-  "openSearchMaxQueue": "watch"
+  }
 }

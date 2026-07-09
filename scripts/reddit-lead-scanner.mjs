@@ -175,7 +175,7 @@ async function main() {
   const classified = [];
   for (const [index, post] of candidates.entries()) {
     const classification = await classifyWithRetry(post, config, env.OPENAI_API_KEY);
-    const candidate = finalizeCandidate(post, classification, config);
+    const candidate = finalizeCandidate(post, classification);
     classified.push(candidate);
     if ((index + 1) % 10 === 0 || index + 1 === candidates.length) {
       console.log(`Classified ${index + 1}/${candidates.length} Reddit candidates.`);
@@ -207,7 +207,7 @@ async function main() {
   await writeStatus({
     ...structured.status,
     outputPath,
-    message: `Wrote Reddit quote-grounded scan with ${surfaced.contact_today.length} contact, ${surfaced.comment_only.length} comment, and ${surfaced.watch.length} watch leads.`,
+    message: `Wrote Reddit quote-grounded scan with ${surfaced.contact_today.length} contact and ${surfaced.comment_only.length} comment leads.`,
   });
   await writeState(config, updateStateFromRun(state, allCandidates, surfaced));
 
@@ -227,6 +227,7 @@ async function runFixtures({ liveLlm = false } = {}) {
   };
   let passed = 0;
   const failures = [];
+  const candidates = [];
 
   for (const fixture of fixtures) {
     const post = fixturePost(fixture);
@@ -237,8 +238,8 @@ async function runFixtures({ liveLlm = false } = {}) {
         liveLlm
           ? await classifyWithRetry(post, config, env.OPENAI_API_KEY)
           : normalizeClassification(fixture.classification),
-        config,
       );
+    candidates.push(candidate);
     const expected = fixture.expected ?? {};
     const errors = [];
     if (candidate.queue !== expected.queue) {
@@ -260,6 +261,42 @@ async function runFixtures({ liveLlm = false } = {}) {
     } else {
       passed += 1;
     }
+  }
+
+  const surfaced = selectSurfacedCandidates(candidates, config);
+  const payload = structuredRunPayload({
+    generatedAt: new Date().toISOString(),
+    config,
+    fetched: { successfulFeeds: config.minSuccessfulFeeds, totalFeeds: config.minSuccessfulFeeds, feedErrors: [] },
+    fetchedPosts: candidates.length,
+    candidates,
+    surfaced,
+    state: emptyState(),
+  });
+  const digest = formatDigest(payload);
+  const visibleCount = surfaced.contact_today.length + surfaced.comment_only.length;
+  const headingCount = (digest.match(/^### [1-5]\/5 - /gm) ?? []).length;
+  if (payload.status.leadsIncluded !== visibleCount || headingCount !== visibleCount || digest.includes("## Watch")) {
+    failures.push({
+      id: "current-queue-digest-contract",
+      errors: [
+        `leadsIncluded=${payload.status.leadsIncluded}; visible=${visibleCount}; headings=${headingCount}`,
+        "Published digest must not contain a Watch section.",
+      ],
+    });
+  }
+  const diagnostics = payload.status.queryDiagnostics ?? [];
+  if (
+    diagnostics.length !== (config.searchQueries ?? []).length ||
+    diagnostics.some((diagnostic) =>
+      ["fetchedPosts", "prefilterRejected", "candidatesScored", "surfaced", "rejected", "manuallyApproved"]
+        .some((field) => typeof diagnostic[field] !== "number"),
+    )
+  ) {
+    failures.push({
+      id: "query-diagnostics-contract",
+      errors: ["Every configured query must report the quality counters used for source review."],
+    });
   }
 
   if (failures.length) {
@@ -287,7 +324,6 @@ async function loadConfig() {
     searchQueries: [],
     allowlistedSubredditQueries: [],
     caps: { contact_today: 3, comment_only: 5, watch: 5 },
-    openSearchMaxQueue: "watch",
     statePath: process.env.REDDIT_SCANNER_STATE_PATH || ".tmp/reddit-scanner-state.json",
     ...config,
   };
@@ -677,7 +713,7 @@ function prefilterReason(post, config, state, denylist) {
   return "";
 }
 
-function finalizeCandidate(post, rawClassification, config) {
+function finalizeCandidate(post, rawClassification) {
   const classification = normalizeClassification(rawClassification);
   const quoteVerification = verifyQuotes(post, classification);
   const verifiedClassification = {
@@ -691,7 +727,7 @@ function finalizeCandidate(post, rawClassification, config) {
     ...post,
     classification: verifiedClassification,
     quoteVerification,
-  }, config);
+  });
   return {
     ...post,
     classification: verifiedClassification,
@@ -715,7 +751,7 @@ function rejectCandidate(post, reason) {
   };
 }
 
-function assignQueue(candidate, config = {}) {
+function assignQueue(candidate) {
   const classification = candidate.classification ?? nullClassification();
   const quoteVerification = candidate.quoteVerification ?? {};
   if (classification.classifierFailed) {
@@ -735,9 +771,6 @@ function assignQueue(candidate, config = {}) {
       queue: "reject",
       rejectionReason: quoteVerification.failed ? "quote_verification_failed" : "no_ownership_quote",
     };
-  }
-  if (candidate.fetchStage === "open_search" && config.openSearchMaxQueue === "watch") {
-    return { queue: "watch", rejectionReason: "" };
   }
   if (
     classification.intent === "hiring_or_paid_help" &&
@@ -980,7 +1013,8 @@ function structuredRunPayload({ generatedAt, config, fetched, fetchedPosts, cand
     {},
   );
   const sourceHealth = sourceHealthRows(state);
-  const leadsIncluded = surfaced.contact_today.length + surfaced.comment_only.length + surfaced.watch.length;
+  const queryDiagnostics = queryDiagnosticsForRun(config, fetched, candidates, state);
+  const leadsIncluded = surfaced.contact_today.length + surfaced.comment_only.length;
   const classificationAttempts = candidates.filter((candidate) => candidate.classificationAttempted).length;
   return {
     generatedAt,
@@ -999,6 +1033,7 @@ function structuredRunPayload({ generatedAt, config, fetched, fetchedPosts, cand
       leadsIncluded,
       queueCounts,
       rejectCounts,
+      queryDiagnostics,
       sourceHealth,
       quarantinedSources: sourceHealth.filter((row) => row.quarantined).map((row) => row.source),
       feedErrors: fetched.feedErrors,
@@ -1014,6 +1049,33 @@ function structuredRunPayload({ generatedAt, config, fetched, fetchedPosts, cand
     sourceHealth,
     feedErrors: fetched.feedErrors,
   };
+}
+
+function queryDiagnosticsForRun(config, fetched, candidates, state) {
+  return (config.searchQueries ?? []).map((querySpec) => {
+    const spec = normalizeQuerySpec(querySpec);
+    const fetchedResults = (fetched.results ?? []).filter(
+      (result) => result.url === `reddit-search:${spec.id}`,
+    );
+    const queryCandidates = candidates.filter((candidate) => candidate.sourceQuery === spec.query);
+    const sourceStats = state.sourceStats?.[`query:${spec.query}`] ?? {};
+    return {
+      id: spec.id,
+      query: spec.query,
+      status: fetchedResults.length === 0 ? "not_run" : fetchedResults.every((result) => result.ok) ? "ok" : "failed",
+      fetchedPosts: fetchedResults.reduce((count, result) => count + result.posts.length, 0),
+      prefilterRejected: queryCandidates.filter((candidate) =>
+        String(candidate.rejectionReason || "").startsWith("prefilter_"),
+      ).length,
+      candidatesScored: queryCandidates.filter((candidate) => candidate.classificationAttempted).length,
+      surfaced: queryCandidates.filter((candidate) =>
+        ["contact_today", "comment_only"].includes(candidate.queue),
+      ).length,
+      watch: queryCandidates.filter((candidate) => candidate.queue === "watch").length,
+      rejected: queryCandidates.filter((candidate) => candidate.queue === "reject").length,
+      manuallyApproved: Number(sourceStats.good ?? 0),
+    };
+  });
 }
 
 function formatDigest(payload) {
@@ -1033,9 +1095,6 @@ function formatDigest(payload) {
     "## Comment Only",
     "",
     ...formatLeadList(payload.leads.comment_only, "comment_only"),
-    "## Watch",
-    "",
-    ...formatLeadList(payload.leads.watch, "watch"),
     "## Rejection Summary",
     "",
     ...formatRejectionSummary(payload.rejectionExamples, status.rejectCounts),
@@ -1296,7 +1355,7 @@ function specificityScore(value) {
   const text = String(value || "");
   return [
     /\d/.test(text),
-    /\b(airtable|crm|spreadsheet|sheets|excel|zapier|make|quickbooks|xero|pdf|invoice|client|team)\b/i.test(text),
+    /\b(client|customer|team|project|invoice|appointment|order|report|follow.?up|document|revenue)\b/i.test(text),
     text.length > 100,
   ].filter(Boolean).length;
 }

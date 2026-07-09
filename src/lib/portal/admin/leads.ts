@@ -6,7 +6,6 @@ import {
   persistLeadSourcesToDatabase,
   readLeadSourcesFromDatabase,
   readLeadStatesFromDatabase,
-  readStoredLeadsFromDatabase,
   stateStorageKey,
 } from "./lead-db";
 
@@ -157,7 +156,10 @@ export interface LeadRunStatus {
     vertical?: string;
     status: string | number;
     fetchedPosts: number;
+    prefilterRejected?: number;
     candidatesScored?: number;
+    surfaced?: number;
+    manuallyApproved?: number;
     replyable?: number;
     watch?: number;
     rejected?: number;
@@ -227,14 +229,25 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
   ]);
 
   const allPublishedSources = [...databaseSources, ...publishedSources];
-  const redditSources = allPublishedSources.filter((source) => source.id === "reddit");
-  const redditSource = redditSources.find((source) => !isCleanupOnlyRedditSource(source)) ?? {
+  const redditSources = allPublishedSources.filter(isQuoteGroundedRedditSource);
+  const localQuoteGroundedSource =
+    localStatus?.scanMode === "quote-grounded-v1"
+      ? {
+          id: "reddit" as const,
+          label: "Quality-first Reddit",
+          description: "Current quote-verified Reddit leads only.",
+          digest: localRedditDigest,
+          status: localStatus,
+          diagnostic: diagnosticForDigest("reddit", localRedditDigest, localStatus),
+        }
+      : null;
+  const redditSource = redditSources[0] ?? localQuoteGroundedSource ?? {
     id: "reddit" as const,
-    label: "Reddit monitor",
-    description: "Leads from the configured Reddit scan.",
-    digest: localRedditDigest,
-    status: localStatus,
-    diagnostic: diagnosticForDigest("reddit", localRedditDigest, localStatus),
+    label: "Quality-first Reddit",
+    description: "Current quote-verified Reddit leads only.",
+    digest: null,
+    status: null,
+    diagnostic: diagnosticForDigest("reddit", null, null),
   };
   const automationSource = databaseSources.find((source) => source.id === "automation") ?? publishedAutomationSource ?? publishedSources.find((source) => source.id === "automation") ?? {
     id: "automation" as const,
@@ -245,57 +258,31 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
     diagnostic: diagnosticForDigest("automation", localAutomationDigest, null),
   };
   const sources = [redditSource, automationSource];
-  const digest = redditSource.digest ?? localRedditDigest;
-  const status = redditSource.status ?? localStatus;
+  const digest = redditSource.digest;
+  const status = redditSource.status;
   const leadStates = await readLeadStatesFromDatabase(sources);
-  const storedLeads = await readStoredLeadsFromDatabase(sources.map((source) => source.id));
-  const sourcesWithStoredLeads = mergeStoredLeads(sources, storedLeads);
+  logLeadSourceDiagnostics(sources);
 
-  logLeadSourceDiagnostics(sourcesWithStoredLeads);
-
-  return { digest, status, sources: sourcesWithStoredLeads, leadStates, channels, scanModes };
+  return { digest, status, sources, leadStates, channels, scanModes };
 }
 
-function isCleanupOnlyRedditSource(source: LeadSourceDigest) {
-  return (
-    source.id === "reddit" &&
-    source.status?.ingestionMode === "cleanup" &&
-    (source.status.totalFeeds ?? 0) === 0 &&
-    (source.digest?.leads.length ?? 0) === 0
-  );
+function isQuoteGroundedRedditSource(source: LeadSourceDigest) {
+  return source.id === "reddit" && source.status?.scanMode === "quote-grounded-v1";
 }
 
 export async function readLeadChannels(): Promise<LeadChannel[]> {
   try {
-    const configPath = path.join(process.cwd(), "config", "reddit-lead-monitor.json");
+    const configPath = path.join(process.cwd(), "config", "reddit-scanner-v2.json");
     const raw = await readFile(configPath, "utf8");
     const config = JSON.parse(raw) as {
-      channels?: Array<{ id?: string; label?: string; subreddit?: string; feed?: string; url?: string }>;
-      feeds?: string[];
+      allowlist?: string[];
     };
 
-    if (config.channels?.length) {
-      return config.channels
-        .map((channel) => {
-          const feed = channel.feed ?? channel.url;
-          const subreddit = channel.subreddit ?? feed?.match(/\/r\/([^/]+)/i)?.[1] ?? "";
-          return {
-            id: slug(channel.id ?? subreddit),
-            label: channel.label ?? `r/${subreddit}`,
-            subreddit,
-            feed,
-          };
-        })
-        .filter((channel) => channel.subreddit);
-    }
-
-    return (config.feeds ?? []).map((feed) => {
-      const subreddit = feed.match(/\/r\/([^/]+)/i)?.[1] ?? feed;
+    return (config.allowlist ?? []).map((subreddit) => {
       return {
         id: slug(subreddit),
         label: `r/${subreddit}`,
         subreddit,
-        feed,
       };
     });
   } catch {
@@ -305,28 +292,17 @@ export async function readLeadChannels(): Promise<LeadChannel[]> {
 
 export async function readLeadScanModes(): Promise<LeadScanMode[]> {
   try {
-    const configPath = path.join(process.cwd(), "config", "reddit-lead-monitor.json");
+    const configPath = path.join(process.cwd(), "config", "reddit-scanner-v2.json");
     const raw = await readFile(configPath, "utf8");
     const config = JSON.parse(raw) as {
-      scanModes?: Array<{ id?: string; label?: string; description?: string }>;
-      channels?: Array<{ id?: string; label?: string; subreddit?: string }>;
+      scanMode?: string;
     };
-
-    if (config.scanModes?.length) {
-      return config.scanModes
-        .map((mode) => ({
-          id: slug(mode.id ?? mode.label ?? ""),
-          label: mode.label ?? mode.id ?? "Scan mode",
-          description: mode.description ?? "",
-        }))
-        .filter((mode) => mode.id);
-    }
 
     return [
       {
-        id: "legacy-config",
-        label: "Legacy configured scan",
-        description: "Runs the channels and search queries defined at the top level of the Reddit lead monitor config.",
+        id: config.scanMode ?? "quote-grounded-v1",
+        label: "Quality-first Reddit scan",
+        description: "Quote-verified operator requests and operational pain. Zero leads is a valid result.",
       },
     ];
   } catch {
@@ -374,8 +350,8 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
   const redditDiagnostic = diagnosticForSource("reddit", fileName, markdown, parseDigest(fileName, markdown, "reddit"), status);
   const redditSource = {
     id: "reddit" as const,
-    label: "Reddit monitor",
-    description: "Leads from the configured Reddit scan.",
+    label: "Quality-first Reddit",
+    description: "Current quote-verified Reddit leads only.",
     fileName,
     markdown,
     status,
@@ -393,8 +369,8 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
         sources: [
           {
             id: "reddit",
-            label: "Reddit monitor",
-            description: "Leads from the configured Reddit scan.",
+            label: "Quality-first Reddit",
+            description: "Current quote-verified Reddit leads only.",
             fileName,
             markdown,
             status,
@@ -527,8 +503,8 @@ async function readPublishedLeadSources(): Promise<LeadSourceDigest[]> {
         ? [
             {
               id: "reddit" as const,
-              label: "Reddit monitor",
-              description: "Leads from the configured Reddit scan.",
+              label: "Quality-first Reddit",
+              description: "Current quote-verified Reddit leads only.",
               fileName: payload.fileName,
               markdown: payload.markdown,
               status: payload.status ?? null,
@@ -613,40 +589,6 @@ export async function readLatestLeadDigest(): Promise<LeadDigest | null> {
 
 export function leadStateStorageKey(lead: RedditLead) {
   return stateStorageKey(lead.sourceKind, leadKeyForDatabase(lead));
-}
-
-function mergeStoredLeads(
-  sources: LeadSourceDigest[],
-  storedLeads: Partial<Record<LeadSourceId, RedditLead[]>>,
-) {
-  return sources.map((source) => {
-    const digest = source.digest;
-    if (!digest) return source;
-
-    const stored = storedLeads[source.id] ?? [];
-    if (stored.length === 0) return source;
-
-    const storedKeys = new Set(stored.map((lead) => leadKeyForDatabase(lead)));
-    const unpublishedDigestLeads = digest.leads.filter((lead) => !storedKeys.has(leadKeyForDatabase(lead)));
-    const leads = [...stored, ...unpublishedDigestLeads];
-
-    return {
-      ...source,
-      digest: {
-        ...digest,
-        candidatesIncluded: leads.length.toString(),
-        leads,
-      },
-      diagnostic: {
-        ...source.diagnostic,
-        parsedLeads: leads.length,
-        bestLeadBlocks: source.id === "reddit" ? leads.filter((lead) => leadScoreValue(lead) >= 4).length : leads.length,
-        totalHeadingBlocks: Math.max(source.diagnostic.totalHeadingBlocks, leads.length),
-        postedDateCount: leads.filter((lead) => lead.postedDate).length,
-        unknownPostedDateCount: leads.filter((lead) => !lead.postedDate).length,
-      },
-    };
-  });
 }
 
 async function readLatestLocalRedditDigest(): Promise<LeadDigest | null> {
@@ -829,7 +771,7 @@ function aggregateAutomationStatus(status: LeadRunStatus | null, markdown: strin
 }
 
 function leadBlocks(markdown: string, options: { includeWatch?: boolean } = {}) {
-  const leadSection = (options.includeWatch ? markdown : markdown.split("\n## Maybe / Watch")[0])
+  const leadSection = (options.includeWatch ? markdown : markdown.split(/\n## (?:Maybe \/ )?Watch\b/)[0])
     .split("\n## Rejected")[0]
     .split("\n## Feed Errors")[0];
 
