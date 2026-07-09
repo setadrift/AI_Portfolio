@@ -439,6 +439,87 @@
         "queue": "comment_only",
         "rejectionReason": ""
       }
+    },
+    {
+      "id": "open-search-explicit-paid-request",
+      "subreddit": "smallbusiness",
+      "title": "Looking for someone to fix our client onboarding handoffs",
+      "body": "I run a small agency and our team keeps copying intake details between forms, email, and project plans. We are missing follow-ups and I need to hire someone experienced to rebuild the process.",
+      "author": "agencyoperator",
+      "fetchStage": "open_search",
+      "classification": {
+        "speaker": "operator",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "I run a small agency and our team keeps copying intake details between forms, email, and project plans.",
+        "ask_quote": "I need to hire someone experienced to rebuild the process.",
+        "consulting_fit": "yes",
+        "reply_angle": "Ask where client handoffs break before recommending a rebuild.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "contact_today",
+        "rejectionReason": ""
+      }
+    },
+    {
+      "id": "personal-premium-pdf-request",
+      "subreddit": "pdf",
+      "title": "Need a premium PDF cleanup solution",
+      "body": "I am looking to invest in a premium solution that eliminates manual editing while preserving sharp sheet music notation.",
+      "author": "musicperson",
+      "classification": {
+        "speaker": "employee_responsible",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "I am looking to invest in a premium solution that eliminates manual editing while preserving sharp sheet music notation.",
+        "ask_quote": "I am looking to invest in a premium solution that eliminates manual editing while preserving sharp sheet music notation.",
+        "consulting_fit": "yes",
+        "reply_angle": "Offer PDF automation.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "missing_owned_business_context"
+      }
+    },
+    {
+      "id": "business-cashflow-strategy-question",
+      "subreddit": "smallbusiness",
+      "title": "Busy company with thin margins",
+      "body": "I own a small service business and cash flow is constantly stressful. How did you figure out whether the problem was pricing, payroll, compensation, or overhead?",
+      "author": "serviceowner",
+      "classification": {
+        "speaker": "operator",
+        "intent": "asking_how_to_solve_own_problem",
+        "problem_ownership_quote": "I own a small service business and cash flow is constantly stressful.",
+        "ask_quote": "How did you figure out whether the problem was pricing, payroll, compensation, or overhead?",
+        "consulting_fit": "yes",
+        "reply_angle": "Offer operations help.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "missing_operational_workflow"
+      }
+    },
+    {
+      "id": "game-project-hiring-request",
+      "subreddit": "GameDeveloper",
+      "title": "Need help making my RPG system",
+      "body": "I want a team willing to help me make this game system a finished product. I need coders, artists, and music. A fictional character runs a business in the story, but this is my personal game project.",
+      "author": "gamemaker",
+      "classification": {
+        "speaker": "employee_responsible",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "I want a team willing to help me make this game system a finished product.",
+        "ask_quote": "I need coders, artists, and music.",
+        "consulting_fit": "yes",
+        "reply_angle": "Offer development help.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "missing_owned_business_context"
+      }
     }
   ]
 }

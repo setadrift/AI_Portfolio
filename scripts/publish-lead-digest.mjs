@@ -35,8 +35,8 @@ async function main() {
     sources: [
       {
         id: "reddit",
-        label: "Reddit monitor",
-        description: "Leads from the configured Reddit scan.",
+        label: "Quality-first Reddit",
+        description: "Current quote-verified Reddit leads only.",
         fileName,
         markdown,
         status,

@@ -166,7 +166,7 @@ export async function persistLeadSourcesToDatabase(sources: PublishedLeadSourceF
 }
 
 async function persistLeadRows(supabase: SupabaseClient, source: PublishedLeadSourceForDb) {
-  if (shouldReplaceMissingLeads(source)) {
+  if (shouldReplaceMissingLeads()) {
     const leadKeys = source.digest.leads.map((lead) => leadKeyForDatabase(lead));
     const staleLeadQuery = supabase
       .from("admin_leads")
@@ -231,8 +231,8 @@ async function persistLeadRows(supabase: SupabaseClient, source: PublishedLeadSo
   }
 }
 
-function shouldReplaceMissingLeads(source: PublishedLeadSourceForDb) {
-  return source.id !== "reddit" || source.status?.ingestionMode === "cleanup";
+function shouldReplaceMissingLeads() {
+  return true;
 }
 
 export async function readLeadStatesFromDatabase(sources: LeadSourceDigest[]) {

@@ -13,7 +13,9 @@ Zero Contact Today leads is a valid result.
 - `scripts/reddit-lead-scanner.mjs` runs fetch, prefilter, LLM classification, quote verification, deterministic queue assignment, and digest/status writing.
 - `config/reddit-scanner-v2.json` owns allowlists, denylists, first-pass queries, caps, and the daily classification cap.
 - `scripts/fixtures/reddit-scanner-v2.json` owns regression coverage for false positives, positives, and quote-verification edge cases.
-- `REDDIT_SCANNER=v2` switches the admin run route to the new scanner.
+- The admin run route and default `npm run leads:reddit` command always use v2.
+  `npm run leads:reddit:legacy` exists only for historical debugging and is not
+  callable from the portal.
 
 ## Core Rules
 
@@ -22,7 +24,8 @@ Zero Contact Today leads is a valid result.
 - Verified quotes are the only positive evidence for surfaced leads.
 - `contact_today` requires a verified ownership quote, verified ask quote, high confidence, and `consulting_fit=yes`.
 - `comment_only` requires a verified ownership quote, own-problem advice/tool-shopping intent, and `consulting_fit=yes`.
-- Unapproved open-search sources are capped at `watch`.
+- Open-search posts may qualify only when they satisfy the full quote-verified
+  queue contract; provenance alone cannot promote or demote a post.
 - Title-only posts can reach `comment_only`, but not `contact_today`.
 - Classifier failures and unverified quotes can never promote a post.
 
@@ -34,7 +37,9 @@ The scanner writes:
 - `outputs/reddit-leads/latest-status.json`
 - `outputs/reddit-leads/latest-structured.json`
 
-The markdown digest keeps legacy headings and `Queue:` values so the existing admin parser can ingest it. The structured JSON is the durable machine-readable contract for future admin work.
+The markdown digest contains only `contact_today` and `comment_only` rows so the
+admin board cannot display watch items as prospects. Watch and reject diagnostics
+remain in the structured JSON.
 
 ## Verification
 

@@ -6,11 +6,10 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/portal/admin/leads/run": [
-      "./config/reddit-lead-monitor.json",
-      "./scripts/publish-lead-digest.mjs",
-      "./scripts/reddit-lead-monitor.mjs",
+      "./config/reddit-scanner-v2.json",
+      "./scripts/reddit-lead-scanner.mjs",
     ],
-    "/portal/admin/leads": ["./config/reddit-lead-monitor.json"],
+    "/portal/admin/leads": ["./config/reddit-scanner-v2.json"],
   },
   async headers() {
     return [

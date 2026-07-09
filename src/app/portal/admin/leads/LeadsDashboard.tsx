@@ -22,9 +22,9 @@ type ScanEvent =
 const STORAGE_KEY = "ai-portfolio-admin-lead-state-v1";
 
 const QUEUES: Array<{ value: LeadQueue; label: string; description: string }> = [
-  { value: "actionable", label: "Actionable", description: "Highest-intent leads to work now." },
+  { value: "actionable", label: "Contact today", description: "Explicit implementation or paid-help requests." },
   { value: "review", label: "Review", description: "Good signals that need a judgment call." },
-  { value: "community_reply", label: "Community Reply", description: "Useful public replies without DM intent." },
+  { value: "community_reply", label: "Worth replying to", description: "Concrete operational pain where a useful public reply is appropriate." },
   { value: "commented", label: "Commented", description: "Leads where you already replied publicly." },
   { value: "dm_sent", label: "DM sent", description: "Leads where you already sent a Reddit DM." },
   { value: "dismissed", label: "Dismissed", description: "Handled, duplicate, stale, or not a fit." },
@@ -533,6 +533,16 @@ export default function LeadsDashboard({
               ) : null}
               {selectedStatus?.rejectCounts ? (
                 <p>Rejects: {formatStatusCounts(selectedStatus.rejectCounts)}</p>
+              ) : null}
+              {selectedStatus?.queryDiagnostics?.length ? (
+                <p>
+                  Queries: {selectedStatus.queryDiagnostics
+                    .slice(0, 4)
+                    .map((query) =>
+                      `${query.id ?? query.query}: ${query.surfaced ?? query.replyable ?? 0}/${query.fetchedPosts} surfaced`,
+                    )
+                    .join("; ")}
+                </p>
               ) : null}
               {selectedStatus?.sourceHealth?.length ? (
                 <p>
