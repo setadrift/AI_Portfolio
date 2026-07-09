@@ -149,6 +149,14 @@ export default function LeadsDashboard({
           lead.buyerSituation,
           lead.offerMatch,
           lead.evidenceSummary,
+          lead.ownershipQuote,
+          lead.askQuote,
+          lead.replyAngle,
+          lead.whyNow,
+          lead.speaker,
+          lead.intent,
+          lead.consultingFit,
+          lead.rejectionReason,
           lead.sourceQuoteOrSnippet,
           lead.evidenceUrl,
           lead.missingEvidence,
@@ -523,6 +531,20 @@ export default function LeadsDashboard({
                   {formatStatusCounts(selectedStatus.sourceFamilyDiagnostics.duplicatesRemoved)}.
                 </p>
               ) : null}
+              {selectedStatus?.rejectCounts ? (
+                <p>Rejects: {formatStatusCounts(selectedStatus.rejectCounts)}</p>
+              ) : null}
+              {selectedStatus?.sourceHealth?.length ? (
+                <p>
+                  Source health:{" "}
+                  {selectedStatus.sourceHealth
+                    .slice(0, 4)
+                    .map((source) =>
+                      `${source.source} ${(source.precision * 100).toFixed(0)}%${source.quarantined ? " quarantined" : ""}`,
+                    )
+                    .join("; ")}
+                </p>
+              ) : null}
             </div>
           </details>
           {(isRunning || scanLog.length > 0) && selectedSourceId === "reddit" ? (
@@ -712,8 +734,9 @@ export default function LeadsDashboard({
                         <td className="px-4 py-4 align-top">
                           <div className="font-medium leading-5">{lead.title}</div>
                           <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/45">
-                            {lead.buyerSituation ? `${formatCategory(lead.buyerSituation)} - ` : ""}
-                            {lead.evidenceSummary || lead.reason}
+                            {lead.ownershipQuote
+                              ? lead.ownershipQuote
+                              : `${lead.buyerSituation ? `${formatCategory(lead.buyerSituation)} - ` : ""}${lead.evidenceSummary || lead.reason}`}
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top text-white/65">{lead.sourceLabel}</td>
@@ -838,13 +861,37 @@ function LeadDetail({
         <DetailStat label="Score" value={lead.score} />
         <DetailStat label="Posted" value={lead.postedDate || "unknown"} />
         <DetailStat label="Lead type" value={formatLeadType(lead)} />
-        <DetailStat label="Situation" value={formatCategory(lead.buyerSituation || "unknown")} />
+        <DetailStat label="Situation" value={formatCategory(lead.intent || lead.buyerSituation || "unknown")} />
         <DetailStat label="Offer" value={formatCategory(lead.offerMatch || "unknown")} />
         <DetailStat label="Vertical" value={formatCategory(lead.vertical || "other")} />
         <DetailStat label="Failure" value={formatCategory(lead.failureMode || "other")} />
         <DetailStat label="Queue" value={formatQueue(lead.queue)} />
         <DetailStat label="Status" value={statusSummary(lead)} />
       </div>
+
+      {lead.ownershipQuote || lead.askQuote || lead.replyAngle || lead.whyNow ? (
+        <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Verified evidence</h3>
+          {lead.ownershipQuote ? (
+            <blockquote className="mt-3 border-l border-white/15 pl-3 text-sm leading-6 text-white/70">
+              {lead.ownershipQuote}
+            </blockquote>
+          ) : null}
+          {lead.askQuote ? (
+            <blockquote className="mt-3 border-l border-white/15 pl-3 text-sm leading-6 text-white/70">
+              {lead.askQuote}
+            </blockquote>
+          ) : null}
+          <div className="mt-3 grid gap-2 text-xs text-white/45">
+            {lead.whyNow ? <p><span className="text-white/60">Why now:</span> {lead.whyNow}</p> : null}
+            {lead.replyAngle ? <p><span className="text-white/60">Reply angle:</span> {lead.replyAngle}</p> : null}
+            {lead.speaker ? <p><span className="text-white/60">Speaker:</span> {formatCategory(lead.speaker)}</p> : null}
+            {lead.intent ? <p><span className="text-white/60">Intent:</span> {formatCategory(lead.intent)}</p> : null}
+            {lead.consultingFit ? <p><span className="text-white/60">Fit:</span> {formatCategory(lead.consultingFit)}</p> : null}
+            {lead.rejectionReason ? <p><span className="text-white/60">Reject:</span> {formatCategory(lead.rejectionReason)}</p> : null}
+          </div>
+        </section>
+      ) : null}
 
       {lead.evidenceSummary || lead.missingEvidence || lead.nextStep ? (
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
@@ -898,6 +945,50 @@ function LeadDetail({
       ) : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => updateLead(lead, { notes: decisionNote(lead.notes, "good_lead"), dismissed: false })}
+          className={queueButtonClass}
+        >
+          Good lead
+        </button>
+        {["not_operator", "no_real_ask", "bad_fit", "stale", "seller", "other"].map((reason) => (
+          <button
+            key={reason}
+            type="button"
+            onClick={() =>
+              updateLead(lead, {
+                queue: "dismissed",
+                dismissed: true,
+                notes: decisionNote(lead.notes, `bad_lead:${reason}`),
+              })
+            }
+            className={queueButtonClass}
+          >
+            Bad: {formatCategory(reason)}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => updateLead(lead, { notes: decisionNote(lead.notes, `blocklist_author:${lead.author}`) })}
+          className={queueButtonClass}
+        >
+          Blocklist author
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            updateLead(lead, {
+              notes: decisionNote(
+                lead.notes,
+                `quarantine_source:${lead.sourceQuery ? `query:${lead.sourceQuery}` : `subreddit:${lead.subreddit}`}`,
+              ),
+            })
+          }
+          className={queueButtonClass}
+        >
+          Quarantine source
+        </button>
         <button type="button" onClick={() => updateLead(lead, { queue: "actionable", dismissed: false })} className={queueButtonClass}>
           Actionable
         </button>
@@ -1166,6 +1257,12 @@ function formatStatusCounts(counts?: Record<string, number>) {
   return entries.map(([key, value]) => `${formatCategory(key)} ${value}`).join(", ");
 }
 
+function decisionNote(current: string, marker: string) {
+  const stamp = new Date().toISOString();
+  const line = `[reddit-v2-feedback ${stamp}] ${marker}`;
+  return [line, current].filter(Boolean).join("\n");
+}
+
 function downloadCsv(leads: EnrichedLead[]) {
   const rows = [
     [
@@ -1189,6 +1286,14 @@ function downloadCsv(leads: EnrichedLead[]) {
       "freshness_score",
       "confidence_score",
       "evidence_summary",
+      "ownership_quote",
+      "ask_quote",
+      "reply_angle",
+      "why_now",
+      "speaker",
+      "intent",
+      "consulting_fit",
+      "rejection_reason",
       "source_quote_or_snippet",
       "evidence_url",
       "missing_evidence",
@@ -1219,6 +1324,14 @@ function downloadCsv(leads: EnrichedLead[]) {
       lead.freshnessScore,
       lead.confidenceScore,
       lead.evidenceSummary,
+      lead.ownershipQuote ?? "",
+      lead.askQuote ?? "",
+      lead.replyAngle ?? "",
+      lead.whyNow ?? "",
+      lead.speaker ?? "",
+      lead.intent ?? "",
+      lead.consultingFit ?? "",
+      lead.rejectionReason ?? "",
       lead.sourceQuoteOrSnippet,
       lead.evidenceUrl,
       lead.missingEvidence,

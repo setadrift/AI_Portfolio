@@ -94,7 +94,9 @@ async function runLeadMonitor({
   const shouldPublish = Boolean(process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN);
 
   onEvent({ type: "log", message: "Starting Reddit scan..." });
-  const scanResult = await runScript("reddit-lead-monitor.mjs", {
+  const scannerScript =
+    process.env.REDDIT_SCANNER === "v2" ? "reddit-lead-scanner.mjs" : "reddit-lead-monitor.mjs";
+  const scanResult = await runScript(scannerScript, {
     REDDIT_LEAD_OUTPUT_DIR: outputDir,
     ...(mode ? { REDDIT_SCAN_MODE: mode } : {}),
     ...(channel ? { REDDIT_FEED_MATCH: channel } : {}),
