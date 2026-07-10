@@ -147,7 +147,7 @@ function numberValue(markdown, label) {
 }
 
 function metadataValue(markdown, label) {
-  const match = markdown.match(new RegExp(`^${escapeRegExp(label)}: (.+)$`, "m"));
+  const match = markdown.match(new RegExp(`^-?\\s*${escapeRegExp(label)}: (.+)$`, "m"));
   return match?.[1]?.trim() ?? "";
 }
 

@@ -1151,7 +1151,7 @@ function normalizeDateOnly(value: string) {
 }
 
 function metadataValue(markdown: string, label: string) {
-  const match = markdown.match(new RegExp(`^${escapeRegExp(label)}: (.+)$`, "m"));
+  const match = markdown.match(new RegExp(`^-?\\s*${escapeRegExp(label)}: (.+)$`, "m"));
   return match?.[1]?.trim() ?? "";
 }
 

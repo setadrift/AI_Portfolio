@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -209,7 +208,11 @@ async function main() {
     outputPath,
     message: `Wrote Reddit quote-grounded scan with ${surfaced.contact_today.length} contact and ${surfaced.comment_only.length} comment leads.`,
   });
-  await writeState(config, updateStateFromRun(state, allCandidates));
+  try {
+    await writeState(config, updateStateFromRun(state, allCandidates));
+  } catch (error) {
+    console.warn(`Unable to write local Reddit scan state: ${errorMessage(error)}`);
+  }
 
   console.log(`Wrote ${outputPath}`);
   console.log(`Wrote ${STATUS_PATH}`);
@@ -324,7 +327,8 @@ async function loadConfig() {
     searchQueries: [],
     allowlistedSubredditQueries: [],
     caps: { contact_today: 3, comment_only: 5, watch: 5 },
-    statePath: process.env.REDDIT_SCANNER_STATE_PATH || ".tmp/reddit-scanner-state.json",
+    statePath: process.env.REDDIT_SCANNER_STATE_PATH ||
+      (process.env.VERCEL ? "/tmp/reddit-scanner-state.json" : ".tmp/reddit-scanner-state.json"),
     ...config,
   };
 }
@@ -380,28 +384,22 @@ async function loadAdminFeedbackState(env) {
   if (!supabaseUrl || !supabaseKey) return emptyState();
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
+    const data = await fetchSupabaseRows(supabaseUrl, supabaseKey, "admin_lead_states", {
+      select: "lead_key,notes,updated_at",
+      source_id: "eq.reddit",
+      notes: "not.eq.",
     });
-    const { data, error } = await supabase
-      .from("admin_lead_states")
-      .select("lead_key,notes,updated_at")
-      .eq("source_id", "reddit")
-      .not("notes", "eq", "");
-    if (error || !data?.length) return emptyState();
+    if (!data.length) return emptyState();
 
     const leadKeys = data.map((row) => row.lead_key).filter(Boolean);
     const payloads = new Map();
     if (leadKeys.length) {
-      const { data: leads } = await supabase
-        .from("admin_leads")
-        .select("lead_key,author,payload")
-        .eq("source_id", "reddit")
-        .in("lead_key", leadKeys);
-      for (const row of leads ?? []) {
+      const leads = await fetchSupabaseRows(supabaseUrl, supabaseKey, "admin_leads", {
+        select: "lead_key,author,payload",
+        source_id: "eq.reddit",
+        lead_key: `in.(${leadKeys.map(quotePostgrestValue).join(",")})`,
+      });
+      for (const row of leads) {
         payloads.set(row.lead_key, row);
       }
     }
@@ -453,6 +451,28 @@ async function loadAdminFeedbackState(env) {
     console.warn(`Unable to load admin feedback state: ${errorMessage(error)}`);
     return emptyState();
   }
+}
+
+async function fetchSupabaseRows(baseUrl, apiKey, table, filters) {
+  const url = new URL(`/rest/v1/${table}`, baseUrl);
+  for (const [key, value] of Object.entries(filters)) {
+    url.searchParams.set(key, value);
+  }
+  const response = await fetch(url, {
+    headers: {
+      apikey: apiKey,
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Supabase ${table} read failed (${response.status}).`);
+  }
+  const data = await response.json();
+  return Array.isArray(data) ? data : [];
+}
+
+function quotePostgrestValue(value) {
+  return `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 function feedbackMarkers(notes) {

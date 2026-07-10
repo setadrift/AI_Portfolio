@@ -82,6 +82,7 @@ async function runLeadMonitor({
   onEvent({ type: "log", message: "Starting Reddit scan..." });
   const scanResult = await runScript("reddit-lead-scanner.mjs", {
     REDDIT_LEAD_OUTPUT_DIR: outputDir,
+    REDDIT_SCANNER_STATE_PATH: path.join(outputDir, "state.json"),
   }, onEvent);
 
   if (scanResult.code !== 0) {
