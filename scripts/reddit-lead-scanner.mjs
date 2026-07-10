@@ -208,7 +208,11 @@ async function main() {
     outputPath,
     message: `Wrote Reddit quote-grounded scan with ${surfaced.contact_today.length} contact and ${surfaced.comment_only.length} comment leads.`,
   });
-  await writeState(config, updateStateFromRun(state, allCandidates));
+  try {
+    await writeState(config, updateStateFromRun(state, allCandidates));
+  } catch (error) {
+    console.warn(`Unable to write local Reddit scan state: ${errorMessage(error)}`);
+  }
 
   console.log(`Wrote ${outputPath}`);
   console.log(`Wrote ${STATUS_PATH}`);
@@ -323,7 +327,8 @@ async function loadConfig() {
     searchQueries: [],
     allowlistedSubredditQueries: [],
     caps: { contact_today: 3, comment_only: 5, watch: 5 },
-    statePath: process.env.REDDIT_SCANNER_STATE_PATH || ".tmp/reddit-scanner-state.json",
+    statePath: process.env.REDDIT_SCANNER_STATE_PATH ||
+      (process.env.VERCEL ? "/tmp/reddit-scanner-state.json" : ".tmp/reddit-scanner-state.json"),
     ...config,
   };
 }
