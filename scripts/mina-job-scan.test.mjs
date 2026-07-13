@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canonicalIdentityMatches, fingerprint, isEligibleLocation, mergeCanonicalDuplicate, parseSalary, scoreJob, stripHtml } from "./mina-job-scan.mjs";
+import { ashbyLocation, buildCoverageSummary, canonicalIdentityMatches, fingerprint, isEligibleLocation, mergeCanonicalDuplicate, parseSalary, scoreJob, stripHtml } from "./mina-job-scan.mjs";
 import { isRelevantRedditHiringPost } from "./mina-jobs/sources.mjs";
 
 test("normalizes entity-encoded posting markup before storage", () => {
@@ -17,7 +17,8 @@ test("accepts Montréal Island locations regardless of work model", () => {
 });
 
 test("accepts Canada-remote roles and rejects non-remote or foreign locations", () => {
-  assert.equal(isEligibleLocation("Toronto", "Remote-friendly Canadian team", "remote"), true);
+  assert.equal(isEligibleLocation("Toronto", "Candidates may work remotely anywhere in Canada.", "remote"), true);
+  assert.equal(isEligibleLocation("Toronto", "Remote role based in Toronto.", "remote"), false);
   assert.equal(isEligibleLocation("Toronto", "Hybrid role", "hybrid"), false);
   assert.equal(isEligibleLocation("New York", "Remote team with Canadian offices", "remote"), false);
   assert.equal(isEligibleLocation("London", "Global remote-friendly company", "hybrid"), false);
@@ -26,6 +27,16 @@ test("accepts Canada-remote roles and rejects non-remote or foreign locations", 
     isEligibleLocation("Global", "This role is based in Canada and requires international travel.", "unknown"),
     true,
   );
+});
+
+test("preserves Ashby remote eligibility locations", () => {
+  assert.equal(ashbyLocation({
+    location: "Toronto",
+    isRemote: true,
+    workplaceType: "Remote",
+    secondaryLocations: [{ location: "Canada" }, { location: "United States" }],
+  }), "Remote — Toronto, Canada, United States");
+  assert.equal(ashbyLocation({ location: "Montréal", isRemote: false, secondaryLocations: [] }), "Montréal");
 });
 
 test("recognizes global recruitment titles and consumer-brand preferences", () => {
@@ -67,6 +78,17 @@ test("parses encoded CAD ranges and preserves USD currency", () => {
   assert.deepEqual(parseSalary("Salaire annuel : 110 000 $ à 130 000 $ CAD"), {
     min: 11_000_000,
     max: 13_000_000,
+    currency: "CAD",
+  });
+  assert.deepEqual(parseSalary("Salary $37.94 to $87.18 hourly"), {
+    min: 7_891_520,
+    max: 18_133_440,
+    currency: "CAD",
+    estimated: true,
+  });
+  assert.deepEqual(parseSalary("Salary $65,000.00 to $70,000.00 annually"), {
+    min: 6_500_000,
+    max: 7_000_000,
     currency: "CAD",
   });
 });
@@ -208,6 +230,75 @@ test("keeps an unverified automated job out of the active board", () => {
   assert.ok(job);
   assert.equal(job.quality_tier, "watch");
   assert.equal(job.active, false);
+});
+
+test("keeps an older employer-verified job active and lower ranked", () => {
+  const job = scoreJob({
+    source: "greenhouse:test",
+    sourceJobId: "older-open",
+    canonicalUrl: "https://example.com/jobs/older-open",
+    applyUrl: "https://example.com/jobs/older-open",
+    title: "Senior Manager, People Operations",
+    company: "Example",
+    location: "Montréal, QC",
+    workModel: "hybrid",
+    employmentType: "Full-time",
+    description: "Employee relations and workforce planning.",
+    compensationText: "",
+    postedAt: "2026-01-01T12:00:00.000Z",
+    canonicalStatus: "open",
+    freshnessConfidence: "high",
+    evidence: { provider: "test" },
+  });
+  assert.ok(job);
+  assert.equal(job.freshness_bucket, "aging");
+  assert.equal(job.quality_tier, "watch");
+  assert.equal(job.active, true);
+});
+
+test("keeps unknown salary eligible and removes known sub-floor salary from the board", () => {
+  const base = {
+    source: "greenhouse:test",
+    canonicalUrl: "https://example.com/jobs/salary",
+    applyUrl: "https://example.com/jobs/salary",
+    title: "Senior HR Business Partner",
+    company: "Example",
+    location: "Montréal, QC",
+    workModel: "hybrid",
+    employmentType: "Full-time",
+    description: "Bilingual employee relations, workforce planning, talent strategy, and SuccessFactors leadership.",
+    postedAt: new Date().toISOString(),
+    canonicalStatus: "open",
+    freshnessConfidence: "high",
+    evidence: { provider: "test" },
+  };
+  const unknown = scoreJob({ ...base, sourceJobId: "unknown", compensationText: "" });
+  const belowFloor = scoreJob({ ...base, sourceJobId: "below", compensationText: "$90,000–$105,000 CAD" });
+  const exactBelowFloor = scoreJob({ ...base, sourceJobId: "exact-below", compensationText: "$84,940.00 annually" });
+  assert.ok(unknown?.active);
+  assert.equal(belowFloor?.quality_tier, "watch");
+  assert.equal(belowFloor?.active, false);
+  assert.ok(exactBelowFloor?.flags.includes("Posted salary appears below CAD 107k"));
+  assert.equal(exactBelowFloor?.active, false);
+});
+
+test("marks scans partial unless the required Canadian market and employer-board lanes are healthy", () => {
+  const healthy = buildCoverageSummary([
+    { family: "canadian_market", queriesAttempted: 4, queriesSucceeded: 4, candidates: 8, verified: 4 },
+    { family: "whole_web", queriesAttempted: 20, queriesSucceeded: 0, candidates: 0, verified: 0 },
+    ...Array.from({ length: 10 }, () => ({ family: "direct_ats", ok: true, candidates: 1, verified: 1 })),
+  ]);
+  assert.equal(healthy.webHealthy, true);
+  assert.equal(healthy.directAtsHealthy, true);
+  assert.equal(healthy.marketQueriesAttempted, 24);
+  assert.equal(healthy.candidatesChecked, 18);
+
+  const partial = buildCoverageSummary([
+    { family: "canadian_market", queriesAttempted: 4, queriesSucceeded: 2, candidates: 1, verified: 0 },
+    { family: "direct_ats", ok: true, candidates: 0, verified: 0 },
+  ]);
+  assert.equal(partial.webHealthy, false);
+  assert.equal(partial.directAtsHealthy, true);
 });
 
 test("keeps genuine Reddit hiring links and rejects job-seeker chatter", () => {

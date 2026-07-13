@@ -2,9 +2,166 @@ import { readFile } from "node:fs/promises";
 import { searchPublicJobs } from "./search/provider.mjs";
 
 const USER_AGENT = "MinaJobsResearch/2.0 (+public-job-discovery)";
+const JOB_BANK_PAGE_SIZE = 25;
+const JOB_BANK_MAX_PAGES = 4;
+
+const JOB_BANK_QUERIES = [
+  { id: "jobbank-qc-hr-managers", noc: "10011", province: "QC" },
+  { id: "jobbank-qc-hr-professionals", noc: "11200", province: "QC" },
+  { id: "jobbank-remote-hr-managers", noc: "10011", remote: true },
+  { id: "jobbank-remote-hr-professionals", noc: "11200", remote: true },
+];
 
 export async function loadSearchConfig(path = "config/mina-job-search.json") {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+export async function fetchJobBank(fetchImpl = fetchPublic, queries = JOB_BANK_QUERIES) {
+  const outcomes = await mapWithConcurrency(queries, 2, async (query) => {
+    try {
+      const firstUrl = jobBankUrl(query, 1);
+      const firstHtml = await fetchJobBankPage(firstUrl, fetchImpl);
+      const totalCount = jobBankResultCount(firstHtml);
+      if (totalCount == null) throw new Error("Job Bank result count could not be parsed.");
+      if (totalCount > JOB_BANK_PAGE_SIZE * JOB_BANK_MAX_PAGES) {
+        throw new Error(`Job Bank query returned ${totalCount} results, beyond the safe pagination limit.`);
+      }
+      const pageCount = Math.min(JOB_BANK_MAX_PAGES, Math.max(1, Math.ceil(totalCount / JOB_BANK_PAGE_SIZE)));
+      const pages = [firstHtml];
+      for (let page = 2; page <= pageCount; page += 1) {
+        pages.push(await fetchJobBankPage(jobBankUrl(query, page), fetchImpl));
+      }
+      const jobs = pages.flatMap((html) => parseJobBankResults(html, query));
+      if (jobs.length < totalCount) {
+        throw new Error(`Job Bank reported ${totalCount} results but only ${jobs.length} job cards were parsed.`);
+      }
+      return { queryId: query.id, ok: true, jobs, error: "" };
+    } catch (error) {
+      return {
+        queryId: query.id,
+        ok: false,
+        jobs: [],
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+  const seen = new Set();
+  const jobs = outcomes.flatMap((outcome) => outcome.jobs).filter((job) => {
+    if (seen.has(job.sourceJobId)) return false;
+    seen.add(job.sourceJobId);
+    return true;
+  });
+  return {
+    jobs,
+    queryResults: outcomes.map(({ queryId, ok, jobs: queryJobs, error }) => ({
+      queryId,
+      ok,
+      resultCount: queryJobs.length,
+      error,
+    })),
+  };
+}
+
+export function parseJobBankResults(html, query = {}) {
+  const jobs = [];
+  const articlePattern = /<article\b[^>]*id=["']article-(\d+)["'][^>]*>[\s\S]*?<a\b[^>]*class=["'][^"']*resultJobItem[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+  for (const match of String(html || "").matchAll(articlePattern)) {
+    const sourceJobId = match[1];
+    const card = match[2];
+    const title = classText(card, "noctitle");
+    const company = classText(card, "business");
+    const location = classText(card, "location").replace(/^Location\s*/i, "");
+    const postedAt = classText(card, "date");
+    const compensationText = classText(card, "salary").replace(/^Salary\s*/i, "");
+    const workLabel = classText(card, "telework");
+    if (!title || !location) continue;
+    const canonicalUrl = `https://www.jobbank.gc.ca/jobsearch/jobposting/${sourceJobId}`;
+    jobs.push({
+      source: "jobbank:canada",
+      sourceFamily: "canadian_market",
+      sourceJobId,
+      canonicalUrl,
+      applyUrl: canonicalUrl,
+      title,
+      company: company || "Employer listed on Job Bank",
+      location,
+      employmentType: "",
+      description: stripMarkup(card),
+      postedAt,
+      closesAt: "",
+      workModel: /remote|work from home/i.test(workLabel)
+        ? "remote"
+        : /hybrid/i.test(workLabel) ? "hybrid" : /on site/i.test(workLabel) ? "on_site" : "unknown",
+      compensationText,
+      canonicalTrustedOpen: true,
+      freshnessConfidence: "high",
+      evidence: {
+        provider: "Government of Canada Job Bank",
+        queryId: query.id || null,
+        noc: query.noc || null,
+        province: query.province || null,
+        remote: Boolean(query.remote),
+        liveSearchResult: true,
+      },
+    });
+  }
+  return jobs;
+}
+
+function jobBankUrl(query, page) {
+  const url = new URL("https://www.jobbank.gc.ca/jobsearch/jobsearch");
+  url.searchParams.set("fn21", query.noc);
+  if (query.province) url.searchParams.set("fprov", query.province);
+  if (query.remote) url.searchParams.set("fskl", "100000");
+  url.searchParams.set("sort", "D");
+  if (page > 1) url.searchParams.set("page", String(page));
+  return url;
+}
+
+async function fetchJobBankPage(url, fetchImpl) {
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetchImpl(url, { headers: { "User-Agent": USER_AGENT } });
+      if (response.ok) return await response.text();
+      lastError = new Error(`Job Bank returned ${response.status}`);
+      if (response.status < 500 && response.status !== 429) break;
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+  }
+  throw lastError || new Error("Job Bank request failed.");
+}
+
+function jobBankResultCount(html) {
+  const match = String(html || "").match(/content=["']View\s+([\d,]+)\s+job postings?/i);
+  return match ? Number(match[1].replace(/,/g, "")) : null;
+}
+
+function classText(html, className) {
+  for (const tag of ["li", "span"]) {
+    const pattern = new RegExp(`<${tag}\\b[^>]*class=["'][^"']*\\b${className}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+    const match = String(html || "").match(pattern);
+    if (match) return stripMarkup(match[1]);
+  }
+  return "";
+}
+
+function stripMarkup(value) {
+  return decodeEntities(String(value || "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+}
+
+function decodeEntities(value) {
+  return String(value)
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#([0-9]+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;|&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
 }
 
 export async function fetchHimalayas() {
@@ -114,56 +271,94 @@ export async function fetchJooble(apiKey) {
   });
 }
 
-export async function fetchPublicWebSearch(providerName, apiKey, queries, maximumQueries = 2) {
+export async function fetchPublicWebSearch(providerName, apiKey, queries, maximumQueries = 2, fetchImpl = fetchPublic) {
   const selected = rotate(queries, maximumQueries);
-  const batches = await Promise.all(selected.map(async (query) => {
-    const results = await searchPublicJobs({
-      queryId: query.id,
-      query: query.query,
-      freshness: query.freshness,
-      country: "CA",
-      language: query.language,
-      location: query.locationModel === "montreal_island" ? "Montreal, Quebec, Canada" : "Canada",
-      maxResults: 20,
-      sourceFamily: query.family,
-    }, {
-      provider: { name: providerName, apiKey },
-      fetchImpl: (url, options) => fetchPublic(url, options),
-    });
-    return results.map((result) => {
-      const extensions = result.structured || {};
-      return {
-        source: providerName === "brave-web" ? "brave:web" : "serpapi:google-jobs",
-        sourceFamily: "whole_web",
-        sourceJobId: String(result.url),
+  const outcomes = await mapWithConcurrency(selected, selected.length, async (query) => {
+    try {
+      const results = await searchPublicJobs({
         queryId: query.id,
-        sourceRank: result.rank,
-        canonicalUrl: result.url,
-        applyUrl: result.url,
-        title: result.title,
-        company: result.company,
-        location: result.location || "",
-        employmentType: extensions.schedule_type || "",
-        description: result.snippet || "",
-        postedAt: dateFromExtensions(extensions, [result.displayedDate]),
-        closesAt: "",
-        workModel: /remote/i.test(`${result.location} ${result.snippet}`) ? "remote" : "unknown",
-        compensationText: extensions.salary || "",
-        canonicalTrustedOpen: false,
-        freshnessConfidence: "low",
-        evidence: {
-          provider: result.provider,
-          query: query.query,
+        query: query.query,
+        freshness: query.freshness,
+        country: "CA",
+        language: query.language,
+        location: query.locationModel === "montreal_island" ? "Montreal, Quebec, Canada" : "Canada",
+        maxResults: 20,
+        sourceFamily: query.family,
+      }, {
+        provider: { name: providerName, apiKey },
+        fetchImpl,
+      });
+      const jobs = results.map((result) => {
+        const extensions = result.structured || {};
+        return {
+          source: providerName === "brave-web" ? "brave:web" : "serpapi:google-jobs",
+          sourceFamily: "whole_web",
+          sourceJobId: String(result.url),
           queryId: query.id,
-          queryFamily: query.family,
-          requestedFreshness: result.requestedFreshness,
-          displayedDate: result.displayedDate,
-          rank: result.rank,
-        },
+          sourceRank: result.rank,
+          canonicalUrl: result.url,
+          applyUrl: result.url,
+          title: result.title,
+          company: result.company,
+          location: result.location || "",
+          employmentType: extensions.schedule_type || "",
+          description: result.snippet || "",
+          postedAt: dateFromExtensions(extensions, [result.displayedDate]),
+          closesAt: "",
+          workModel: /remote/i.test(`${result.location} ${result.snippet}`) ? "remote" : "unknown",
+          compensationText: extensions.salary || "",
+          canonicalTrustedOpen: false,
+          freshnessConfidence: "low",
+          evidence: {
+            provider: result.provider,
+            query: query.query,
+            queryId: query.id,
+            queryFamily: query.family,
+            requestedFreshness: result.requestedFreshness,
+            displayedDate: result.displayedDate,
+            rank: result.rank,
+          },
+        };
+      });
+      return { queryId: query.id, ok: true, jobs, error: "" };
+    } catch (error) {
+      return {
+        queryId: query.id,
+        ok: false,
+        jobs: [],
+        error: error instanceof Error ? error.message : String(error),
       };
-    });
-  }));
-  return batches.flat();
+    }
+  });
+  const seen = new Set();
+  const jobs = outcomes.flatMap((outcome) => outcome.jobs).filter((job) => {
+    if (seen.has(job.sourceJobId)) return false;
+    seen.add(job.sourceJobId);
+    return true;
+  });
+  return {
+    jobs,
+    queryResults: outcomes.map(({ queryId, ok, jobs, error }) => ({
+      queryId,
+      ok,
+      resultCount: jobs.length,
+      error,
+    })),
+  };
+}
+
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
+  return results;
 }
 
 export async function fetchReddit(env, queries) {
