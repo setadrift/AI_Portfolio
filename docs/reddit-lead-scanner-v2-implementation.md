@@ -12,6 +12,7 @@ Zero Contact Today leads is a valid result.
 
 - `scripts/reddit-lead-scanner.mjs` runs fetch, prefilter, LLM classification, quote verification, deterministic queue assignment, and digest/status writing.
 - `config/reddit-scanner-v2.json` owns allowlists, denylists, first-pass queries, caps, and the daily classification cap.
+- Discovery combines operator-community feeds with global buyer-intent searches. Tool communities (`r/Zapier`, `r/Airtable`, and `r/n8n`) and explicit paid/build/integration queries improve recall, but every result still passes the same ownership, workflow, quote, and consulting-fit gates.
 - `scripts/fixtures/reddit-scanner-v2.json` owns regression coverage for false positives, positives, and quote-verification edge cases.
 - The admin run route and default `npm run leads:reddit` command always use v2.
   `npm run leads:reddit:legacy` exists only for historical debugging and is not
@@ -53,3 +54,4 @@ npx tsc --noEmit
 ```
 
 Use temp output directories for live smoke tests unless intentionally updating local admin outputs.
+Set `REDDIT_CHANNEL_LIMIT=1`, `REDDIT_SEARCH_LIMIT=1`, and `REDDIT_CANDIDATE_LIMIT=1` for a bounded live smoke that cannot spend a full scan's classification quota.

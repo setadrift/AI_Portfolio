@@ -17,7 +17,10 @@
     "bookkeeping",
     "accounting",
     "PropertyManagement",
-    "recruiting"
+    "recruiting",
+    "Zapier",
+    "Airtable",
+    "n8n"
   ],
   "denylist": [
     "UnaAI",
@@ -30,11 +33,7 @@
     "SideProject",
     "AI_Agents"
   ],
-  "denylistPatterns": [
-    "TalesFrom*",
-    "nosleep",
-    "*jobs*"
-  ],
+  "denylistPatterns": ["TalesFrom*", "nosleep", "*jobs*"],
   "searchQueries": [
     {
       "id": "paid-help-owned-process",
@@ -59,6 +58,22 @@
     {
       "id": "need-to-hire-operations-help",
       "query": "\"need to hire someone\" (operations OR process OR reporting OR client)"
+    },
+    {
+      "id": "paid-automation-integration-help",
+      "query": "(paid OR budget OR consultant OR freelancer) (automation OR integration OR workflow) (business OR company OR clients OR team)"
+    },
+    {
+      "id": "need-someone-build-automation",
+      "query": "\"need someone\" (build OR fix OR set up) (automation OR integration OR workflow OR dashboard)"
+    },
+    {
+      "id": "professional-integration-help",
+      "query": "(\"professional help\" OR \"hire a pro\" OR consultant) (Zapier OR Airtable OR n8n OR Make.com OR API)"
+    },
+    {
+      "id": "manual-finance-admin-workflow",
+      "query": "(manual OR spreadsheet) (reconciliation OR invoicing OR reporting OR data entry) (business OR firm OR company OR clients)"
     }
   ],
   "allowlistedSubredditQueries": [

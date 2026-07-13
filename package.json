@@ -13,6 +13,9 @@
     "leads:reddit:archive": "node scripts/archive-reddit-leads.mjs",
     "leads:publish": "node scripts/publish-lead-digest.mjs",
     "leads:publish:automation": "node scripts/publish-automation-lead-digest.mjs",
+    "consulting:seed": "tsx scripts/seed-consulting-acquisition.ts",
+    "consulting:test": "tsx scripts/test-consulting-acquisition.ts",
+    "consulting:verify": "tsx scripts/verify-consulting-acquisition.ts",
     "willowops:monday:setup": "node scripts/willowops_monday_setup.mjs",
     "willowops:smoke": "bash scripts/willowops_phase1_smoke.sh",
     "willowops:tunnel": "bash scripts/willowops_tunnel.sh",
@@ -57,6 +60,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

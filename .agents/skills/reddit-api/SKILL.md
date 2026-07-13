@@ -10,10 +10,10 @@ Use this skill before changing or auditing the Reddit lead scanner, Reddit API c
 ## Scope
 
 - Repo: `/Users/duncananderson/Desktop/AI_Portfolio/worktrees/slot-1`
-- Scanner: `scripts/reddit-lead-monitor.mjs`
-- Config: `config/reddit-lead-monitor.json`
-- Feedback config: `config/reddit-lead-feedback.json`
-- Fixture tests: `scripts/fixtures/reddit-lead-scanner-quality.json`
+- Production scanner: `scripts/reddit-lead-scanner.mjs`
+- Production config: `config/reddit-scanner-v2.json`
+- Fixture tests: `scripts/fixtures/reddit-scanner-v2.json`
+- Legacy scanner (historical debugging only): `scripts/reddit-lead-monitor.mjs`
 - Output directory: `outputs/reddit-leads`
 - Portal run route: `src/app/api/portal/admin/leads/run/route.ts`
 - Portal parser/storage: `src/lib/portal/admin/leads.ts`
@@ -38,7 +38,7 @@ Expected env vars:
 - `REDDIT_USER_AGENT`
 - Optional: `REDDIT_REFRESH_TOKEN`
 
-Auth behavior in `scripts/reddit-lead-monitor.mjs`:
+Auth behavior in `scripts/reddit-lead-scanner.mjs`:
 
 - Uses `https://www.reddit.com/api/v1/access_token`.
 - Uses `refresh_token` grant when `REDDIT_REFRESH_TOKEN` exists.
@@ -58,7 +58,7 @@ The repo scanner supports:
   - Query params: `q`, `sort=new`, `t=month`, `limit`, `type=link`, `restrict_sr=false`, `raw_json=1`
 - Comment context for fetched candidates:
   - `GET https://oauth.reddit.com/comments/{articleId}?limit=N&sort=top&raw_json=1`
-- RSS fallback for subreddit feeds when OAuth is not required.
+- Quote-grounded OpenAI classification after deterministic prefiltering.
 
 Important limitation:
 
@@ -96,7 +96,7 @@ Useful MCP cases:
 Not sufficient by itself for:
 
 - Search-first all-Reddit discovery.
-- Replacing `scripts/reddit-lead-monitor.mjs`.
+- Replacing `scripts/reddit-lead-scanner.mjs`.
 - Per-query global yield tracking.
 - Comment-context enrichment unless the MCP exposes comments.
 
@@ -107,17 +107,17 @@ If a Reddit MCP is installed later, verify its actual callable tools before rely
 Fixture scoring:
 
 ```bash
-node scripts/reddit-lead-monitor.mjs --score-fixtures
+npm run leads:reddit:v2:fixtures
 ```
 
 Low-limit live smoke with temp output:
 
 ```bash
-REDDIT_SCAN_MODE=broad-buyer-intent \
 REDDIT_CHANNEL_LIMIT=1 \
 REDDIT_SEARCH_LIMIT=1 \
+REDDIT_CANDIDATE_LIMIT=1 \
 REDDIT_LEAD_OUTPUT_DIR=/tmp/reddit-leads-test \
-node scripts/reddit-lead-monitor.mjs
+node scripts/reddit-lead-scanner.mjs
 ```
 
 Validate status:
@@ -135,7 +135,7 @@ rg -n '^### ' /tmp/reddit-leads-test/*.md
 Static checks after code edits:
 
 ```bash
-node --check scripts/reddit-lead-monitor.mjs
+node --check scripts/reddit-lead-scanner.mjs
 npm run lint
 ```
 
@@ -146,8 +146,7 @@ Use `npx tsc --noEmit` when TypeScript or parser/portal types changed.
 Admin portal scan route:
 
 - `POST /api/portal/admin/leads/run`
-- Accepts `mode` and legacy `channel`.
-- Runs `scripts/reddit-lead-monitor.mjs`.
+- Runs `scripts/reddit-lead-scanner.mjs`.
 - Local output: `outputs/reddit-leads`
 - Vercel output: `/tmp/reddit-leads`
 - Publishes through bundled app code when Blob publishing is available.
@@ -160,6 +159,7 @@ Scanner output:
 
 - Dated digest: `outputs/reddit-leads/YYYY-MM-DD.md`
 - Status: `outputs/reddit-leads/latest-status.json`
+- Structured review payload: `outputs/reddit-leads/latest-structured.json`
 
 Status should include:
 
@@ -179,9 +179,9 @@ Preserve posted date separately from discovered/generated date.
 
 ## Scanner Work Procedure
 
-1. Read `config/reddit-lead-monitor.json` and the relevant scanner code before proposing API-dependent behavior.
+1. Read `config/reddit-scanner-v2.json` and `scripts/reddit-lead-scanner.mjs` before proposing API-dependent behavior.
 2. Determine whether the task concerns discovery, scoring, comment context, portal parsing, publishing, or live credentials.
-3. For strategy changes, keep `docs/reddit-lead-scanner-search-first-architecture-spec.md` aligned.
+3. For strategy or contract changes, keep `docs/reddit-lead-scanner-v2-implementation.md` aligned.
 4. For code changes, add/update fixtures before live scans when practical.
 5. Run fixture scoring before broad live scans.
 6. Use temp output for smoke tests unless publishing/admin output is explicitly requested.
