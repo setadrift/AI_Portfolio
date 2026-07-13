@@ -15,6 +15,8 @@ export const MINA_JOB_STATUSES = [
 
 export type MinaJobStatus = (typeof MINA_JOB_STATUSES)[number];
 export type MinaWorkModel = "remote" | "hybrid" | "on_site" | "unknown";
+export type MinaFreshnessBucket = "hot" | "fresh" | "recent" | "aging" | "archive" | "unknown";
+export type MinaQualityTier = "priority" | "strong" | "watch" | "archive";
 export type MinaRoleFamily =
   | "hr_business_partner"
   | "recruiting_manager"
@@ -48,6 +50,12 @@ export interface MinaJob {
   roleFamily: MinaRoleFamily;
   companySize: string;
   postedAt: string;
+  sourcePostedAt: string;
+  lastVerifiedAt: string;
+  canonicalStatus: "open" | "closed" | "unverified" | "error";
+  freshnessBucket: MinaFreshnessBucket;
+  freshnessConfidence: "high" | "medium" | "low";
+  qualityTier: MinaQualityTier;
   closesAt: string;
   salaryMinCents: number | null;
   salaryMaxCents: number | null;
@@ -219,6 +227,10 @@ export async function createManualMinaJob(
         : []
       : ["Salary not posted"],
     source_evidence: { capturedBy: "mina", capturedAt: new Date().toISOString() },
+    canonical_status: "unverified",
+    freshness_bucket: "unknown",
+    freshness_confidence: "low",
+    quality_tier: "watch",
     active: true,
     last_seen_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -304,6 +316,12 @@ function mapJob(row: Record<string, unknown>, state: MinaJobState): MinaJob {
     roleFamily: asRoleFamily(row.role_family),
     companySize: String(row.company_size ?? ""),
     postedAt: String(row.posted_at ?? ""),
+    sourcePostedAt: String(row.source_posted_at ?? row.posted_at ?? ""),
+    lastVerifiedAt: String(row.last_verified_at ?? ""),
+    canonicalStatus: asCanonicalStatus(row.canonical_status),
+    freshnessBucket: asFreshnessBucket(row.freshness_bucket, row.source_posted_at ?? row.posted_at),
+    freshnessConfidence: asFreshnessConfidence(row.freshness_confidence),
+    qualityTier: asQualityTier(row.quality_tier),
     closesAt: String(row.closes_at ?? ""),
     salaryMinCents: nullableNumber(row.salary_min_cents),
     salaryMaxCents: nullableNumber(row.salary_max_cents),
@@ -434,11 +452,11 @@ function emptyState(): MinaJobState {
 }
 
 function classifyRole(title: string): MinaRoleFamily {
-  if (/recruit(ing|ment)(?:\s*(?:&|and)\s*(?:hr|human resources))? manager|talent acquisition manager|manager,?\s*(?:global\s+)?(?:talent acquisition|recruiting|recruitment)|gestionnaire(?:\s+de\s+l['’])?,?\s+acquisition\s+de\s+talents/i.test(title))
+  if (/recruit(ing|ment)(?:\s*(?:&|and)\s*(?:hr|human resources))? (?:manager|lead)|talent acquisition (?:manager|lead)|(?:manager|lead),?\s*(?:global\s+)?(?:talent acquisition|recruiting|recruitment)|(?:gestionnaire|responsable|chef)(?:\s+de\s+l['’])?,?\s+acquisition\s+de\s+talents|responsable\s+(?:du\s+)?recrutement/i.test(title))
     return "recruiting_manager";
   if (/hr business partner|human resources business partner|people partner|partenaire\s+d['’]affaires,?\s+(?:ressources humaines|rh)/i.test(title))
     return "hr_business_partner";
-  if (/people operations|people & culture|people and culture/i.test(title))
+  if (/people operations|people & culture|people and culture|head of people/i.test(title))
     return "people_operations";
   if (/human resources manager|hr manager|gestionnaire\s+(?:des\s+)?ressources humaines|directeur(?:trice)?\s+(?:des\s+)?ressources humaines/i.test(title)) return "hr_manager";
   return "other";
@@ -506,6 +524,32 @@ function asSalaryPeriod(value: unknown): "year" | "hour" | "unknown" {
   return ["year", "hour"].includes(String(value))
     ? (String(value) as "year" | "hour")
     : "unknown";
+}
+
+function asCanonicalStatus(value: unknown): "open" | "closed" | "unverified" | "error" {
+  return ["open", "closed", "error"].includes(String(value))
+    ? (String(value) as "open" | "closed" | "error")
+    : "unverified";
+}
+
+function asFreshnessBucket(value: unknown, postedAt: unknown): MinaFreshnessBucket {
+  if (["hot", "fresh", "recent", "aging", "archive"].includes(String(value))) return String(value) as MinaFreshnessBucket;
+  const posted = Date.parse(String(postedAt || ""));
+  if (Number.isNaN(posted)) return "unknown";
+  const hours = Math.max(0, (Date.now() - posted) / 3_600_000);
+  if (hours <= 24) return "hot";
+  if (hours <= 72) return "fresh";
+  if (hours <= 168) return "recent";
+  if (hours <= 336) return "aging";
+  return "archive";
+}
+
+function asFreshnessConfidence(value: unknown): "high" | "medium" | "low" {
+  return ["high", "medium"].includes(String(value)) ? String(value) as "high" | "medium" : "low";
+}
+
+function asQualityTier(value: unknown): MinaQualityTier {
+  return ["priority", "strong", "archive"].includes(String(value)) ? String(value) as MinaQualityTier : "watch";
 }
 
 function notConfigured<T>(): MinaMutationResult<T> {

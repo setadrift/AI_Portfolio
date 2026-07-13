@@ -2,8 +2,8 @@ name: Mina job scan
 
 on:
   schedule:
-    # 07:00, 13:00, and 19:00 in Toronto during daylight-saving time.
-    - cron: "0 11,17,23 * * *"
+    # Every two hours at a non-zero minute; GitHub cron is UTC.
+    - cron: "17 */2 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -22,6 +22,15 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       MINA_ADZUNA_APP_ID: ${{ secrets.MINA_ADZUNA_APP_ID }}
       MINA_ADZUNA_APP_KEY: ${{ secrets.MINA_ADZUNA_APP_KEY }}
+      JOOBLE_API_KEY: ${{ secrets.JOOBLE_API_KEY }}
+      SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+      BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+      REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+      REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+      REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      MINA_JOB_ALERT_EMAIL: ${{ secrets.MINA_JOB_ALERT_EMAIL }}
+      MINA_JOB_NOTIFICATIONS_ENABLED: ${{ vars.MINA_JOB_NOTIFICATIONS_ENABLED || 'false' }}
       MINA_GREENHOUSE_BOARDS: ${{ vars.MINA_GREENHOUSE_BOARDS }}
       MINA_ASHBY_BOARDS: ${{ vars.MINA_ASHBY_BOARDS }}
       MINA_LEVER_SITES: ${{ vars.MINA_LEVER_SITES }}

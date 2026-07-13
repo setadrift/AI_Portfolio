@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
       "./scripts/reddit-lead-scanner.mjs",
     ],
     "/portal/admin/leads": ["./config/reddit-scanner-v2.json"],
+    "/api/portal/mina/scan": [
+      "./config/mina-job-search.json",
+      "./scripts/mina-job-scan.mjs",
+      "./scripts/mina-jobs/**/*.mjs",
+    ],
   },
   async headers() {
     return [

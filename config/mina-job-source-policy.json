@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "minimumConfiguredFamilies": 6,
+  "healthySuccessfulFamilies": 4,
+  "requiredHealthyFamilyKinds": ["discovery", "canonical"],
+  "maxCanonicalResponseBytes": 1500000,
+  "canonicalTimeoutMs": 8000,
+  "notificationsDefault": false,
+  "retentionDays": {
+    "discoveryCandidateEvidence": 30,
+    "sourceRuns": 90
+  },
+  "providers": {
+    "serpapi": { "maximumQueriesPerRun": 2, "credential": "SERPAPI_API_KEY" },
+    "reddit": { "maximumQueriesPerRun": 4, "credential": "REDDIT_CLIENT_ID" },
+    "adzuna": { "maximumQueriesPerRun": 3, "credential": "MINA_ADZUNA_APP_ID" }
+  }
+}
