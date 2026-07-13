@@ -13,6 +13,7 @@
     "leads:reddit:archive": "node scripts/archive-reddit-leads.mjs",
     "leads:publish": "node scripts/publish-lead-digest.mjs",
     "leads:publish:automation": "node scripts/publish-automation-lead-digest.mjs",
+    "leads:automation:gates": "node scripts/publish-automation-lead-digest.mjs --test-gates",
     "consulting:seed": "tsx scripts/seed-consulting-acquisition.ts",
     "consulting:test": "tsx scripts/test-consulting-acquisition.ts",
     "consulting:verify": "tsx scripts/verify-consulting-acquisition.ts",

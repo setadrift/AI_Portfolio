@@ -1016,10 +1016,21 @@ function isExcludedLeadSource(block: string) {
       /\b(upwork|freelancer|peopleperhour|guru)\b|upwork\.com|freelancer\.com|peopleperhour\.com|guru\.com/i.test(
         value,
       ),
-    ) ||
-    /paid marketplace|paid credits|payment to apply|login-only/i.test(
-      pursuitPath,
+    ) || requiresPaidPursuit(pursuitPath)
+  );
+}
+
+function requiresPaidPursuit(value: string) {
+  const path = String(value || "").toLowerCase();
+  if (
+    /\b(?:no|without|does not|doesn't|not)\b.{0,35}\b(?:paid (?:marketplace|credits?)|payment to apply|login-only)\b/.test(
+      path,
     )
+  ) {
+    return false;
+  }
+  return /\b(?:requires?|must|needs?|buy|purchase|pay)\b.{0,40}\b(?:paid (?:marketplace|credits?)|credits? to apply|payment to apply|login-only (?:details|access))\b|\bpayment to apply required\b/.test(
+    path,
   );
 }
 

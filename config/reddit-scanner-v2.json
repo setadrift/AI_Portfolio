@@ -1,11 +1,13 @@
 {
   "scanMode": "quote-grounded-v1",
   "ingestionMode": "oauth",
-  "llmModel": "gpt-4.1-mini",
+  "llmModel": "gpt-4o-mini",
+  "llmMaxOutputTokens": 450,
+  "postBodyMaxChars": 3500,
   "postMaxAgeDays": 7,
   "subredditLimit": 25,
   "searchLimit": 25,
-  "candidateLimit": 80,
+  "candidateLimit": 40,
   "minSuccessfulFeeds": 3,
   "allowlist": [
     "smallbusiness",

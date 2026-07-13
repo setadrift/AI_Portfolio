@@ -16,7 +16,15 @@ import {
   type OpportunityType,
 } from "@/lib/portal/admin/acquisition";
 
-type SortField = "score" | "posted" | "source" | "title" | "action";
+type SortField =
+  | "priority"
+  | "score"
+  | "posted"
+  | "source"
+  | "title"
+  | "status";
+type BoardStage = "all" | "ready" | "review" | "pursued" | "closed";
+type SourceFilter = LeadSourceId | "all";
 
 type LeadState = StoredLeadState;
 type ScanEvent =
@@ -26,40 +34,33 @@ type ScanEvent =
 
 const STORAGE_KEY = "ai-portfolio-admin-lead-state-v1";
 
-const QUEUES: Array<{ value: LeadQueue; label: string; description: string }> =
-  [
-    {
-      value: "actionable",
-      label: "Contact today",
-      description: "Explicit implementation or paid-help requests.",
-    },
-    {
-      value: "review",
-      label: "Review",
-      description: "Good signals that need a judgment call.",
-    },
-    {
-      value: "community_reply",
-      label: "Worth replying to",
-      description:
-        "Concrete operational pain where a useful public reply is appropriate.",
-    },
-    {
-      value: "commented",
-      label: "Commented",
-      description: "Leads where you already replied publicly.",
-    },
-    {
-      value: "dm_sent",
-      label: "DM sent",
-      description: "Leads where you already sent a Reddit DM.",
-    },
-    {
-      value: "dismissed",
-      label: "Dismissed",
-      description: "Handled, duplicate, stale, or not a fit.",
-    },
-  ];
+const STAGES: Array<{
+  value: BoardStage;
+  label: string;
+  description: string;
+}> = [
+  { value: "all", label: "All", description: "Every current lead." },
+  {
+    value: "ready",
+    label: "Ready",
+    description: "Good enough to pursue now.",
+  },
+  {
+    value: "review",
+    label: "Review",
+    description: "Needs a quick fit or eligibility check.",
+  },
+  {
+    value: "pursued",
+    label: "Pursued",
+    description: "Application, email, reply, or message already sent.",
+  },
+  {
+    value: "closed",
+    label: "Closed",
+    description: "Not a fit, stale, duplicate, or no longer active.",
+  },
+];
 
 const queueButtonClass =
   "rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/60 transition hover:border-white/25 hover:bg-white/5 hover:text-white";
@@ -77,18 +78,13 @@ export default function LeadsDashboard({
   const [selectedScanMode, setSelectedScanMode] = useState(
     initialData.scanModes[0]?.id ?? "broad-buyer-intent",
   );
-  const [selectedSourceId, setSelectedSourceId] = useState<LeadSourceId>(
-    preferredSource(initialData)?.id ?? "reddit",
-  );
-  const [selectedQueue, setSelectedQueue] = useState<LeadQueue>("actionable");
-  const [selectedLeadUrl, setSelectedLeadUrl] = useState(
-    preferredSource(initialData)?.digest?.leads[0]?.url ??
-      initialData.digest?.leads[0]?.url ??
-      "",
-  );
+  const [selectedSourceId, setSelectedSourceId] =
+    useState<SourceFilter>("all");
+  const [selectedStage, setSelectedStage] = useState<BoardStage>("all");
+  const [selectedLeadUrl, setSelectedLeadUrl] = useState("");
   const [search, setSearch] = useState("");
   const [leadTypeFilter, setLeadTypeFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<SortField>("posted");
+  const [sortBy, setSortBy] = useState<SortField>("priority");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [leadState, setLeadState] = useState<Record<string, LeadState>>(
     initialData.leadStates,
@@ -128,55 +124,56 @@ export default function LeadsDashboard({
     return () => window.clearInterval(timer);
   }, [isRunning, scanStartedAt]);
 
-  useEffect(() => {
-    const currentSource = initialData.sources.find(
-      (source) => source.id === selectedSourceId,
-    );
-    const nextSource = currentSource ?? preferredSource(initialData);
-
-    if (!nextSource) return;
-    if (nextSource.id !== selectedSourceId) {
-      setSelectedSourceId(nextSource.id);
-      setSelectedQueue("actionable");
-      setSelectedIds(new Set());
-      setSelectedLeadUrl(nextSource.digest?.leads[0]?.url ?? "");
-      return;
-    }
-
-    const leads = nextSource.digest?.leads ?? [];
-    if (
-      leads.length > 0 &&
-      selectedLeadUrl &&
-      !leads.some((lead) => lead.url === selectedLeadUrl)
-    ) {
-      setSelectedLeadUrl(leads[0]?.url ?? "");
-    }
-  }, [initialData, selectedLeadUrl, selectedSourceId]);
-
   const selectedSource =
-    initialData.sources.find((source) => source.id === selectedSourceId) ??
-    initialData.sources[0] ??
-    null;
+    selectedSourceId === "all"
+      ? null
+      : (initialData.sources.find(
+          (source) => source.id === selectedSourceId,
+        ) ?? null);
 
   const rows = useMemo(
-    () =>
-      (selectedSource?.digest?.leads ?? []).map((lead) =>
-        enrichLead(lead, leadState[stateKey(lead)] ?? leadState[leadKey(lead)]),
-      ),
-    [selectedSource?.digest?.leads, leadState],
+    () => {
+      const sources =
+        selectedSourceId === "all"
+          ? initialData.sources
+          : initialData.sources.filter(
+              (source) => source.id === selectedSourceId,
+            );
+      const enriched = sources.flatMap((source) =>
+        (source.digest?.leads ?? []).map((lead) =>
+          enrichLead(
+            lead,
+            leadState[stateKey(lead)] ?? leadState[leadKey(lead)],
+          ),
+        ),
+      );
+      return dedupeLeadRows(enriched);
+    },
+    [initialData.sources, leadState, selectedSourceId],
   );
 
   const counts = useMemo(() => {
-    return QUEUES.reduce(
-      (acc, queue) => ({
+    return STAGES.reduce(
+      (acc, stage) => ({
         ...acc,
-        [queue.value]: rows.filter((lead) =>
-          leadMatchesQueue(lead, queue.value),
+        [stage.value]: rows.filter((lead) =>
+          leadMatchesStage(lead, stage.value),
         ).length,
       }),
-      {} as Record<LeadQueue, number>,
+      {} as Record<BoardStage, number>,
     );
   }, [rows]);
+  const allPipelineCount = useMemo(
+    () =>
+      new Set(
+        initialData.sources.flatMap((source) =>
+          (source.digest?.leads ?? []).map((lead) =>
+            normalizeLeadUrl(lead.url),
+          ),
+        ),
+      ).size,
+    [initialData.sources],
+  );
 
   const leadTypeOptions = useMemo(
     () =>
@@ -186,7 +183,7 @@ export default function LeadsDashboard({
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return rows
-      .filter((lead) => leadMatchesQueue(lead, selectedQueue))
+      .filter((lead) => leadMatchesStage(lead, selectedStage))
       .filter(
         (lead) =>
           leadTypeFilter === "all" ||
@@ -230,20 +227,15 @@ export default function LeadsDashboard({
           .includes(needle);
       })
       .sort((a, b) => sortRows(a, b, sortBy));
-  }, [leadTypeFilter, rows, search, selectedQueue, sortBy]);
+  }, [leadTypeFilter, rows, search, selectedStage, sortBy]);
 
   const selectedLead =
-    visibleRows.find((lead) => lead.url === selectedLeadUrl) ??
-    visibleRows[0] ??
-    null;
+    visibleRows.find((lead) => lead.url === selectedLeadUrl) ?? null;
 
   const selectedLeads = rows.filter((lead) => selectedIds.has(stateKey(lead)));
-  const currentQueue =
-    QUEUES.find((queue) => queue.value === selectedQueue) ?? QUEUES[0];
-  const selectedStatus =
-    selectedSource?.id === "reddit"
-      ? (selectedSource.status ?? initialData.status)
-      : (selectedSource?.status ?? null);
+  const currentStage =
+    STAGES.find((stage) => stage.value === selectedStage) ?? STAGES[0];
+  const selectedStatus = selectedSource?.status ?? null;
 
   async function runScan() {
     setIsRunning(true);
@@ -394,26 +386,26 @@ export default function LeadsDashboard({
     ]);
   }
 
-  function bulkMove(queue: LeadQueue, action?: LeadAction) {
+  function setLeadStage(lead: RedditLead, stage: Exclude<BoardStage, "all">) {
+    updateLead(lead, statePatchForStage(stage));
+  }
+
+  function bulkSetStage(stage: Exclude<BoardStage, "all">) {
     const nextSelected = selectedLeads.length ? selectedLeads : visibleRows;
     const updates = nextSelected.map((lead) => {
       const key = stateKey(lead);
       const currentState = leadState[key] ?? leadState[leadKey(lead)];
+      const patch = statePatchForStage(stage);
       const nextState = {
-        queue,
-        action:
-          action ??
-          currentState?.action ??
-          (queue === "dismissed" ? "dismissed" : "new"),
-        commented:
-          currentState?.commented ?? currentState?.action === "commented",
-        dmSent: currentState?.dmSent ?? currentState?.action === "dm_sent",
-        dismissed: queue === "dismissed" ? true : false,
+        queue: currentState?.queue ?? queueForLead(lead, currentState),
+        action: currentState?.action ?? "new",
+        commented: currentState?.commented ?? false,
+        dmSent: currentState?.dmSent ?? false,
+        dismissed: currentState?.dismissed ?? false,
         notes: currentState?.notes ?? "",
         updatedAt: new Date().toISOString(),
+        ...patch,
       };
-      if (queue === "commented") nextState.commented = true;
-      if (queue === "dm_sent") nextState.dmSent = true;
       nextState.action = actionForState(nextState);
       return {
         lead,
@@ -487,8 +479,15 @@ export default function LeadsDashboard({
               </p>
             </div>
 
-            {selectedSourceId === "reddit" ? (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <details className="relative">
+                <summary className="flex h-9 cursor-pointer list-none items-center rounded-md border border-white/10 px-3 text-sm text-white/65 hover:bg-white/5">
+                  Scan settings
+                </summary>
+                <div className="absolute right-0 z-20 mt-2 w-72 rounded-md border border-white/10 bg-[#202020] p-3 shadow-xl">
+                  <p className="mb-2 text-xs uppercase tracking-[0.14em] text-white/40">
+                    Reddit scan mode
+                  </p>
                 <select
                   value={selectedScanMode}
                   onChange={(event) => setSelectedScanMode(event.target.value)}
@@ -497,7 +496,7 @@ export default function LeadsDashboard({
                       (mode) => mode.id === selectedScanMode,
                     )?.description
                   }
-                  className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
+                  className="h-9 w-full rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
                 >
                   {initialData.scanModes.map((mode) => (
                     <option key={mode.id} value={mode.id}>
@@ -505,41 +504,56 @@ export default function LeadsDashboard({
                     </option>
                   ))}
                 </select>
+                </div>
+              </details>
                 <button
                   type="button"
                   onClick={runScan}
                   disabled={isRunning}
-                  className="h-10 rounded-md bg-[#f3f0e8] px-4 text-sm font-medium text-[#151515] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-9 rounded-md border border-white/10 px-3 text-sm text-white/70 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isRunning ? "Scanning..." : "Run scan"}
+                  {isRunning ? "Working..." : "Scan Reddit"}
                 </button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <button
                   type="button"
                   onClick={runAutomationScan}
                   disabled={isRunning}
-                  className="h-10 rounded-md bg-[#f3f0e8] px-4 text-sm font-medium text-[#151515] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-9 rounded-md bg-[#f3f0e8] px-3 text-sm font-medium text-[#151515] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                   title="Publishes the latest Codex automation digest from the configured worktree output directory."
                 >
-                  {isRunning ? "Loading..." : "Load automation digest"}
+                  {isRunning ? "Working..." : "Load latest research"}
                 </button>
-              </div>
-            )}
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSourceId("all");
+                setSelectedStage("all");
+                setLeadTypeFilter("all");
+                setSelectedIds(new Set());
+                setSelectedLeadUrl("");
+              }}
+              className={`rounded-md px-3 py-2 text-sm transition ${
+                selectedSourceId === "all"
+                  ? "bg-white text-[#151515]"
+                  : "bg-white/5 text-white/65 hover:bg-white/10"
+              }`}
+            >
+              All pipelines {allPipelineCount}
+            </button>
             {initialData.sources.map((source) => (
               <button
                 key={source.id}
                 type="button"
                 onClick={() => {
                   setSelectedSourceId(source.id);
-                  setSelectedQueue("actionable");
+                  setSelectedStage("all");
                   setLeadTypeFilter("all");
                   setSelectedIds(new Set());
-                  setSelectedLeadUrl(source.digest?.leads[0]?.url ?? "");
+                  setSelectedLeadUrl("");
                 }}
                 className={`rounded-md px-3 py-2 text-sm transition ${
                   selectedSourceId === source.id
@@ -554,18 +568,12 @@ export default function LeadsDashboard({
             ))}
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Metric label="Total" value={rows.length.toString()} />
-            <Metric label="Actionable" value={counts.actionable.toString()} />
-            <Metric label="Review" value={counts.review.toString()} />
-            <Metric
-              label="Worked"
-              value={(
-                counts.commented +
-                counts.dm_sent +
-                counts.dismissed
-              ).toString()}
-            />
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 border-t border-white/10 pt-4 text-sm">
+            <SummaryCount label="Current" value={counts.all} />
+            <SummaryCount label="Ready" value={counts.ready} />
+            <SummaryCount label="Review" value={counts.review} />
+            <SummaryCount label="Pursued" value={counts.pursued} />
+            <SummaryCount label="Closed" value={counts.closed} />
           </div>
 
           <details className="mt-3 text-xs text-white/45">
@@ -599,6 +607,8 @@ export default function LeadsDashboard({
                     {selectedSource.digest.generatedAt || "unknown"},{" "}
                     {selectedSource.digest.leads.length} leads loaded.
                   </>
+                ) : selectedSourceId === "all" ? (
+                  "Select a pipeline to see its run diagnostics."
                 ) : (
                   "No lead source data found."
                 )}
@@ -667,7 +677,7 @@ export default function LeadsDashboard({
             </div>
           </details>
           {(isRunning || scanLog.length > 0) &&
-          selectedSourceId === "reddit" ? (
+          (selectedSourceId === "reddit" || selectedSourceId === "all") ? (
             <div className="mt-4 rounded-md border border-white/10 bg-[#151515] p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -701,35 +711,36 @@ export default function LeadsDashboard({
           ) : null}
         </header>
 
-        <main className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <main className="space-y-4">
           <section className="min-w-0 rounded-lg border border-white/10 bg-[#202020]">
             <div className="border-b border-white/10 p-4">
               <div className="flex flex-wrap gap-2">
-                {QUEUES.map((queue) => (
+                {STAGES.map((stage) => (
                   <button
-                    key={queue.value}
+                    key={stage.value}
                     type="button"
                     onClick={() => {
-                      setSelectedQueue(queue.value);
+                      setSelectedStage(stage.value);
                       setSelectedIds(new Set());
+                      setSelectedLeadUrl("");
                     }}
                     className={`rounded-md px-3 py-2 text-sm transition ${
-                      selectedQueue === queue.value
+                      selectedStage === stage.value
                         ? "bg-white text-[#151515]"
                         : "bg-white/5 text-white/65 hover:bg-white/10"
                     }`}
-                    title={queue.description}
+                    title={stage.description}
                   >
-                    {queue.label} {counts[queue.value]}
+                    {stage.label} {counts[stage.value]}
                   </button>
                 ))}
               </div>
 
-              <div className="mt-4 grid gap-2 md:grid-cols-[minmax(240px,1fr)_180px_160px_auto]">
+              <div className="mt-4 grid gap-2 md:grid-cols-[minmax(240px,1fr)_180px_180px_auto]">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search title, reason, source..."
+                  placeholder="Search opportunities..."
                   className="h-10 w-full rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/30"
                 />
                 <select
@@ -754,11 +765,12 @@ export default function LeadsDashboard({
                   }
                   className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
                 >
+                  <option value="priority">Priority</option>
                   <option value="score">Score</option>
                   <option value="posted">Posted date</option>
                   <option value="source">Source</option>
                   <option value="title">Title</option>
-                  <option value="action">Action</option>
+                  <option value="status">Status</option>
                 </select>
                 <button
                   type="button"
@@ -773,47 +785,44 @@ export default function LeadsDashboard({
                 </button>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+              <div className="mt-3 flex min-h-8 flex-wrap items-center gap-2 text-sm">
                 <span className="mr-1 text-white/45">
                   {selectedIds.size
                     ? `${selectedIds.size} selected`
-                    : `${visibleRows.length} visible in ${currentQueue.label}`}
+                    : `${visibleRows.length} ${visibleRows.length === 1 ? "lead" : "leads"} in ${currentStage.label}`}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => bulkMove("review")}
-                  className={queueButtonClass}
-                >
-                  Move to Review
-                </button>
-                <button
-                  type="button"
-                  onClick={() => bulkMove("community_reply")}
-                  className={queueButtonClass}
-                >
-                  Community
-                </button>
-                <button
-                  type="button"
-                  onClick={() => bulkMove("commented", "commented")}
-                  className={queueButtonClass}
-                >
-                  Mark Commented
-                </button>
-                <button
-                  type="button"
-                  onClick={() => bulkMove("dm_sent", "dm_sent")}
-                  className={queueButtonClass}
-                >
-                  Mark DM sent
-                </button>
-                <button
-                  type="button"
-                  onClick={() => bulkMove("dismissed", "dismissed")}
-                  className={queueButtonClass}
-                >
-                  Dismiss
-                </button>
+                {selectedIds.size ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => bulkSetStage("ready")}
+                      className={queueButtonClass}
+                    >
+                      Ready
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => bulkSetStage("review")}
+                      className={queueButtonClass}
+                    >
+                      Review
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => bulkSetStage("pursued")}
+                      className={queueButtonClass}
+                    >
+                      Mark pursued
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => bulkSetStage("closed")}
+                      className={queueButtonClass}
+                    >
+                      Close
+                    </button>
+                  </>
+                ) : null}
               </div>
             </div>
 
@@ -830,7 +839,7 @@ export default function LeadsDashboard({
                   </div>
                 </div>
               ) : (
-                <table className="w-full min-w-[1120px] text-left text-sm">
+                <table className="w-full min-w-[1100px] text-left text-sm">
                   <thead className="sticky top-0 z-10 bg-[#202020] text-xs uppercase tracking-[0.12em] text-white/40">
                     <tr className="border-b border-white/10">
                       <th className="w-10 px-3 py-3">
@@ -853,13 +862,14 @@ export default function LeadsDashboard({
                           }}
                         />
                       </th>
-                      <th className="w-[42%] px-4 py-3">Lead</th>
+                      <th className="w-[34%] px-4 py-3">Opportunity</th>
                       <th className="w-[16%] px-4 py-3">Source</th>
                       <th className="w-[120px] px-4 py-3">Posted</th>
-                      <th className="w-[16%] px-4 py-3">Type</th>
-                      <th className="w-[150px] px-4 py-3">Action</th>
-                      <th className="w-[80px] px-4 py-3">Score</th>
-                      <th className="w-[190px] px-4 py-3 text-right">Work</th>
+                      <th className="w-[130px] px-4 py-3">Engagement</th>
+                      <th className="w-[155px] px-4 py-3">How to pursue</th>
+                      <th className="w-[135px] px-4 py-3">Status</th>
+                      <th className="w-[70px] px-4 py-3">Fit</th>
+                      <th className="w-[80px] px-4 py-3 text-right"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -895,60 +905,55 @@ export default function LeadsDashboard({
                           <div className="font-medium leading-5">
                             {lead.title}
                           </div>
-                          <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/45">
+                          <div className="mt-1 line-clamp-1 text-xs leading-5 text-white/45">
                             {lead.ownershipQuote
                               ? lead.ownershipQuote
                               : `${lead.buyerSituation ? `${formatCategory(lead.buyerSituation)} - ` : ""}${lead.evidenceSummary || lead.reason}`}
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top text-white/65">
-                          {lead.sourceLabel}
+                          <div>{lead.sourceLabel}</div>
+                          <div className="mt-1 text-xs capitalize text-white/35">
+                            {lead.sourceKind} pipeline
+                          </div>
                         </td>
                         <td className="px-4 py-4 align-top text-white/65">
                           {lead.postedDate || (
                             <span className="text-amber-300/80">unknown</span>
                           )}
                         </td>
-                        <td className="px-4 py-4 align-top capitalize text-white/65">
-                          <div>{formatLeadType(lead)}</div>
+                        <td className="px-4 py-4 align-top text-white/65">
+                          <div>{engagementLabel(lead)}</div>
+                        </td>
+                        <td className="px-4 py-4 align-top text-white/70">
+                          {pursuitMethod(lead)}
                         </td>
                         <td className="px-4 py-4 align-top">
                           <select
-                            value={lead.queue}
+                            value={stageForLead(lead)}
                             onClick={(event) => event.stopPropagation()}
                             onChange={(event) => {
-                              const queue = event.target.value as LeadQueue;
-                              updateLead(lead, {
-                                queue,
-                                commented:
-                                  queue === "commented" ? true : lead.commented,
-                                dmSent:
-                                  queue === "dm_sent" ? true : lead.dmSent,
-                                dismissed: queue === "dismissed",
-                              });
+                              setLeadStage(
+                                lead,
+                                event.target.value as Exclude<
+                                  BoardStage,
+                                  "all"
+                                >,
+                              );
                             }}
                             className="h-8 rounded-md border border-white/10 bg-[#151515] px-2 text-xs text-white outline-none"
                           >
-                            {QUEUES.map((queue) => (
-                              <option key={queue.value} value={queue.value}>
-                                {queue.label}
+                            {STAGES.filter(
+                              (stage) => stage.value !== "all",
+                            ).map((stage) => (
+                              <option key={stage.value} value={stage.value}>
+                                {stage.label}
                               </option>
                             ))}
                           </select>
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {lead.commented ? (
-                              <StatusPill label="Commented" />
-                            ) : null}
-                            {lead.dmSent ? (
-                              <StatusPill label="DM sent" />
-                            ) : null}
-                            {lead.dismissed ? (
-                              <StatusPill label="Dismissed" tone="amber" />
-                            ) : null}
-                          </div>
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-xs text-emerald-300">
+                          <span className="font-medium tabular-nums text-white/80">
                             {lead.score}
                           </span>
                         </td>
@@ -958,38 +963,11 @@ export default function LeadsDashboard({
                         >
                           <button
                             type="button"
-                            onClick={() =>
-                              updateLead(lead, {
-                                queue: "commented",
-                                commented: !lead.commented,
-                                dismissed: false,
-                              })
-                            }
-                            className="mr-3 text-sm text-white/70 hover:text-white"
+                            onClick={() => setSelectedLeadUrl(lead.url)}
+                            className="text-sm text-white/65 hover:text-white"
                           >
-                            {lead.commented ? "Uncommented" : "Commented"}
+                            Details
                           </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateLead(lead, {
-                                queue: "dm_sent",
-                                dmSent: !lead.dmSent,
-                                dismissed: false,
-                              })
-                            }
-                            className="mr-3 text-sm text-white/70 hover:text-white"
-                          >
-                            {lead.dmSent ? "Undo DM" : "DM sent"}
-                          </button>
-                          <a
-                            href={lead.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm text-white/70 hover:text-white"
-                          >
-                            Open
-                          </a>
                         </td>
                       </tr>
                     ))}
@@ -1016,14 +994,11 @@ export default function LeadsDashboard({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function SummaryCount({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-      <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-semibold text-white">{value}</p>
-    </div>
+    <p className="text-white/45">
+      {label} <span className="ml-1 font-medium tabular-nums text-white">{value}</span>
+    </p>
   );
 }
 
@@ -1038,19 +1013,10 @@ function LeadDetail({
   offers: ConsultingOfferRecord[];
   promoted: boolean;
 }) {
-  if (!lead) {
-    return (
-      <aside className="rounded-lg border border-white/10 bg-[#202020] p-6 text-center 2xl:sticky 2xl:top-5">
-        <h2 className="text-base font-medium">No lead selected</h2>
-        <p className="mt-2 text-sm text-white/45">
-          Select a row to review the source and next action.
-        </p>
-      </aside>
-    );
-  }
+  if (!lead) return null;
 
   return (
-    <aside className="rounded-lg border border-white/10 bg-[#202020] p-5 2xl:sticky 2xl:top-5">
+    <aside className="rounded-lg border border-white/10 bg-[#202020] p-5">
       <div className="flex flex-wrap items-center gap-2 text-xs text-white/45">
         <span>{lead.sourceLabel}</span>
         <span>{lead.author}</span>
@@ -1092,8 +1058,8 @@ function LeadDetail({
           label="Failure"
           value={formatCategory(lead.failureMode || "other")}
         />
-        <DetailStat label="Queue" value={formatQueue(lead.queue)} />
-        <DetailStat label="Status" value={statusSummary(lead)} />
+        <DetailStat label="Status" value={formatCategory(stageForLead(lead))} />
+        <DetailStat label="How to pursue" value={pursuitMethod(lead)} />
       </div>
 
       {lead.ownershipQuote ||
@@ -1313,70 +1279,27 @@ function LeadDetail({
         >
           Quarantine source
         </button>
+        {(["ready", "review", "pursued"] as const).map((stage) => (
+          <button
+            key={stage}
+            type="button"
+            onClick={() => updateLead(lead, statePatchForStage(stage))}
+            className={queueButtonClass}
+          >
+            {stage === "pursued" ? "Mark pursued" : formatCategory(stage)}
+          </button>
+        ))}
         <button
           type="button"
           onClick={() =>
-            updateLead(lead, { queue: "actionable", dismissed: false })
+            updateLead(
+              lead,
+              statePatchForStage(lead.dismissed ? "review" : "closed"),
+            )
           }
           className={queueButtonClass}
         >
-          Actionable
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            updateLead(lead, { queue: "review", dismissed: false })
-          }
-          className={queueButtonClass}
-        >
-          Review
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            updateLead(lead, { queue: "community_reply", dismissed: false })
-          }
-          className={queueButtonClass}
-        >
-          Community
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            updateLead(lead, {
-              queue: "commented",
-              commented: !lead.commented,
-              dismissed: false,
-            })
-          }
-          className={queueButtonClass}
-        >
-          {lead.commented ? "Unmark Commented" : "Commented"}
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            updateLead(lead, {
-              queue: "dm_sent",
-              dmSent: !lead.dmSent,
-              dismissed: false,
-            })
-          }
-          className={queueButtonClass}
-        >
-          {lead.dmSent ? "Unmark DM sent" : "DM sent"}
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            updateLead(lead, {
-              queue: lead.dismissed ? "review" : "dismissed",
-              dismissed: !lead.dismissed,
-            })
-          }
-          className={queueButtonClass}
-        >
-          {lead.dismissed ? "Restore" : "Dismiss"}
+          {lead.dismissed ? "Reopen" : "Close"}
         </button>
       </div>
 
@@ -1573,42 +1496,10 @@ function FitScore({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPill({
-  label,
-  tone = "default",
-}: {
-  label: string;
-  tone?: "default" | "amber";
-}) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[10px] ${
-        tone === "amber"
-          ? "bg-amber-500/15 text-amber-200"
-          : "bg-white/10 text-white/60"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
-
 type EnrichedLead = RedditLead &
   LeadState & {
     numericScore: number;
   };
-
-function preferredSource(data: LeadDashboardData) {
-  return (
-    data.sources.find(
-      (source) =>
-        source.id === "automation" && (source.digest?.leads.length ?? 0) > 0,
-    ) ??
-    data.sources.find((source) => (source.digest?.leads.length ?? 0) > 0) ??
-    data.sources[0] ??
-    null
-  );
-}
 
 function mergeLeadStates(
   localState: Record<string, LeadState>,
@@ -1743,12 +1634,61 @@ function queueForLead(lead: RedditLead, state?: LeadState): LeadQueue {
   return "review";
 }
 
-function leadMatchesQueue(lead: EnrichedLead, queue: LeadQueue) {
-  if (queue === "commented") return lead.commented;
-  if (queue === "dm_sent") return lead.dmSent;
-  if (queue === "dismissed")
-    return lead.dismissed || lead.queue === "dismissed";
-  return lead.queue === queue && !lead.dismissed;
+function stageForLead(lead: EnrichedLead): Exclude<BoardStage, "all"> {
+  if (lead.dismissed || lead.queue === "dismissed") return "closed";
+  if (
+    lead.commented ||
+    lead.dmSent ||
+    lead.queue === "commented" ||
+    lead.queue === "dm_sent" ||
+    lead.action === "converted"
+  ) {
+    return "pursued";
+  }
+  if (lead.queue === "review") return "review";
+  return "ready";
+}
+
+function leadMatchesStage(lead: EnrichedLead, stage: BoardStage) {
+  return stage === "all" || stageForLead(lead) === stage;
+}
+
+function statePatchForStage(
+  stage: Exclude<BoardStage, "all">,
+): Partial<LeadState> {
+  if (stage === "ready") {
+    return {
+      queue: "actionable",
+      action: "new",
+      commented: false,
+      dmSent: false,
+      dismissed: false,
+    };
+  }
+  if (stage === "review") {
+    return {
+      queue: "review",
+      action: "new",
+      commented: false,
+      dmSent: false,
+      dismissed: false,
+    };
+  }
+  if (stage === "pursued") {
+    // dm_sent remains the backward-compatible persisted flag. The board now
+    // presents the channel-neutral concept and derives the actual pursuit path.
+    return {
+      queue: "dm_sent",
+      action: "dm_sent",
+      dmSent: true,
+      dismissed: false,
+    };
+  }
+  return {
+    queue: "dismissed",
+    action: "dismissed",
+    dismissed: true,
+  };
 }
 
 function actionForState(
@@ -1766,6 +1706,8 @@ function actionForState(
 }
 
 function sortRows(a: EnrichedLead, b: EnrichedLead, sortBy: SortField) {
+  if (sortBy === "priority")
+    return leadPriority(b) - leadPriority(a) || a.title.localeCompare(b.title);
   if (sortBy === "score")
     return b.numericScore - a.numericScore || a.title.localeCompare(b.title);
   if (sortBy === "posted")
@@ -1774,8 +1716,66 @@ function sortRows(a: EnrichedLead, b: EnrichedLead, sortBy: SortField) {
       b.numericScore - a.numericScore
     );
   if (sortBy === "source") return a.sourceLabel.localeCompare(b.sourceLabel);
-  if (sortBy === "action") return a.action.localeCompare(b.action);
+  if (sortBy === "status")
+    return stageForLead(a).localeCompare(stageForLead(b));
   return a.title.localeCompare(b.title);
+}
+
+function leadPriority(lead: EnrichedLead) {
+  const stageWeight = {
+    ready: 400,
+    review: 300,
+    pursued: 100,
+    closed: 0,
+  }[stageForLead(lead)];
+  const directBuyerWeight =
+    lead.leadType === "direct_client" || lead.buyerQueue === "active_lead"
+      ? 35
+      : 0;
+  const explicitContractWeight =
+    /\b(contract|consult|freelance|fractional|temporary|rfp|paid)\b/i.test(
+      [
+        lead.engagementModel,
+        lead.reason,
+        lead.evidenceSummary,
+        lead.askQuote,
+      ].join(" "),
+    )
+      ? 20
+      : 0;
+  return (
+    stageWeight +
+    directBuyerWeight +
+    explicitContractWeight +
+    lead.numericScore * 5 +
+    Math.floor(dateSortKey(lead.postedDate) / 86_400_000_000)
+  );
+}
+
+function dedupeLeadRows(leads: EnrichedLead[]) {
+  const byLead = new Map<string, EnrichedLead>();
+  for (const lead of leads) {
+    const key = normalizeLeadUrl(lead.url) || lead.title.toLowerCase();
+    const existing = byLead.get(key);
+    if (
+      !existing ||
+      (lead.sourceKind === "automation" && existing.sourceKind !== "automation")
+    ) {
+      byLead.set(key, lead);
+    }
+  }
+  return [...byLead.values()];
+}
+
+function normalizeLeadUrl(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    url.search = "";
+    return url.toString().replace(/\/$/, "").toLowerCase();
+  } catch {
+    return value.trim().toLowerCase();
+  }
 }
 
 function dateSortKey(date: string) {
@@ -1798,21 +1798,31 @@ function formatLeadType(lead: RedditLead) {
   return formatCategory(lead.leadType || lead.category);
 }
 
-function formatQueue(value: LeadQueue) {
-  return value.replace(/_/g, " ");
+function engagementLabel(lead: RedditLead) {
+  if (lead.engagementModel) return formatCategory(lead.engagementModel);
+  if (lead.leadType === "direct_client") return "Client project";
+  if (lead.leadType === "job_board") return "Role";
+  if (lead.leadType === "partner_overflow") return "Partner work";
+  if (lead.leadType === "watch") return "Warm signal";
+  return formatLeadType(lead);
 }
 
-function formatAction(value: string) {
-  return value.replace(/_/g, " ");
-}
-
-function statusSummary(lead: EnrichedLead) {
-  const statuses = [
-    lead.commented ? "commented" : "",
-    lead.dmSent ? "DM sent" : "",
-    lead.dismissed ? "dismissed" : "",
-  ].filter(Boolean);
-  return statuses.length ? statuses.join(", ") : formatAction(lead.action);
+function pursuitMethod(lead: RedditLead) {
+  const path = [
+    lead.responsePath,
+    lead.freeToPursuePath,
+    lead.recommendedAction,
+    lead.sourceLabel,
+  ].join(" ");
+  if (/\b(email|e-mail|mailto)\b/i.test(path)) return "Email";
+  if (/\b(apply|application|career|job page|job board)\b/i.test(path))
+    return "Apply";
+  if (/\b(contact form|website contact)\b/i.test(path)) return "Contact form";
+  if (/\b(comment|reply|community)\b/i.test(path)) return "Community reply";
+  if (/\b(dm|direct message|message)\b/i.test(path)) return "Direct message";
+  if (lead.leadType === "job_board") return "Apply";
+  if (lead.sourceKind === "reddit") return "Community reply";
+  return "Open source";
 }
 
 function formatStatusCounts(counts?: Record<string, number>) {

@@ -57,7 +57,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "speaker_consumer"
+        "rejectionReason": "prefilter_missing_operational_workflow"
       }
     },
     {
@@ -157,7 +157,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "speaker_content_marketer"
+        "rejectionReason": "prefilter_missing_owned_business_context"
       }
     },
     {
@@ -177,7 +177,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "speaker_content_marketer"
+        "rejectionReason": "prefilter_missing_owned_business_context"
       }
     },
     {
@@ -217,7 +217,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "speaker_job"
+        "rejectionReason": "prefilter_missing_owned_business_context"
       }
     },
     {
@@ -237,7 +237,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "speaker_builder"
+        "rejectionReason": "prefilter_missing_owned_business_context"
       }
     },
     {
@@ -257,7 +257,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "consulting_fit_no"
+        "rejectionReason": "prefilter_missing_operational_workflow"
       }
     },
     {
@@ -417,7 +417,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "no_ownership_quote"
+        "rejectionReason": "prefilter_missing_owned_business_context"
       }
     },
     {
@@ -478,7 +478,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "missing_owned_business_context"
+        "rejectionReason": "prefilter_missing_owned_business_context"
       }
     },
     {
@@ -498,7 +498,7 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "missing_operational_workflow"
+        "rejectionReason": "prefilter_missing_operational_workflow"
       }
     },
     {
@@ -518,7 +518,27 @@
       },
       "expected": {
         "queue": "reject",
-        "rejectionReason": "missing_owned_business_context"
+        "rejectionReason": "prefilter_missing_owned_business_context"
+      }
+    },
+    {
+      "id": "offshoring-advice-not-automation",
+      "subreddit": "Accounting",
+      "title": "Offshoring Advice",
+      "body": "I run a small accounting firm in Dallas. We are looking to offshore two senior positions and three associate positions. Does anyone have advice for the process?",
+      "author": "firmowner",
+      "classification": {
+        "speaker": "operator",
+        "intent": "hiring_or_paid_help",
+        "problem_ownership_quote": "I run a small accounting firm in Dallas.",
+        "ask_quote": "Does anyone have advice for the process?",
+        "consulting_fit": "yes",
+        "reply_angle": "Offer operations help.",
+        "confidence": "high"
+      },
+      "expected": {
+        "queue": "reject",
+        "rejectionReason": "prefilter_missing_automation_leverage"
       }
     }
   ]

@@ -191,6 +191,19 @@ async function main() {
     );
     const candidate = finalizeCandidate(post, classification);
     classified.push(candidate);
+    if (classification.classifierFatal) {
+      classified.push(
+        ...candidates
+          .slice(index + 1)
+          .map((remaining) =>
+            rejectCandidate(remaining, "classifier_unavailable"),
+          ),
+      );
+      console.warn(
+        `Stopped classification after ${index + 1}/${candidates.length} candidates because the API is unavailable for this account.`,
+      );
+      break;
+    }
     if ((index + 1) % 10 === 0 || index + 1 === candidates.length) {
       console.log(
         `Classified ${index + 1}/${candidates.length} Reddit candidates.`,
@@ -911,6 +924,14 @@ function prefilterReason(post, config, state, denylist) {
   ) {
     return "prefilter_job_posting";
   }
+  // These deterministic checks mirror hard gates used after classification.
+  // Rejecting them here avoids paying the LLM to reach the same conclusion.
+  if (!hasOwnedBusinessContext(post))
+    return "prefilter_missing_owned_business_context";
+  if (!hasOperationalWorkflowEvidence(post))
+    return "prefilter_missing_operational_workflow";
+  if (!hasAutomationLeverageEvidence(post))
+    return "prefilter_missing_automation_leverage";
   return "";
 }
 
@@ -989,6 +1010,9 @@ function assignQueue(candidate) {
   if (!hasOperationalWorkflowEvidence(candidate)) {
     return { queue: "reject", rejectionReason: "missing_operational_workflow" };
   }
+  if (!hasAutomationLeverageEvidence(candidate)) {
+    return { queue: "reject", rejectionReason: "missing_automation_leverage" };
+  }
   if (
     classification.intent === "hiring_or_paid_help" &&
     quoteVerification.askVerified &&
@@ -1043,6 +1067,15 @@ function hasOperationalWorkflowEvidence(post) {
   );
 }
 
+function hasAutomationLeverageEvidence(post) {
+  const text = combinedText(post);
+  const explicitTechnology =
+    /\b(?:ai|artificial intelligence|llm|chatgpt|claude|automation|automate|zapier|make\.com|n8n|airtable|notion|api|webhook|integration|crm|ocr|dashboard|database)\b/i;
+  const manualProcessPain =
+    /\b(?:manual(?:ly)?|repetitive|time[- ]consuming|error[- ]prone|spend(?:ing)? hours|copying|data entry|spreadsheet|chasing|keep missing|missed follow[- ]?ups?|duplicate work)\b/i;
+  return explicitTechnology.test(text) || manualProcessPain.test(text);
+}
+
 function verifyQuotes(post, classification) {
   const text = normalizeForQuote(`${post.title || ""}\n${post.body || ""}`);
   const ownershipQuote = classification.problem_ownership_quote;
@@ -1070,6 +1103,12 @@ async function classifyWithRetry(post, config, apiKey, attempts = 3) {
       return await classifyWithLlm(post, config, apiKey);
     } catch (error) {
       lastError = error;
+      if (isNonRetryableClassifierError(error)) {
+        console.warn(
+          `Classifier unavailable for ${post.id || post.url}: ${errorMessage(error)}`,
+        );
+        return classifierFailure(true);
+      }
       if (attempt < attempts) await sleep(500 * attempt);
     }
   }
@@ -1077,6 +1116,12 @@ async function classifyWithRetry(post, config, apiKey, attempts = 3) {
     `Classifier failed for ${post.id || post.url}: ${errorMessage(lastError)}`,
   );
   return classifierFailure();
+}
+
+function isNonRetryableClassifierError(error) {
+  return /insufficient_quota|billing_hard_limit|invalid_api_key|account_deactivated/i.test(
+    errorMessage(error),
+  );
 }
 
 async function classifyWithLlm(post, config, apiKey) {
@@ -1087,7 +1132,8 @@ async function classifyWithLlm(post, config, apiKey) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: config.llmModel || "gpt-4.1-mini",
+      model: config.llmModel || "gpt-4o-mini",
+      max_output_tokens: config.llmMaxOutputTokens || 450,
       input: [
         {
           role: "system",
@@ -1098,7 +1144,10 @@ async function classifyWithLlm(post, config, apiKey) {
           content: JSON.stringify({
             subreddit: post.subreddit,
             title: post.title,
-            body: String(post.body || "").slice(0, 6000),
+            body: String(post.body || "").slice(
+              0,
+              config.postBodyMaxChars || 3500,
+            ),
             author: post.author,
             sourceQuery: post.sourceQuery,
             fetchStage: post.fetchStage,
@@ -1203,6 +1252,7 @@ function normalizeClassification(value) {
       ? classification.confidence
       : "low",
     classifierFailed: Boolean(classification.classifierFailed),
+    classifierFatal: Boolean(classification.classifierFatal),
   };
 }
 
@@ -1218,7 +1268,7 @@ function nullClassification() {
   };
 }
 
-function classifierFailure() {
+function classifierFailure(fatal = false) {
   return {
     speaker: "unclear",
     intent: "other",
@@ -1228,6 +1278,7 @@ function classifierFailure() {
     reply_angle: null,
     confidence: "low",
     classifierFailed: true,
+    classifierFatal: fatal,
   };
 }
 
