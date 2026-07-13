@@ -97,7 +97,11 @@ function adminClient() {
 }
 
 function supabaseAdminKey() {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || "";
+  return (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    ""
+  );
 }
 
 export async function readLeadSourcesFromDatabase(
@@ -119,7 +123,9 @@ export async function readLeadSourcesFromDatabase(
     .order("updated_at", { ascending: false });
 
   if (error) {
-    console.warn("Failed to read Supabase admin lead sources", { error: error.message });
+    console.warn("Failed to read Supabase admin lead sources", {
+      error: error.message,
+    });
     return [];
   }
 
@@ -136,7 +142,9 @@ export async function readLeadSourcesFromDatabase(
   });
 }
 
-export async function persistLeadSourcesToDatabase(sources: PublishedLeadSourceForDb[]) {
+export async function persistLeadSourcesToDatabase(
+  sources: PublishedLeadSourceForDb[],
+) {
   const supabase = adminClient();
   if (!supabase || sources.length === 0) return;
 
@@ -151,12 +159,16 @@ export async function persistLeadSourcesToDatabase(sources: PublishedLeadSourceF
     generated_at: normalizeTimestamp(source.digest.generatedAt),
   }));
 
-  const { error: sourceError } = await supabase.from("admin_lead_sources").upsert(sourceRows, {
-    onConflict: "id",
-  });
+  const { error: sourceError } = await supabase
+    .from("admin_lead_sources")
+    .upsert(sourceRows, {
+      onConflict: "id",
+    });
 
   if (sourceError) {
-    console.warn("Failed to persist Supabase admin lead sources", { error: sourceError.message });
+    console.warn("Failed to persist Supabase admin lead sources", {
+      error: sourceError.message,
+    });
     return;
   }
 
@@ -165,16 +177,25 @@ export async function persistLeadSourcesToDatabase(sources: PublishedLeadSourceF
   }
 }
 
-async function persistLeadRows(supabase: SupabaseClient, source: PublishedLeadSourceForDb) {
+async function persistLeadRows(
+  supabase: SupabaseClient,
+  source: PublishedLeadSourceForDb,
+) {
   if (shouldReplaceMissingLeads()) {
-    const leadKeys = source.digest.leads.map((lead) => leadKeyForDatabase(lead));
+    const leadKeys = source.digest.leads.map((lead) =>
+      leadKeyForDatabase(lead),
+    );
     const staleLeadQuery = supabase
       .from("admin_leads")
       .update({ active: false })
       .eq("source_id", source.id);
     const { error: deactivateError } =
       leadKeys.length > 0
-        ? await staleLeadQuery.not("lead_key", "in", `(${leadKeys.map(quotePostgrestValue).join(",")})`)
+        ? await staleLeadQuery.not(
+            "lead_key",
+            "in",
+            `(${leadKeys.map(quotePostgrestValue).join(",")})`,
+          )
         : await staleLeadQuery;
 
     if (deactivateError) {
@@ -211,7 +232,9 @@ async function persistLeadRows(supabase: SupabaseClient, source: PublishedLeadSo
     suggested_dm: lead.suggestedDm,
     payload: lead,
     last_seen_at: new Date().toISOString(),
-    first_seen_scan_mode: existingLeadMeta.get(leadKeyForDatabase(lead))?.first_seen_scan_mode ?? scanMode,
+    first_seen_scan_mode:
+      existingLeadMeta.get(leadKeyForDatabase(lead))?.first_seen_scan_mode ??
+      scanMode,
     last_seen_scan_mode: scanMode,
     last_seen_scan_batch: scanBatch,
     active: true,
@@ -244,11 +267,15 @@ export async function readLeadStatesFromDatabase(sources: LeadSourceDigest[]) {
 
   const { data, error } = await supabase
     .from("admin_lead_states")
-    .select("source_id,lead_key,queue,action,commented_at,dm_sent_at,dismissed_at,notes,updated_at")
+    .select(
+      "source_id,lead_key,queue,action,commented_at,dm_sent_at,dismissed_at,notes,updated_at",
+    )
     .in("source_id", sourceIds);
 
   if (error) {
-    console.warn("Failed to read Supabase admin lead states", { error: error.message });
+    console.warn("Failed to read Supabase admin lead states", {
+      error: error.message,
+    });
     return {};
   }
 
@@ -307,7 +334,9 @@ export async function readStoredLeadsFromDatabase(sourceIds: LeadSourceId[]) {
     .limit(1000);
 
   if (error) {
-    console.warn("Failed to read Supabase admin leads", { error: error.message });
+    console.warn("Failed to read Supabase admin leads", {
+      error: error.message,
+    });
     return {};
   }
 
@@ -321,8 +350,13 @@ export async function readStoredLeadsFromDatabase(sourceIds: LeadSourceId[]) {
   );
 }
 
-async function readExistingLeadMeta(supabase: SupabaseClient, sourceId: LeadSourceId, leadKeys: string[]) {
-  if (leadKeys.length === 0) return new Map<string, { first_seen_scan_mode: string | null }>();
+async function readExistingLeadMeta(
+  supabase: SupabaseClient,
+  sourceId: LeadSourceId,
+  leadKeys: string[],
+) {
+  if (leadKeys.length === 0)
+    return new Map<string, { first_seen_scan_mode: string | null }>();
 
   const { data, error } = await supabase
     .from("admin_leads")
@@ -332,7 +366,12 @@ async function readExistingLeadMeta(supabase: SupabaseClient, sourceId: LeadSour
 
   if (error) return new Map<string, { first_seen_scan_mode: string | null }>();
   return new Map(
-    ((data ?? []) as Array<{ lead_key: string; first_seen_scan_mode: string | null }>).map((row) => [
+    (
+      (data ?? []) as Array<{
+        lead_key: string;
+        first_seen_scan_mode: string | null;
+      }>
+    ).map((row) => [
       row.lead_key,
       { first_seen_scan_mode: row.first_seen_scan_mode },
     ]),
@@ -352,18 +391,27 @@ export async function persistLeadStatesToDatabase(updates: LeadStateUpdate[]) {
   if (!supabase || updates.length === 0) return { ok: false, skipped: true };
 
   const savedAt = new Date().toISOString();
-  const existingStates = await readExistingLeadStateTimestamps(supabase, updates);
+  const existingStates = await readExistingLeadStateTimestamps(
+    supabase,
+    updates,
+  );
   const { error } = await supabase.from("admin_lead_states").upsert(
     updates.map((update) => {
-      const existing = existingStates.get(leadStateKeyForDatabase(update.sourceId, update.leadKey));
+      const existing = existingStates.get(
+        leadStateKeyForDatabase(update.sourceId, update.leadKey),
+      );
       return {
         source_id: update.sourceId,
         lead_key: update.leadKey,
         queue: update.queue,
         action: update.action,
-        commented_at: update.commented ? existing?.commented_at ?? savedAt : null,
-        dm_sent_at: update.dmSent ? existing?.dm_sent_at ?? savedAt : null,
-        dismissed_at: update.dismissed ? existing?.dismissed_at ?? savedAt : null,
+        commented_at: update.commented
+          ? (existing?.commented_at ?? savedAt)
+          : null,
+        dm_sent_at: update.dmSent ? (existing?.dm_sent_at ?? savedAt) : null,
+        dismissed_at: update.dismissed
+          ? (existing?.dismissed_at ?? savedAt)
+          : null,
         notes: update.notes,
       };
     }),
@@ -371,14 +419,19 @@ export async function persistLeadStatesToDatabase(updates: LeadStateUpdate[]) {
   );
 
   if (error) {
-    console.warn("Failed to persist Supabase admin lead states", { error: error.message });
+    console.warn("Failed to persist Supabase admin lead states", {
+      error: error.message,
+    });
     return { ok: false, error: error.message };
   }
 
   return { ok: true };
 }
 
-async function readExistingLeadStateTimestamps(supabase: SupabaseClient, updates: LeadStateUpdate[]) {
+async function readExistingLeadStateTimestamps(
+  supabase: SupabaseClient,
+  updates: LeadStateUpdate[],
+) {
   const keysBySource = updates.reduce(
     (acc, update) => {
       acc[update.sourceId] ??= new Set<string>();
@@ -395,7 +448,9 @@ async function readExistingLeadStateTimestamps(supabase: SupabaseClient, updates
     dismissed_at: string | null;
   }> = [];
 
-  for (const [sourceId, leadKeys] of Object.entries(keysBySource) as Array<[LeadSourceId, Set<string>]>) {
+  for (const [sourceId, leadKeys] of Object.entries(keysBySource) as Array<
+    [LeadSourceId, Set<string>]
+  >) {
     const { data, error } = await supabase
       .from("admin_lead_states")
       .select("source_id,lead_key,commented_at,dm_sent_at,dismissed_at")
@@ -405,14 +460,22 @@ async function readExistingLeadStateTimestamps(supabase: SupabaseClient, updates
     rows.push(...((data ?? []) as typeof rows));
   }
 
-  return new Map(rows.map((row) => [leadStateKeyForDatabase(row.source_id, row.lead_key), row]));
+  return new Map(
+    rows.map((row) => [
+      leadStateKeyForDatabase(row.source_id, row.lead_key),
+      row,
+    ]),
+  );
 }
 
 export function leadKeyForDatabase(lead: RedditLead) {
   return lead.url || `${lead.subreddit}:${lead.title}`;
 }
 
-export function leadStateKeyForDatabase(sourceId: LeadSourceId, leadKey: string) {
+export function leadStateKeyForDatabase(
+  sourceId: LeadSourceId,
+  leadKey: string,
+) {
   return `${sourceId}:${leadKey}`;
 }
 
@@ -423,11 +486,13 @@ export function stateStorageKey(sourceId: LeadSourceId, leadKey: string) {
 function leadFromRow(row: AdminLeadRow): RedditLead {
   const payload = row.payload ?? {};
   return {
-    score: payload.score ?? row.score_label ?? (row.score ? `${row.score}/5` : ""),
+    score:
+      payload.score ?? row.score_label ?? (row.score ? `${row.score}/5` : ""),
     source: payload.source ?? row.source_label,
     sourceLabel: payload.sourceLabel ?? row.source_label,
     sourceKind: row.source_id,
-    sourceDate: payload.sourceDate ?? row.posted_date ?? row.discovered_date ?? "",
+    sourceDate:
+      payload.sourceDate ?? row.posted_date ?? row.discovered_date ?? "",
     postedDate: payload.postedDate ?? row.posted_date ?? "",
     discoveredDate: payload.discoveredDate ?? row.discovered_date ?? "",
     subreddit: payload.subreddit ?? row.source_label.replace(/^r\//i, ""),
@@ -436,6 +501,9 @@ function leadFromRow(row: AdminLeadRow): RedditLead {
     author: payload.author ?? row.author,
     category: payload.category ?? row.category,
     leadType: payload.leadType ?? "",
+    engagementModel: payload.engagementModel ?? "",
+    locationEligibility: payload.locationEligibility ?? "",
+    eligibilityEvidence: payload.eligibilityEvidence ?? "",
     vertical: payload.vertical ?? "",
     failureMode: payload.failureMode ?? "",
     outreachPosture: payload.outreachPosture ?? "",

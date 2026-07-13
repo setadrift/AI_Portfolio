@@ -3,7 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function persistAdminLeadBundleToSupabase(payload) {
   const sources = payload.sources ?? (payload.id ? [payload] : []);
-  if (!sources.length) return { ok: false, skipped: true, reason: "no-sources" };
+  if (!sources.length)
+    return { ok: false, skipped: true, reason: "no-sources" };
 
   const supabase = await createAdminClient();
   if (!supabase) return { ok: false, skipped: true, reason: "not-configured" };
@@ -16,12 +17,16 @@ export async function persistAdminLeadBundleToSupabase(payload) {
     markdown: source.markdown ?? "",
     status: source.status ?? null,
     diagnostic: sourceDiagnostic(source),
-    generated_at: normalizeTimestamp(metadataValue(source.markdown ?? "", "Generated")),
+    generated_at: normalizeTimestamp(
+      metadataValue(source.markdown ?? "", "Generated"),
+    ),
   }));
 
-  const { error: sourceError } = await supabase.from("admin_lead_sources").upsert(sourceRows, {
-    onConflict: "id",
-  });
+  const { error: sourceError } = await supabase
+    .from("admin_lead_sources")
+    .upsert(sourceRows, {
+      onConflict: "id",
+    });
   if (sourceError) return { ok: false, error: sourceError.message };
 
   for (const source of sources) {
@@ -42,7 +47,11 @@ async function persistSourceLeads(supabase, source) {
       .eq("source_id", source.id);
     const { error: deactivateError } =
       leadKeys.length > 0
-        ? await staleLeadQuery.not("lead_key", "in", `(${leadKeys.map(quotePostgrestValue).join(",")})`)
+        ? await staleLeadQuery.not(
+            "lead_key",
+            "in",
+            `(${leadKeys.map(quotePostgrestValue).join(",")})`,
+          )
         : await staleLeadQuery;
 
     if (deactivateError) return { ok: false, error: deactivateError.message };
@@ -58,7 +67,8 @@ async function persistSourceLeads(supabase, source) {
   const scanBatch = scanBatchId(source);
   const leadRows = leads.map((lead) => ({
     ...lead,
-    first_seen_scan_mode: existingLeadMeta.get(lead.lead_key)?.first_seen_scan_mode ?? scanMode,
+    first_seen_scan_mode:
+      existingLeadMeta.get(lead.lead_key)?.first_seen_scan_mode ?? scanMode,
     last_seen_scan_mode: scanMode,
     last_seen_scan_batch: scanBatch,
   }));
@@ -71,7 +81,10 @@ async function persistSourceLeads(supabase, source) {
 }
 
 function shouldReplaceMissingLeads(source) {
-  return source.id !== "reddit" || source.status?.preserveHistoricalActiveRows !== true;
+  return (
+    source.id !== "reddit" ||
+    source.status?.preserveHistoricalActiveRows !== true
+  );
 }
 
 function parseLeads(markdown, sourceId) {
@@ -91,13 +104,19 @@ function parseLeads(markdown, sourceId) {
           bulletValue(block, "Published at") ||
           bulletValue(block, "Source date"),
       ),
-      discoveredDate: normalizeDateOnly(bulletValue(block, "Discovered date") || bulletValue(block, "Found date")),
+      discoveredDate: normalizeDateOnly(
+        bulletValue(block, "Discovered date") ||
+          bulletValue(block, "Found date"),
+      ),
       subreddit: sourceLabel.replace(/^r\//i, ""),
       title: heading?.[3] ?? "Untitled lead",
       url: bulletValue(block, "URL"),
       author: bulletValue(block, "Author"),
       category: bulletValue(block, "Category"),
       leadType: bulletValue(block, "Lead type"),
+      engagementModel: bulletValue(block, "Engagement model"),
+      locationEligibility: bulletValue(block, "Location eligibility"),
+      eligibilityEvidence: bulletValue(block, "Eligibility evidence"),
       vertical: bulletValue(block, "Vertical"),
       failureMode: bulletValue(block, "Failure mode"),
       outreachPosture: bulletValue(block, "Outreach posture"),
@@ -170,14 +189,22 @@ async function readExistingLeadMeta(supabase, sourceId, leadKeys) {
     .in("lead_key", leadKeys);
 
   if (error) return new Map();
-  return new Map((data ?? []).map((row) => [row.lead_key, { first_seen_scan_mode: row.first_seen_scan_mode }]));
+  return new Map(
+    (data ?? []).map((row) => [
+      row.lead_key,
+      { first_seen_scan_mode: row.first_seen_scan_mode },
+    ]),
+  );
 }
 
 function scanBatchId(source) {
   return [
     source.id,
     source.status?.scanMode ?? "unknown",
-    source.status?.generatedAt ?? metadataValue(source.markdown ?? "", "Generated") ?? source.fileName ?? "",
+    source.status?.generatedAt ??
+      metadataValue(source.markdown ?? "", "Generated") ??
+      source.fileName ??
+      "",
   ].join(":");
 }
 
@@ -197,15 +224,29 @@ function sourceDiagnostic(source) {
     parsedLeads: parsedRows,
     bestLeadBlocks: bestRows,
     totalHeadingBlocks: (markdown.match(/^### [1-5]\/5 - /gm) ?? []).length,
-    postedDateCount: (postedDateRows.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
-    unknownPostedDateCount: (postedDateRows.match(/^- Posted date: unknown/gm) ?? []).length,
+    postedDateCount: (
+      postedDateRows.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []
+    ).length,
+    unknownPostedDateCount: (
+      postedDateRows.match(/^- Posted date: unknown/gm) ?? []
+    ).length,
     feedErrors,
     usable,
-    warning: diagnosticWarning({ declaredCandidates, bestRows, feedErrors, usable }),
+    warning: diagnosticWarning({
+      declaredCandidates,
+      bestRows,
+      feedErrors,
+      usable,
+    }),
   };
 }
 
-function diagnosticWarning({ declaredCandidates, bestRows, feedErrors, usable }) {
+function diagnosticWarning({
+  declaredCandidates,
+  bestRows,
+  feedErrors,
+  usable,
+}) {
   if (declaredCandidates !== bestRows) {
     return `Declared ${declaredCandidates} candidates but parsed ${bestRows} Best Leads rows.`;
   }
@@ -219,12 +260,13 @@ function feedErrorCount(markdown) {
   return section
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "))
-    .length;
+    .filter((line) => line.startsWith("- ")).length;
 }
 
 function leadBlocks(markdown, options = {}) {
-  const leadSection = (options.includeWatch ? markdown : markdown.split("\n## Maybe / Watch")[0])
+  const leadSection = (
+    options.includeWatch ? markdown : markdown.split("\n## Maybe / Watch")[0]
+  )
     .split("\n## Rejected")[0]
     .split("\n## Feed Errors")[0];
 
@@ -261,7 +303,13 @@ async function loadDotEnv(filePath) {
         .filter((line) => line && !line.startsWith("#") && line.includes("="))
         .map((line) => {
           const index = line.indexOf("=");
-          return [line.slice(0, index).trim(), line.slice(index + 1).trim().replace(/^["']|["']$/g, "")];
+          return [
+            line.slice(0, index).trim(),
+            line
+              .slice(index + 1)
+              .trim()
+              .replace(/^["']|["']$/g, ""),
+          ];
         }),
     );
   } catch {
@@ -270,12 +318,16 @@ async function loadDotEnv(filePath) {
 }
 
 function bulletValue(block, label) {
-  const match = block.match(new RegExp(`^- ${escapeRegExp(label)}: (.*)$`, "m"));
+  const match = block.match(
+    new RegExp(`^- ${escapeRegExp(label)}: (.*)$`, "m"),
+  );
   return match?.[1]?.trim() ?? "";
 }
 
 function metadataValue(markdown, label) {
-  const match = markdown.match(new RegExp(`^-?\\s*${escapeRegExp(label)}: (.+)$`, "m"));
+  const match = markdown.match(
+    new RegExp(`^-?\\s*${escapeRegExp(label)}: (.+)$`, "m"),
+  );
   return match?.[1]?.trim() ?? "";
 }
 
@@ -303,7 +355,9 @@ function normalizeDateOnly(value) {
   const exact = value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
   if (exact) return exact;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+  return Number.isNaN(parsed.getTime())
+    ? ""
+    : parsed.toISOString().slice(0, 10);
 }
 
 function normalizeDate(value) {

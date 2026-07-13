@@ -10,6 +10,11 @@ import type {
   RedditLead,
   StoredLeadState,
 } from "@/lib/portal/admin/leads";
+import {
+  OPPORTUNITY_TYPES,
+  type ConsultingOfferRecord,
+  type OpportunityType,
+} from "@/lib/portal/admin/acquisition";
 
 type SortField = "score" | "posted" | "source" | "title" | "action";
 
@@ -21,22 +26,52 @@ type ScanEvent =
 
 const STORAGE_KEY = "ai-portfolio-admin-lead-state-v1";
 
-const QUEUES: Array<{ value: LeadQueue; label: string; description: string }> = [
-  { value: "actionable", label: "Contact today", description: "Explicit implementation or paid-help requests." },
-  { value: "review", label: "Review", description: "Good signals that need a judgment call." },
-  { value: "community_reply", label: "Worth replying to", description: "Concrete operational pain where a useful public reply is appropriate." },
-  { value: "commented", label: "Commented", description: "Leads where you already replied publicly." },
-  { value: "dm_sent", label: "DM sent", description: "Leads where you already sent a Reddit DM." },
-  { value: "dismissed", label: "Dismissed", description: "Handled, duplicate, stale, or not a fit." },
-];
+const QUEUES: Array<{ value: LeadQueue; label: string; description: string }> =
+  [
+    {
+      value: "actionable",
+      label: "Contact today",
+      description: "Explicit implementation or paid-help requests.",
+    },
+    {
+      value: "review",
+      label: "Review",
+      description: "Good signals that need a judgment call.",
+    },
+    {
+      value: "community_reply",
+      label: "Worth replying to",
+      description:
+        "Concrete operational pain where a useful public reply is appropriate.",
+    },
+    {
+      value: "commented",
+      label: "Commented",
+      description: "Leads where you already replied publicly.",
+    },
+    {
+      value: "dm_sent",
+      label: "DM sent",
+      description: "Leads where you already sent a Reddit DM.",
+    },
+    {
+      value: "dismissed",
+      label: "Dismissed",
+      description: "Handled, duplicate, stale, or not a fit.",
+    },
+  ];
 
 const queueButtonClass =
   "rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/60 transition hover:border-white/25 hover:bg-white/5 hover:text-white";
 
 export default function LeadsDashboard({
   initialData,
+  offers,
+  promotedLeadKeys,
 }: {
   initialData: LeadDashboardData;
+  offers: ConsultingOfferRecord[];
+  promotedLeadKeys: string[];
 }) {
   const router = useRouter();
   const [selectedScanMode, setSelectedScanMode] = useState(
@@ -47,13 +82,17 @@ export default function LeadsDashboard({
   );
   const [selectedQueue, setSelectedQueue] = useState<LeadQueue>("actionable");
   const [selectedLeadUrl, setSelectedLeadUrl] = useState(
-    preferredSource(initialData)?.digest?.leads[0]?.url ?? initialData.digest?.leads[0]?.url ?? "",
+    preferredSource(initialData)?.digest?.leads[0]?.url ??
+      initialData.digest?.leads[0]?.url ??
+      "",
   );
   const [search, setSearch] = useState("");
   const [leadTypeFilter, setLeadTypeFilter] = useState("all");
   const [sortBy, setSortBy] = useState<SortField>("posted");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [leadState, setLeadState] = useState<Record<string, LeadState>>(initialData.leadStates);
+  const [leadState, setLeadState] = useState<Record<string, LeadState>>(
+    initialData.leadStates,
+  );
   const [isRunning, setIsRunning] = useState(false);
   const [runMessage, setRunMessage] = useState("");
   const [scanLog, setScanLog] = useState<string[]>([]);
@@ -65,7 +104,12 @@ export default function LeadsDashboard({
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        setLeadState((current) => mergeLeadStates(JSON.parse(raw) as Record<string, LeadState>, current));
+        setLeadState((current) =>
+          mergeLeadStates(
+            JSON.parse(raw) as Record<string, LeadState>,
+            current,
+          ),
+        );
       }
     } catch {
       setLeadState(initialData.leadStates);
@@ -85,7 +129,9 @@ export default function LeadsDashboard({
   }, [isRunning, scanStartedAt]);
 
   useEffect(() => {
-    const currentSource = initialData.sources.find((source) => source.id === selectedSourceId);
+    const currentSource = initialData.sources.find(
+      (source) => source.id === selectedSourceId,
+    );
     const nextSource = currentSource ?? preferredSource(initialData);
 
     if (!nextSource) return;
@@ -98,7 +144,11 @@ export default function LeadsDashboard({
     }
 
     const leads = nextSource.digest?.leads ?? [];
-    if (leads.length > 0 && selectedLeadUrl && !leads.some((lead) => lead.url === selectedLeadUrl)) {
+    if (
+      leads.length > 0 &&
+      selectedLeadUrl &&
+      !leads.some((lead) => lead.url === selectedLeadUrl)
+    ) {
       setSelectedLeadUrl(leads[0]?.url ?? "");
     }
   }, [initialData, selectedLeadUrl, selectedSourceId]);
@@ -120,21 +170,28 @@ export default function LeadsDashboard({
     return QUEUES.reduce(
       (acc, queue) => ({
         ...acc,
-        [queue.value]: rows.filter((lead) => leadMatchesQueue(lead, queue.value)).length,
+        [queue.value]: rows.filter((lead) =>
+          leadMatchesQueue(lead, queue.value),
+        ).length,
       }),
       {} as Record<LeadQueue, number>,
     );
   }, [rows]);
 
   const leadTypeOptions = useMemo(
-    () => filterOptions(rows, (lead) => lead.leadType || lead.category || "other"),
+    () =>
+      filterOptions(rows, (lead) => lead.leadType || lead.category || "other"),
     [rows],
   );
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return rows
       .filter((lead) => leadMatchesQueue(lead, selectedQueue))
-      .filter((lead) => leadTypeFilter === "all" || (lead.leadType || lead.category || "other") === leadTypeFilter)
+      .filter(
+        (lead) =>
+          leadTypeFilter === "all" ||
+          (lead.leadType || lead.category || "other") === leadTypeFilter,
+      )
       .filter((lead) => {
         if (!needle) return true;
         return [
@@ -181,9 +238,12 @@ export default function LeadsDashboard({
     null;
 
   const selectedLeads = rows.filter((lead) => selectedIds.has(stateKey(lead)));
-  const currentQueue = QUEUES.find((queue) => queue.value === selectedQueue) ?? QUEUES[0];
+  const currentQueue =
+    QUEUES.find((queue) => queue.value === selectedQueue) ?? QUEUES[0];
   const selectedStatus =
-    selectedSource?.id === "reddit" ? selectedSource.status ?? initialData.status : selectedSource?.status ?? null;
+    selectedSource?.id === "reddit"
+      ? (selectedSource.status ?? initialData.status)
+      : (selectedSource?.status ?? null);
 
   async function runScan() {
     setIsRunning(true);
@@ -200,7 +260,9 @@ export default function LeadsDashboard({
       });
 
       if (!response.ok) {
-        const result = (await response.json().catch(() => ({}))) as { error?: string };
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
         throw new Error(result.error || "Scan failed");
       }
 
@@ -252,7 +314,9 @@ export default function LeadsDashboard({
     if (event.type === "log") {
       appendScanLog(event.message);
       setRunMessage(event.message);
-      setScanProgress((current) => Math.max(current, progressForMessage(event.message)));
+      setScanProgress((current) =>
+        Math.max(current, progressForMessage(event.message)),
+      );
       return "";
     }
     if (event.type === "done") {
@@ -292,7 +356,9 @@ export default function LeadsDashboard({
       setRunMessage(result.message || "Codex automation leads loaded.");
       router.refresh();
     } catch (error) {
-      setRunMessage(error instanceof Error ? error.message : "Automation scan failed");
+      setRunMessage(
+        error instanceof Error ? error.message : "Automation scan failed",
+      );
     } finally {
       setIsRunning(false);
     }
@@ -305,9 +371,11 @@ export default function LeadsDashboard({
     const nextState = {
       queue: currentQueue,
       action: currentState?.action ?? "new",
-      commented: currentState?.commented ?? (currentState?.action === "commented"),
-      dmSent: currentState?.dmSent ?? (currentState?.action === "dm_sent"),
-      dismissed: currentState?.dismissed ?? (currentState?.action === "dismissed"),
+      commented:
+        currentState?.commented ?? currentState?.action === "commented",
+      dmSent: currentState?.dmSent ?? currentState?.action === "dm_sent",
+      dismissed:
+        currentState?.dismissed ?? currentState?.action === "dismissed",
       notes: currentState?.notes ?? "",
       updatedAt: new Date().toISOString(),
       ...patch,
@@ -333,9 +401,13 @@ export default function LeadsDashboard({
       const currentState = leadState[key] ?? leadState[leadKey(lead)];
       const nextState = {
         queue,
-        action: action ?? currentState?.action ?? (queue === "dismissed" ? "dismissed" : "new"),
-        commented: currentState?.commented ?? (currentState?.action === "commented"),
-        dmSent: currentState?.dmSent ?? (currentState?.action === "dm_sent"),
+        action:
+          action ??
+          currentState?.action ??
+          (queue === "dismissed" ? "dismissed" : "new"),
+        commented:
+          currentState?.commented ?? currentState?.action === "commented",
+        dmSent: currentState?.dmSent ?? currentState?.action === "dm_sent",
         dismissed: queue === "dismissed" ? true : false,
         notes: currentState?.notes ?? "",
         updatedAt: new Date().toISOString(),
@@ -382,11 +454,18 @@ export default function LeadsDashboard({
       });
 
       if (!response.ok) {
-        const result = (await response.json().catch(() => ({}))) as { error?: string };
-        setRunMessage(result.error ?? "Lead state saved locally, but Supabase persistence failed.");
+        const result = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setRunMessage(
+          result.error ??
+            "Lead state saved locally, but Supabase persistence failed.",
+        );
       }
     } catch {
-      setRunMessage("Lead state saved locally, but Supabase persistence failed.");
+      setRunMessage(
+        "Lead state saved locally, but Supabase persistence failed.",
+      );
     }
   }
 
@@ -399,9 +478,12 @@ export default function LeadsDashboard({
               <p className="text-xs uppercase tracking-[0.22em] text-white/45">
                 AI consulting lead board
               </p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight">Leads</h1>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight">
+                Leads
+              </h1>
               <p className="mt-1 text-sm text-white/50">
-                Work the best current leads first. Run scans only when the queue needs refreshing.
+                Work the best current leads first. Run scans only when the queue
+                needs refreshing.
               </p>
             </div>
 
@@ -410,7 +492,11 @@ export default function LeadsDashboard({
                 <select
                   value={selectedScanMode}
                   onChange={(event) => setSelectedScanMode(event.target.value)}
-                  title={initialData.scanModes.find((mode) => mode.id === selectedScanMode)?.description}
+                  title={
+                    initialData.scanModes.find(
+                      (mode) => mode.id === selectedScanMode,
+                    )?.description
+                  }
                   className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
                 >
                   {initialData.scanModes.map((mode) => (
@@ -474,7 +560,11 @@ export default function LeadsDashboard({
             <Metric label="Review" value={counts.review.toString()} />
             <Metric
               label="Worked"
-              value={(counts.commented + counts.dm_sent + counts.dismissed).toString()}
+              value={(
+                counts.commented +
+                counts.dm_sent +
+                counts.dismissed
+              ).toString()}
             />
           </div>
 
@@ -487,15 +577,20 @@ export default function LeadsDashboard({
                 {selectedStatus ? (
                   selectedSourceId === "reddit" ? (
                     <>
-                      Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
-                      {selectedStatus.totalFeeds} feeds, {selectedStatus.fetchedPosts} posts,{" "}
+                      Last run: {selectedStatus.message}{" "}
+                      {selectedStatus.successfulFeeds}/
+                      {selectedStatus.totalFeeds} feeds,{" "}
+                      {selectedStatus.fetchedPosts} posts,{" "}
                       {selectedStatus.candidatesScored} scored.
                     </>
                   ) : (
                     <>
-                      Last run: {selectedStatus.message} {selectedStatus.successfulFeeds}/
-                      {selectedStatus.totalFeeds} sources, {selectedStatus.fetchedPosts} candidates,{" "}
-                      {selectedStatus.candidatesScored} scored, {selectedStatus.leadsIncluded} loaded.
+                      Last run: {selectedStatus.message}{" "}
+                      {selectedStatus.successfulFeeds}/
+                      {selectedStatus.totalFeeds} sources,{" "}
+                      {selectedStatus.fetchedPosts} candidates,{" "}
+                      {selectedStatus.candidatesScored} scored,{" "}
+                      {selectedStatus.leadsIncluded} loaded.
                     </>
                   )
                 ) : selectedSource?.digest ? (
@@ -511,8 +606,8 @@ export default function LeadsDashboard({
               {selectedSource?.diagnostic ? (
                 <p>
                   Rows: {selectedSource.diagnostic.parsedLeads}; file{" "}
-                  {selectedSource.diagnostic.fileName || "unknown"}; posted dates{" "}
-                  {selectedSource.diagnostic.postedDateCount}/
+                  {selectedSource.diagnostic.fileName || "unknown"}; posted
+                  dates {selectedSource.diagnostic.postedDateCount}/
                   {selectedSource.diagnostic.parsedLeads}.
                   {selectedSource.diagnostic.warning ? (
                     <span className="ml-2 text-amber-300/80">
@@ -524,22 +619,35 @@ export default function LeadsDashboard({
               {selectedStatus?.sourceFamilyDiagnostics ? (
                 <p>
                   Source families:{" "}
-                  {formatStatusCounts(selectedStatus.sourceFamilyDiagnostics.activeLeadCountBySourceFamily)}
+                  {formatStatusCounts(
+                    selectedStatus.sourceFamilyDiagnostics
+                      .activeLeadCountBySourceFamily,
+                  )}
                   ; candidates{" "}
-                  {formatStatusCounts(selectedStatus.sourceFamilyDiagnostics.candidateCountBySourceFamily)}
+                  {formatStatusCounts(
+                    selectedStatus.sourceFamilyDiagnostics
+                      .candidateCountBySourceFamily,
+                  )}
                   ; duplicates removed{" "}
-                  {formatStatusCounts(selectedStatus.sourceFamilyDiagnostics.duplicatesRemoved)}.
+                  {formatStatusCounts(
+                    selectedStatus.sourceFamilyDiagnostics.duplicatesRemoved,
+                  )}
+                  .
                 </p>
               ) : null}
               {selectedStatus?.rejectCounts ? (
-                <p>Rejects: {formatStatusCounts(selectedStatus.rejectCounts)}</p>
+                <p>
+                  Rejects: {formatStatusCounts(selectedStatus.rejectCounts)}
+                </p>
               ) : null}
               {selectedStatus?.queryDiagnostics?.length ? (
                 <p>
-                  Queries: {selectedStatus.queryDiagnostics
+                  Queries:{" "}
+                  {selectedStatus.queryDiagnostics
                     .slice(0, 4)
-                    .map((query) =>
-                      `${query.id ?? query.query}: ${query.surfaced ?? query.replyable ?? 0}/${query.fetchedPosts} surfaced`,
+                    .map(
+                      (query) =>
+                        `${query.id ?? query.query}: ${query.surfaced ?? query.replyable ?? 0}/${query.fetchedPosts} surfaced`,
                     )
                     .join("; ")}
                 </p>
@@ -549,15 +657,17 @@ export default function LeadsDashboard({
                   Source health:{" "}
                   {selectedStatus.sourceHealth
                     .slice(0, 4)
-                    .map((source) =>
-                      `${source.source} ${(source.precision * 100).toFixed(0)}%${source.quarantined ? " quarantined" : ""}`,
+                    .map(
+                      (source) =>
+                        `${source.source} ${(source.precision * 100).toFixed(0)}%${source.quarantined ? " quarantined" : ""}`,
                     )
                     .join("; ")}
                 </p>
               ) : null}
             </div>
           </details>
-          {(isRunning || scanLog.length > 0) && selectedSourceId === "reddit" ? (
+          {(isRunning || scanLog.length > 0) &&
+          selectedSourceId === "reddit" ? (
             <div className="mt-4 rounded-md border border-white/10 bg-[#151515] p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -577,7 +687,9 @@ export default function LeadsDashboard({
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
                 <div
                   className="h-full rounded-full bg-emerald-400 transition-[width] duration-500"
-                  style={{ width: `${Math.max(5, Math.min(100, scanProgress))}%` }}
+                  style={{
+                    width: `${Math.max(5, Math.min(100, scanProgress))}%`,
+                  }}
                 />
               </div>
               <div className="mt-3 max-h-36 overflow-auto rounded-md border border-white/10 bg-black/20 p-2 font-mono text-xs leading-5 text-white/55">
@@ -637,7 +749,9 @@ export default function LeadsDashboard({
                 </select>
                 <select
                   value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value as SortField)}
+                  onChange={(event) =>
+                    setSortBy(event.target.value as SortField)
+                  }
                   className="h-10 rounded-md border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-white/30"
                 >
                   <option value="score">Score</option>
@@ -648,7 +762,11 @@ export default function LeadsDashboard({
                 </select>
                 <button
                   type="button"
-                  onClick={() => downloadCsv(selectedLeads.length ? selectedLeads : visibleRows)}
+                  onClick={() =>
+                    downloadCsv(
+                      selectedLeads.length ? selectedLeads : visibleRows,
+                    )
+                  }
                   className="h-10 rounded-md border border-white/10 px-4 text-sm text-white/70 hover:bg-white/5"
                 >
                   CSV
@@ -661,19 +779,39 @@ export default function LeadsDashboard({
                     ? `${selectedIds.size} selected`
                     : `${visibleRows.length} visible in ${currentQueue.label}`}
                 </span>
-                <button type="button" onClick={() => bulkMove("review")} className={queueButtonClass}>
+                <button
+                  type="button"
+                  onClick={() => bulkMove("review")}
+                  className={queueButtonClass}
+                >
                   Move to Review
                 </button>
-                <button type="button" onClick={() => bulkMove("community_reply")} className={queueButtonClass}>
+                <button
+                  type="button"
+                  onClick={() => bulkMove("community_reply")}
+                  className={queueButtonClass}
+                >
                   Community
                 </button>
-                <button type="button" onClick={() => bulkMove("commented", "commented")} className={queueButtonClass}>
+                <button
+                  type="button"
+                  onClick={() => bulkMove("commented", "commented")}
+                  className={queueButtonClass}
+                >
                   Mark Commented
                 </button>
-                <button type="button" onClick={() => bulkMove("dm_sent", "dm_sent")} className={queueButtonClass}>
+                <button
+                  type="button"
+                  onClick={() => bulkMove("dm_sent", "dm_sent")}
+                  className={queueButtonClass}
+                >
                   Mark DM sent
                 </button>
-                <button type="button" onClick={() => bulkMove("dismissed", "dismissed")} className={queueButtonClass}>
+                <button
+                  type="button"
+                  onClick={() => bulkMove("dismissed", "dismissed")}
+                  className={queueButtonClass}
+                >
                   Dismiss
                 </button>
               </div>
@@ -683,7 +821,9 @@ export default function LeadsDashboard({
               {visibleRows.length === 0 ? (
                 <div className="flex h-full min-h-[360px] items-center justify-center px-6 text-center">
                   <div>
-                    <h2 className="text-base font-medium">No leads match this view</h2>
+                    <h2 className="text-base font-medium">
+                      No leads match this view
+                    </h2>
                     <p className="mt-2 text-sm text-white/45">
                       Run another scan mode or clear the search filter.
                     </p>
@@ -698,12 +838,16 @@ export default function LeadsDashboard({
                           type="checkbox"
                           checked={
                             visibleRows.length > 0 &&
-                            visibleRows.every((lead) => selectedIds.has(stateKey(lead)))
+                            visibleRows.every((lead) =>
+                              selectedIds.has(stateKey(lead)),
+                            )
                           }
                           onChange={(event) => {
                             setSelectedIds(
                               event.target.checked
-                                ? new Set(visibleRows.map((lead) => stateKey(lead)))
+                                ? new Set(
+                                    visibleRows.map((lead) => stateKey(lead)),
+                                  )
                                 : new Set(),
                             );
                           }}
@@ -723,18 +867,24 @@ export default function LeadsDashboard({
                       <tr
                         key={stateKey(lead)}
                         className={`cursor-pointer border-b border-white/10 ${
-                          selectedLead?.url === lead.url ? "bg-white/[0.08]" : "hover:bg-white/[0.04]"
+                          selectedLead?.url === lead.url
+                            ? "bg-white/[0.08]"
+                            : "hover:bg-white/[0.04]"
                         }`}
                         onClick={() => setSelectedLeadUrl(lead.url)}
                       >
-                        <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
+                        <td
+                          className="px-3 py-3"
+                          onClick={(event) => event.stopPropagation()}
+                        >
                           <input
                             type="checkbox"
                             checked={selectedIds.has(stateKey(lead))}
                             onChange={(event) => {
                               setSelectedIds((current) => {
                                 const next = new Set(current);
-                                if (event.target.checked) next.add(stateKey(lead));
+                                if (event.target.checked)
+                                  next.add(stateKey(lead));
                                 else next.delete(stateKey(lead));
                                 return next;
                               });
@@ -742,16 +892,22 @@ export default function LeadsDashboard({
                           />
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <div className="font-medium leading-5">{lead.title}</div>
+                          <div className="font-medium leading-5">
+                            {lead.title}
+                          </div>
                           <div className="mt-1 line-clamp-2 text-xs leading-5 text-white/45">
                             {lead.ownershipQuote
                               ? lead.ownershipQuote
                               : `${lead.buyerSituation ? `${formatCategory(lead.buyerSituation)} - ` : ""}${lead.evidenceSummary || lead.reason}`}
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-top text-white/65">{lead.sourceLabel}</td>
                         <td className="px-4 py-4 align-top text-white/65">
-                          {lead.postedDate || <span className="text-amber-300/80">unknown</span>}
+                          {lead.sourceLabel}
+                        </td>
+                        <td className="px-4 py-4 align-top text-white/65">
+                          {lead.postedDate || (
+                            <span className="text-amber-300/80">unknown</span>
+                          )}
                         </td>
                         <td className="px-4 py-4 align-top capitalize text-white/65">
                           <div>{formatLeadType(lead)}</div>
@@ -764,8 +920,10 @@ export default function LeadsDashboard({
                               const queue = event.target.value as LeadQueue;
                               updateLead(lead, {
                                 queue,
-                                commented: queue === "commented" ? true : lead.commented,
-                                dmSent: queue === "dm_sent" ? true : lead.dmSent,
+                                commented:
+                                  queue === "commented" ? true : lead.commented,
+                                dmSent:
+                                  queue === "dm_sent" ? true : lead.dmSent,
                                 dismissed: queue === "dismissed",
                               });
                             }}
@@ -778,9 +936,15 @@ export default function LeadsDashboard({
                             ))}
                           </select>
                           <div className="mt-2 flex flex-wrap gap-1">
-                            {lead.commented ? <StatusPill label="Commented" /> : null}
-                            {lead.dmSent ? <StatusPill label="DM sent" /> : null}
-                            {lead.dismissed ? <StatusPill label="Dismissed" tone="amber" /> : null}
+                            {lead.commented ? (
+                              <StatusPill label="Commented" />
+                            ) : null}
+                            {lead.dmSent ? (
+                              <StatusPill label="DM sent" />
+                            ) : null}
+                            {lead.dismissed ? (
+                              <StatusPill label="Dismissed" tone="amber" />
+                            ) : null}
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top">
@@ -788,17 +952,32 @@ export default function LeadsDashboard({
                             {lead.score}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-right align-top" onClick={(event) => event.stopPropagation()}>
+                        <td
+                          className="px-4 py-4 text-right align-top"
+                          onClick={(event) => event.stopPropagation()}
+                        >
                           <button
                             type="button"
-                            onClick={() => updateLead(lead, { queue: "commented", commented: !lead.commented, dismissed: false })}
+                            onClick={() =>
+                              updateLead(lead, {
+                                queue: "commented",
+                                commented: !lead.commented,
+                                dismissed: false,
+                              })
+                            }
                             className="mr-3 text-sm text-white/70 hover:text-white"
                           >
                             {lead.commented ? "Uncommented" : "Commented"}
                           </button>
                           <button
                             type="button"
-                            onClick={() => updateLead(lead, { queue: "dm_sent", dmSent: !lead.dmSent, dismissed: false })}
+                            onClick={() =>
+                              updateLead(lead, {
+                                queue: "dm_sent",
+                                dmSent: !lead.dmSent,
+                                dismissed: false,
+                              })
+                            }
                             className="mr-3 text-sm text-white/70 hover:text-white"
                           >
                             {lead.dmSent ? "Undo DM" : "DM sent"}
@@ -823,6 +1002,13 @@ export default function LeadsDashboard({
           <LeadDetail
             lead={selectedLead}
             updateLead={updateLead}
+            offers={offers}
+            promoted={
+              selectedLead
+                ? promotedLeadKeys.includes(stateKey(selectedLead)) ||
+                  selectedLead.action === "converted"
+                : false
+            }
           />
         </main>
       </div>
@@ -833,7 +1019,9 @@ export default function LeadsDashboard({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-      <p className="text-xs uppercase tracking-[0.16em] text-white/35">{label}</p>
+      <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+        {label}
+      </p>
       <p className="mt-1 text-2xl font-semibold text-white">{value}</p>
     </div>
   );
@@ -842,15 +1030,21 @@ function Metric({ label, value }: { label: string; value: string }) {
 function LeadDetail({
   lead,
   updateLead,
+  offers,
+  promoted,
 }: {
   lead: EnrichedLead | null;
   updateLead: (lead: RedditLead, patch: Partial<LeadState>) => void;
+  offers: ConsultingOfferRecord[];
+  promoted: boolean;
 }) {
   if (!lead) {
     return (
       <aside className="rounded-lg border border-white/10 bg-[#202020] p-6 text-center 2xl:sticky 2xl:top-5">
         <h2 className="text-base font-medium">No lead selected</h2>
-        <p className="mt-2 text-sm text-white/45">Select a row to review the source and next action.</p>
+        <p className="mt-2 text-sm text-white/45">
+          Select a row to review the source and next action.
+        </p>
       </aside>
     );
   }
@@ -867,21 +1061,49 @@ function LeadDetail({
       <h2 className="mt-2 text-xl font-semibold leading-7">{lead.title}</h2>
       <p className="mt-3 text-sm leading-6 text-white/55">{lead.reason}</p>
 
+      <PromotionPanel
+        lead={lead}
+        offers={offers}
+        promoted={promoted}
+        onPromoted={() =>
+          updateLead(lead, { action: "converted", dismissed: false })
+        }
+      />
+
       <div className="mt-5 grid grid-cols-2 gap-3">
         <DetailStat label="Score" value={lead.score} />
         <DetailStat label="Posted" value={lead.postedDate || "unknown"} />
         <DetailStat label="Lead type" value={formatLeadType(lead)} />
-        <DetailStat label="Situation" value={formatCategory(lead.intent || lead.buyerSituation || "unknown")} />
-        <DetailStat label="Offer" value={formatCategory(lead.offerMatch || "unknown")} />
-        <DetailStat label="Vertical" value={formatCategory(lead.vertical || "other")} />
-        <DetailStat label="Failure" value={formatCategory(lead.failureMode || "other")} />
+        <DetailStat
+          label="Situation"
+          value={formatCategory(
+            lead.intent || lead.buyerSituation || "unknown",
+          )}
+        />
+        <DetailStat
+          label="Offer"
+          value={formatCategory(lead.offerMatch || "unknown")}
+        />
+        <DetailStat
+          label="Vertical"
+          value={formatCategory(lead.vertical || "other")}
+        />
+        <DetailStat
+          label="Failure"
+          value={formatCategory(lead.failureMode || "other")}
+        />
         <DetailStat label="Queue" value={formatQueue(lead.queue)} />
         <DetailStat label="Status" value={statusSummary(lead)} />
       </div>
 
-      {lead.ownershipQuote || lead.askQuote || lead.replyAngle || lead.whyNow ? (
+      {lead.ownershipQuote ||
+      lead.askQuote ||
+      lead.replyAngle ||
+      lead.whyNow ? (
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
-          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Verified evidence</h3>
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">
+            Verified evidence
+          </h3>
           {lead.ownershipQuote ? (
             <blockquote className="mt-3 border-l border-white/15 pl-3 text-sm leading-6 text-white/70">
               {lead.ownershipQuote}
@@ -893,35 +1115,96 @@ function LeadDetail({
             </blockquote>
           ) : null}
           <div className="mt-3 grid gap-2 text-xs text-white/45">
-            {lead.whyNow ? <p><span className="text-white/60">Why now:</span> {lead.whyNow}</p> : null}
-            {lead.replyAngle ? <p><span className="text-white/60">Reply angle:</span> {lead.replyAngle}</p> : null}
-            {lead.speaker ? <p><span className="text-white/60">Speaker:</span> {formatCategory(lead.speaker)}</p> : null}
-            {lead.intent ? <p><span className="text-white/60">Intent:</span> {formatCategory(lead.intent)}</p> : null}
-            {lead.consultingFit ? <p><span className="text-white/60">Fit:</span> {formatCategory(lead.consultingFit)}</p> : null}
-            {lead.rejectionReason ? <p><span className="text-white/60">Reject:</span> {formatCategory(lead.rejectionReason)}</p> : null}
+            {lead.whyNow ? (
+              <p>
+                <span className="text-white/60">Why now:</span> {lead.whyNow}
+              </p>
+            ) : null}
+            {lead.replyAngle ? (
+              <p>
+                <span className="text-white/60">Reply angle:</span>{" "}
+                {lead.replyAngle}
+              </p>
+            ) : null}
+            {lead.speaker ? (
+              <p>
+                <span className="text-white/60">Speaker:</span>{" "}
+                {formatCategory(lead.speaker)}
+              </p>
+            ) : null}
+            {lead.intent ? (
+              <p>
+                <span className="text-white/60">Intent:</span>{" "}
+                {formatCategory(lead.intent)}
+              </p>
+            ) : null}
+            {lead.consultingFit ? (
+              <p>
+                <span className="text-white/60">Fit:</span>{" "}
+                {formatCategory(lead.consultingFit)}
+              </p>
+            ) : null}
+            {lead.rejectionReason ? (
+              <p>
+                <span className="text-white/60">Reject:</span>{" "}
+                {formatCategory(lead.rejectionReason)}
+              </p>
+            ) : null}
           </div>
         </section>
       ) : null}
 
       {lead.evidenceSummary || lead.missingEvidence || lead.nextStep ? (
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
-          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Buyer evidence</h3>
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">
+            Buyer evidence
+          </h3>
           {lead.evidenceSummary ? (
-            <p className="mt-2 text-sm leading-6 text-white/65">{lead.evidenceSummary}</p>
+            <p className="mt-2 text-sm leading-6 text-white/65">
+              {lead.evidenceSummary}
+            </p>
           ) : null}
           <div className="mt-3 grid gap-2 text-xs text-white/45">
-            {lead.nextStep ? <p><span className="text-white/60">Next:</span> {lead.nextStep}</p> : null}
-            {lead.responsePath ? <p><span className="text-white/60">Path:</span> {lead.responsePath}</p> : null}
-            {lead.missingEvidence ? <p><span className="text-white/60">Missing:</span> {lead.missingEvidence}</p> : null}
-            {lead.sourceQuoteOrSnippet ? <p><span className="text-white/60">Source:</span> {lead.sourceQuoteOrSnippet}</p> : null}
-            {lead.relatedSources && lead.relatedSources !== "none" ? <p><span className="text-white/60">Related:</span> {lead.relatedSources}</p> : null}
+            {lead.nextStep ? (
+              <p>
+                <span className="text-white/60">Next:</span> {lead.nextStep}
+              </p>
+            ) : null}
+            {lead.responsePath ? (
+              <p>
+                <span className="text-white/60">Path:</span> {lead.responsePath}
+              </p>
+            ) : null}
+            {lead.missingEvidence ? (
+              <p>
+                <span className="text-white/60">Missing:</span>{" "}
+                {lead.missingEvidence}
+              </p>
+            ) : null}
+            {lead.sourceQuoteOrSnippet ? (
+              <p>
+                <span className="text-white/60">Source:</span>{" "}
+                {lead.sourceQuoteOrSnippet}
+              </p>
+            ) : null}
+            {lead.relatedSources && lead.relatedSources !== "none" ? (
+              <p>
+                <span className="text-white/60">Related:</span>{" "}
+                {lead.relatedSources}
+              </p>
+            ) : null}
           </div>
         </section>
       ) : null}
 
-      {lead.businessMaturityScore || lead.aiLeverageScore || lead.commercialFitScore || lead.confidenceScore ? (
+      {lead.businessMaturityScore ||
+      lead.aiLeverageScore ||
+      lead.commercialFitScore ||
+      lead.confidenceScore ? (
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
-          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Fit scores</h3>
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">
+            Fit scores
+          </h3>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-white/55">
             <FitScore label="Business" value={lead.businessMaturityScore} />
             <FitScore label="Pain" value={lead.painSeverityScore} />
@@ -938,18 +1221,30 @@ function LeadDetail({
 
       {lead.commentContext ? (
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
-          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Comment context</h3>
-          <p className="mt-2 text-sm leading-6 text-white/65">{lead.commentContext}</p>
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">
+            Comment context
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-white/65">
+            {lead.commentContext}
+          </p>
         </section>
       ) : null}
 
       {lead.sourceQuery ? (
         <section className="mt-5 rounded-md border border-white/10 bg-white/[0.03] p-3">
-          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">Search source</h3>
-          <p className="mt-2 text-sm leading-6 text-white/65">{lead.sourceQuery}</p>
+          <h3 className="text-xs uppercase tracking-[0.16em] text-white/35">
+            Search source
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-white/65">
+            {lead.sourceQuery}
+          </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/40">
-            {lead.sourcePatternFamily ? <span>{formatCategory(lead.sourcePatternFamily)}</span> : null}
-            {lead.sourceVertical ? <span>{formatCategory(lead.sourceVertical)}</span> : null}
+            {lead.sourcePatternFamily ? (
+              <span>{formatCategory(lead.sourcePatternFamily)}</span>
+            ) : null}
+            {lead.sourceVertical ? (
+              <span>{formatCategory(lead.sourceVertical)}</span>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -957,12 +1252,24 @@ function LeadDetail({
       <div className="mt-5 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => updateLead(lead, { notes: decisionNote(lead.notes, "good_lead"), dismissed: false })}
+          onClick={() =>
+            updateLead(lead, {
+              notes: decisionNote(lead.notes, "good_lead"),
+              dismissed: false,
+            })
+          }
           className={queueButtonClass}
         >
           Good lead
         </button>
-        {["not_operator", "no_real_ask", "bad_fit", "stale", "seller", "other"].map((reason) => (
+        {[
+          "not_operator",
+          "no_real_ask",
+          "bad_fit",
+          "stale",
+          "seller",
+          "other",
+        ].map((reason) => (
           <button
             key={reason}
             type="button"
@@ -980,7 +1287,14 @@ function LeadDetail({
         ))}
         <button
           type="button"
-          onClick={() => updateLead(lead, { notes: decisionNote(lead.notes, `blocklist_author:${lead.author}`) })}
+          onClick={() =>
+            updateLead(lead, {
+              notes: decisionNote(
+                lead.notes,
+                `blocklist_author:${lead.author}`,
+              ),
+            })
+          }
           className={queueButtonClass}
         >
           Blocklist author
@@ -999,28 +1313,77 @@ function LeadDetail({
         >
           Quarantine source
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "actionable", dismissed: false })} className={queueButtonClass}>
+        <button
+          type="button"
+          onClick={() =>
+            updateLead(lead, { queue: "actionable", dismissed: false })
+          }
+          className={queueButtonClass}
+        >
           Actionable
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "review", dismissed: false })} className={queueButtonClass}>
+        <button
+          type="button"
+          onClick={() =>
+            updateLead(lead, { queue: "review", dismissed: false })
+          }
+          className={queueButtonClass}
+        >
           Review
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "community_reply", dismissed: false })} className={queueButtonClass}>
+        <button
+          type="button"
+          onClick={() =>
+            updateLead(lead, { queue: "community_reply", dismissed: false })
+          }
+          className={queueButtonClass}
+        >
           Community
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "commented", commented: !lead.commented, dismissed: false })} className={queueButtonClass}>
+        <button
+          type="button"
+          onClick={() =>
+            updateLead(lead, {
+              queue: "commented",
+              commented: !lead.commented,
+              dismissed: false,
+            })
+          }
+          className={queueButtonClass}
+        >
           {lead.commented ? "Unmark Commented" : "Commented"}
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: "dm_sent", dmSent: !lead.dmSent, dismissed: false })} className={queueButtonClass}>
+        <button
+          type="button"
+          onClick={() =>
+            updateLead(lead, {
+              queue: "dm_sent",
+              dmSent: !lead.dmSent,
+              dismissed: false,
+            })
+          }
+          className={queueButtonClass}
+        >
           {lead.dmSent ? "Unmark DM sent" : "DM sent"}
         </button>
-        <button type="button" onClick={() => updateLead(lead, { queue: lead.dismissed ? "review" : "dismissed", dismissed: !lead.dismissed })} className={queueButtonClass}>
+        <button
+          type="button"
+          onClick={() =>
+            updateLead(lead, {
+              queue: lead.dismissed ? "review" : "dismissed",
+              dismissed: !lead.dismissed,
+            })
+          }
+          className={queueButtonClass}
+        >
           {lead.dismissed ? "Restore" : "Dismiss"}
         </button>
       </div>
 
       <label className="mt-5 block">
-        <span className="text-xs uppercase tracking-[0.16em] text-white/35">Notes</span>
+        <span className="text-xs uppercase tracking-[0.16em] text-white/35">
+          Notes
+        </span>
         <textarea
           value={lead.notes}
           onChange={(event) => updateLead(lead, { notes: event.target.value })}
@@ -1042,10 +1405,160 @@ function LeadDetail({
   );
 }
 
+function PromotionPanel({
+  lead,
+  offers,
+  promoted,
+  onPromoted,
+}: {
+  lead: EnrichedLead;
+  offers: ConsultingOfferRecord[];
+  promoted: boolean;
+  onPromoted: () => void;
+}) {
+  const router = useRouter();
+  const [defaultDue] = useState(() =>
+    new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  );
+  const matchedOffer = offers.find(
+    (offer) =>
+      offer.slug === lead.offerMatch ||
+      offer.name.toLowerCase().replace(/\s+/g, "_") === lead.offerMatch,
+  );
+  const [opportunityType, setOpportunityType] = useState<OpportunityType>(
+    lead.buyerSituation?.includes("partner")
+      ? "partner_overflow"
+      : "direct_client",
+  );
+  const [offerId, setOfferId] = useState(
+    matchedOffer?.id ||
+      offers.find((offer) => offer.slug === "custom-scope")?.id ||
+      "",
+  );
+  const [nextAction, setNextAction] = useState(
+    lead.nextStep ||
+      lead.recommendedAction ||
+      "Send a useful, tailored response",
+  );
+  const [dueAt, setDueAt] = useState(defaultDue);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function promote() {
+    setBusy(true);
+    setMessage("");
+    const response = await fetch(
+      "/api/portal/admin/consulting/opportunities/promote-lead",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceId: lead.sourceKind,
+          leadKey: leadKey(lead),
+          opportunityType,
+          nextAction,
+          nextActionDueAt: new Date(`${dueAt}T17:00:00`).toISOString(),
+          primaryOfferId: offerId || null,
+        }),
+      },
+    );
+    const result = await response.json().catch(() => ({}));
+    setBusy(false);
+    if (!response.ok) {
+      setMessage(result.error || "Promotion failed.");
+      return;
+    }
+    setMessage(
+      "Added to the consulting pipeline with its source evidence intact.",
+    );
+    onPromoted();
+    router.refresh();
+  }
+
+  if (promoted)
+    return (
+      <section className="mt-5 rounded-md border border-emerald-400/20 bg-emerald-400/[0.06] p-3">
+        <p className="text-sm font-medium text-emerald-200">
+          Already in pipeline
+        </p>
+        <p className="mt-1 text-xs text-white/45">
+          This discovery row remains here as the original source record.
+        </p>
+      </section>
+    );
+  return (
+    <section className="mt-5 rounded-md border border-amber-300/20 bg-amber-300/[0.04] p-3">
+      <h3 className="text-xs uppercase tracking-[0.16em] text-amber-200/70">
+        Promote to pipeline
+      </h3>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="text-xs text-white/45">
+          Opportunity type
+          <select
+            value={opportunityType}
+            onChange={(e) =>
+              setOpportunityType(e.target.value as OpportunityType)
+            }
+            className="mt-1 w-full rounded border border-white/10 bg-[#151515] p-2 text-sm text-white"
+          >
+            {OPPORTUNITY_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {formatCategory(type)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-white/45">
+          Primary offer
+          <select
+            value={offerId}
+            onChange={(e) => setOfferId(e.target.value)}
+            className="mt-1 w-full rounded border border-white/10 bg-[#151515] p-2 text-sm text-white"
+          >
+            {offers.map((offer) => (
+              <option key={offer.id} value={offer.id}>
+                {offer.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-white/45 sm:col-span-2">
+          Confirmed next action
+          <input
+            value={nextAction}
+            onChange={(e) => setNextAction(e.target.value)}
+            className="mt-1 w-full rounded border border-white/10 bg-[#151515] p-2 text-sm text-white"
+          />
+        </label>
+        <label className="text-xs text-white/45">
+          Due date
+          <input
+            type="date"
+            value={dueAt}
+            onChange={(e) => setDueAt(e.target.value)}
+            className="mt-1 w-full rounded border border-white/10 bg-[#151515] p-2 text-sm text-white"
+          />
+        </label>
+      </div>
+      <button
+        type="button"
+        disabled={busy || !nextAction.trim() || !dueAt}
+        onClick={promote}
+        className="mt-3 rounded bg-amber-200 px-3 py-2 text-sm font-semibold text-[#151515] disabled:opacity-50"
+      >
+        {busy ? "Promoting…" : "Promote to pipeline"}
+      </button>
+      {message ? <p className="mt-2 text-xs text-white/55">{message}</p> : null}
+    </section>
+  );
+}
+
 function DetailStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-white/10 bg-white/[0.03] p-3">
-      <p className="text-xs uppercase tracking-[0.14em] text-white/35">{label}</p>
+      <p className="text-xs uppercase tracking-[0.14em] text-white/35">
+        {label}
+      </p>
       <p className="mt-1 truncate text-sm text-white">{value}</p>
     </div>
   );
@@ -1060,11 +1573,19 @@ function FitScore({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPill({ label, tone = "default" }: { label: string; tone?: "default" | "amber" }) {
+function StatusPill({
+  label,
+  tone = "default",
+}: {
+  label: string;
+  tone?: "default" | "amber";
+}) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[10px] ${
-        tone === "amber" ? "bg-amber-500/15 text-amber-200" : "bg-white/10 text-white/60"
+        tone === "amber"
+          ? "bg-amber-500/15 text-amber-200"
+          : "bg-white/10 text-white/60"
       }`}
     >
       {label}
@@ -1079,7 +1600,10 @@ type EnrichedLead = RedditLead &
 
 function preferredSource(data: LeadDashboardData) {
   return (
-    data.sources.find((source) => source.id === "automation" && (source.digest?.leads.length ?? 0) > 0) ??
+    data.sources.find(
+      (source) =>
+        source.id === "automation" && (source.digest?.leads.length ?? 0) > 0,
+    ) ??
     data.sources.find((source) => (source.digest?.leads.length ?? 0) > 0) ??
     data.sources[0] ??
     null
@@ -1091,11 +1615,17 @@ function mergeLeadStates(
   databaseState: Record<string, LeadState>,
 ) {
   const merged = Object.fromEntries(
-    Object.entries(localState).map(([key, value]) => [key, normalizeStoredState(value)]),
+    Object.entries(localState).map(([key, value]) => [
+      key,
+      normalizeStoredState(value),
+    ]),
   ) as Record<string, LeadState>;
   for (const [key, databaseValue] of Object.entries(databaseState)) {
     const localValue = merged[key];
-    if (!localValue || dateValue(databaseValue.updatedAt) >= dateValue(localValue.updatedAt)) {
+    if (
+      !localValue ||
+      dateValue(databaseValue.updatedAt) >= dateValue(localValue.updatedAt)
+    ) {
       merged[key] = normalizeStoredState(databaseValue);
     }
   }
@@ -1107,7 +1637,9 @@ function normalizeStoredState(state: LeadState): LeadState {
     ...state,
     commented: state.commented ?? state.action === "commented",
     dmSent: state.dmSent ?? state.action === "dm_sent",
-    dismissed: state.dismissed ?? (state.action === "dismissed" || state.queue === "dismissed"),
+    dismissed:
+      state.dismissed ??
+      (state.action === "dismissed" || state.queue === "dismissed"),
   };
 }
 
@@ -1142,7 +1674,10 @@ function formatElapsed(seconds: number) {
   return `${minutes}m ${remainder.toString().padStart(2, "0")}s`;
 }
 
-function filterOptions(leads: RedditLead[], valueForLead: (lead: RedditLead) => string) {
+function filterOptions(
+  leads: RedditLead[],
+  valueForLead: (lead: RedditLead) => string,
+) {
   const counts = new Map<string, number>();
   for (const lead of leads) {
     const value = valueForLead(lead);
@@ -1151,7 +1686,10 @@ function filterOptions(leads: RedditLead[], valueForLead: (lead: RedditLead) => 
   }
 
   return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || formatCategory(a[0]).localeCompare(formatCategory(b[0])))
+    .sort(
+      (a, b) =>
+        b[1] - a[1] || formatCategory(a[0]).localeCompare(formatCategory(b[0])),
+    )
     .map(([value, count]) => ({
       value,
       count,
@@ -1194,7 +1732,11 @@ function queueForLead(lead: RedditLead, state?: LeadState): LeadQueue {
   if (lead.buyerQueue === "market_intelligence") return "review";
   if (lead.buyerQueue === "reject") return "dismissed";
   if (lead.recommendedAction === "ignore") return "dismissed";
-  if (lead.recommendedAction === "dm" || lead.recommendedAction === "dm_if_engaged") return "actionable";
+  if (
+    lead.recommendedAction === "dm" ||
+    lead.recommendedAction === "dm_if_engaged"
+  )
+    return "actionable";
   if (lead.recommendedAction === "watch") return "review";
   if (lead.recommendedAction === "comment") return "community_reply";
   if ((Number.parseInt(lead.score, 10) || 0) >= 4) return "actionable";
@@ -1204,21 +1746,33 @@ function queueForLead(lead: RedditLead, state?: LeadState): LeadQueue {
 function leadMatchesQueue(lead: EnrichedLead, queue: LeadQueue) {
   if (queue === "commented") return lead.commented;
   if (queue === "dm_sent") return lead.dmSent;
-  if (queue === "dismissed") return lead.dismissed || lead.queue === "dismissed";
+  if (queue === "dismissed")
+    return lead.dismissed || lead.queue === "dismissed";
   return lead.queue === queue && !lead.dismissed;
 }
 
-function actionForState(state: Pick<LeadState, "queue" | "action" | "commented" | "dmSent" | "dismissed">): LeadAction {
+function actionForState(
+  state: Pick<
+    LeadState,
+    "queue" | "action" | "commented" | "dmSent" | "dismissed"
+  >,
+): LeadAction {
   if (state.dismissed || state.queue === "dismissed") return "dismissed";
   if (state.dmSent) return "dm_sent";
   if (state.commented) return "commented";
-  if (state.action === "converted" || state.action === "opened") return state.action;
+  if (state.action === "converted" || state.action === "opened")
+    return state.action;
   return "new";
 }
 
 function sortRows(a: EnrichedLead, b: EnrichedLead, sortBy: SortField) {
-  if (sortBy === "score") return b.numericScore - a.numericScore || a.title.localeCompare(b.title);
-  if (sortBy === "posted") return dateSortKey(b.postedDate) - dateSortKey(a.postedDate) || b.numericScore - a.numericScore;
+  if (sortBy === "score")
+    return b.numericScore - a.numericScore || a.title.localeCompare(b.title);
+  if (sortBy === "posted")
+    return (
+      dateSortKey(b.postedDate) - dateSortKey(a.postedDate) ||
+      b.numericScore - a.numericScore
+    );
   if (sortBy === "source") return a.sourceLabel.localeCompare(b.sourceLabel);
   if (sortBy === "action") return a.action.localeCompare(b.action);
   return a.title.localeCompare(b.title);
@@ -1264,7 +1818,9 @@ function statusSummary(lead: EnrichedLead) {
 function formatStatusCounts(counts?: Record<string, number>) {
   const entries = Object.entries(counts ?? {});
   if (!entries.length) return "none";
-  return entries.map(([key, value]) => `${formatCategory(key)} ${value}`).join(", ");
+  return entries
+    .map(([key, value]) => `${formatCategory(key)} ${value}`)
+    .join(", ");
 }
 
 function decisionNote(current: string, marker: string) {
@@ -1353,7 +1909,9 @@ function downloadCsv(leads: EnrichedLead[]) {
     ]),
   ];
   const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const url = URL.createObjectURL(
+    new Blob([csv], { type: "text/csv;charset=utf-8" }),
+  );
   const link = document.createElement("a");
   link.href = url;
   link.download = `ai-consulting-leads-${new Date().toISOString().slice(0, 10)}.csv`;

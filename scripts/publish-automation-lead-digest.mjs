@@ -5,11 +5,13 @@ import path from "node:path";
 import { put } from "@vercel/blob";
 import { persistAdminLeadBundleToSupabase } from "./lib/supabase-admin-leads.mjs";
 
-const OUTPUT_DIR = process.env.AUTOMATION_LEAD_OUTPUT_DIR || "outputs/ai-consulting-leads";
+const OUTPUT_DIR =
+  process.env.AUTOMATION_LEAD_OUTPUT_DIR || "outputs/ai-consulting-leads";
 const STATUS_PATH = path.join(OUTPUT_DIR, "latest-status.json");
 const PUBLISHED_AUTOMATION_DIGEST_PATH = "admin/leads/automation/latest.json";
 const AUTOMATION_LEAD_MAX_AGE_DAYS = 7;
-const AUTOMATION_LEAD_MAX_AGE_MS = AUTOMATION_LEAD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+const AUTOMATION_LEAD_MAX_AGE_MS =
+  AUTOMATION_LEAD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
 
 async function main() {
   const env = {
@@ -30,18 +32,23 @@ async function main() {
   const payload = {
     id: "automation",
     label: "Codex automation",
-    description: "Broader public-web leads from the AI consulting research automation.",
+    description:
+      "Broader public-web leads from the AI consulting research automation.",
     fileName,
     markdown,
     status: aggregateStatus(status, markdown),
   };
 
-  await put(PUBLISHED_AUTOMATION_DIGEST_PATH, JSON.stringify(payload, null, 2), {
-    access: "private",
-    allowOverwrite: true,
-    contentType: "application/json",
-    cacheControlMaxAge: 60,
-  });
+  await put(
+    PUBLISHED_AUTOMATION_DIGEST_PATH,
+    JSON.stringify(payload, null, 2),
+    {
+      access: "private",
+      allowOverwrite: true,
+      contentType: "application/json",
+      cacheControlMaxAge: 60,
+    },
+  );
   const supabaseResult = await persistAdminLeadBundleToSupabase(payload);
 
   console.log(
@@ -50,8 +57,11 @@ async function main() {
       path: PUBLISHED_AUTOMATION_DIGEST_PATH,
       declaredCandidates: numberValue(markdown, "Candidates included"),
       parsedBestLeads: leadBlocks(markdown).length,
-      postedDates: (markdown.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
-      unknownPostedDates: (markdown.match(/^- Posted date: unknown/gm) ?? []).length,
+      postedDates: (
+        markdown.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []
+      ).length,
+      unknownPostedDates: (markdown.match(/^- Posted date: unknown/gm) ?? [])
+        .length,
       supabase: supabaseResult,
     }),
   );
@@ -79,6 +89,7 @@ async function buildAggregateDigest() {
   let generatedAt = "";
   let feedsChecked = 0;
   let rejectedCount = 0;
+  let engagementGateRejected = 0;
   const feedErrors = [];
   const newestAllowedDate = new Date();
 
@@ -90,8 +101,14 @@ async function buildAggregateDigest() {
     feedErrors.push(...parseFeedErrors(markdown, file));
     for (const block of leadBlocks(markdown)) {
       if (isExcludedLeadSource(block)) continue;
+      if (!passesConsultingEngagementGate(block)) {
+        engagementGateRejected += 1;
+        continue;
+      }
       const explicitLeadDate = leadFreshnessDate(block);
-      const normalized = withBusinessBuyerDefaults(withDiscoveryDate(block.trim(), file.slice(0, 10)));
+      const normalized = withBusinessBuyerDefaults(
+        withDiscoveryDate(block.trim(), file.slice(0, 10)),
+      );
       blocks.push({
         block: normalized,
         dedupeKey: leadDedupeKey(normalized),
@@ -100,10 +117,13 @@ async function buildAggregateDigest() {
     }
   }
 
-  const recentBlocks = blocks.filter((entry) => isRecentLeadDate(entry.sourceDate, newestAllowedDate));
+  const recentBlocks = blocks.filter((entry) =>
+    isRecentLeadDate(entry.sourceDate, newestAllowedDate),
+  );
   const filteredBlocks = dedupeLeadBlocks(recentBlocks);
   const duplicatesRemoved = recentBlocks.length - filteredBlocks.length;
-  rejectedCount += blocks.length - filteredBlocks.length;
+  rejectedCount +=
+    blocks.length - filteredBlocks.length + engagementGateRejected;
 
   const fileName = "codex-automation-leads.md";
   const markdown = [
@@ -117,11 +137,14 @@ async function buildAggregateDigest() {
     `Maximum lead age: ${AUTOMATION_LEAD_MAX_AGE_DAYS} days`,
     `Source family mix: ${formatCounts(countBy(filteredBlocks, (entry) => bulletValue(entry.block, "Source family") || inferSourceFamily(entry.block)))}`,
     `Duplicates removed: ${duplicatesRemoved}`,
+    `Engagement gate rejected: ${engagementGateRejected}`,
     "Partial coverage: no",
     "",
     "## Best Leads",
     "",
-    filteredBlocks.length ? filteredBlocks.map((entry) => entry.block).join("\n\n") : "No leads found.",
+    filteredBlocks.length
+      ? filteredBlocks.map((entry) => entry.block).join("\n\n")
+      : "No leads found.",
     "",
     "## Feed Errors",
     "",
@@ -163,13 +186,16 @@ function withDiscoveryDate(block, discoveredDate) {
     !/^- Published date: /m.test(block) &&
     !/^- Published at: /m.test(block);
   const missingDiscoveryDate = !/^- Discovered date: /m.test(block);
-  const insertAt = lines.findIndex((line, index) => index > 0 && line.startsWith("- "));
+  const insertAt = lines.findIndex(
+    (line, index) => index > 0 && line.startsWith("- "),
+  );
   const dateLines = [
     missingPostedDate ? "- Posted date: unknown" : "",
     missingDiscoveryDate ? `- Discovered date: ${discoveredDate}` : "",
   ].filter(Boolean);
   if (!dateLines.length) return block;
-  if (insertAt === -1) return `${lines[0]}\n${dateLines.join("\n")}\n${lines.slice(1).join("\n")}`.trim();
+  if (insertAt === -1)
+    return `${lines[0]}\n${dateLines.join("\n")}\n${lines.slice(1).join("\n")}`.trim();
   lines.splice(insertAt, 0, ...dateLines);
   return lines.join("\n");
 }
@@ -188,7 +214,11 @@ function dedupeLeadBlocks(blocks) {
   return [...byKey.values()].map((entry) => ({
     ...entry,
     block: entry.relatedSources.length
-      ? upsertBullet(entry.block, "Related sources", unique(entry.relatedSources).join(", "))
+      ? upsertBullet(
+          entry.block,
+          "Related sources",
+          unique(entry.relatedSources).join(", "),
+        )
       : entry.block,
   }));
 }
@@ -207,7 +237,46 @@ function isExcludedLeadSource(block) {
   const heading = block.match(/^### [1-5]\/5 - (.+?) - (.+)$/m);
   const source = heading?.[1] ?? "";
   const url = bulletValue(block, "URL");
-  return [source, url].some((value) => /\bupwork\b|upwork\.com/i.test(value));
+  const pursuitPath = bulletValue(block, "Free-to-pursue path");
+  return (
+    [source, url].some((value) =>
+      /\b(upwork|freelancer|peopleperhour|guru)\b|upwork\.com|freelancer\.com|peopleperhour\.com|guru\.com/i.test(
+        value,
+      ),
+    ) ||
+    /paid marketplace|paid credits|payment to apply|login-only/i.test(
+      pursuitPath,
+    )
+  );
+}
+
+function passesConsultingEngagementGate(block) {
+  const leadType = bulletValue(block, "Lead type").toLowerCase();
+  const engagementModel = bulletValue(block, "Engagement model").toLowerCase();
+  const locationEligibility = bulletValue(
+    block,
+    "Location eligibility",
+  ).toLowerCase();
+  const queue = bulletValue(block, "Queue").toLowerCase();
+  if (["company_signal", "market_intelligence", "reject"].includes(queue))
+    return false;
+  if (["permanent", "full_time"].includes(engagementModel)) return false;
+  if (locationEligibility === "ineligible") return false;
+  if (leadType !== "job_board") return true;
+
+  const eligibleEngagements = new Set([
+    "consulting",
+    "contract",
+    "freelance",
+    "fractional",
+    "temporary",
+    "rfp",
+  ]);
+
+  return (
+    eligibleEngagements.has(engagementModel) &&
+    locationEligibility === "eligible"
+  );
 }
 
 function normalizeLeadUrl(url) {
@@ -233,54 +302,124 @@ function normalizeComparable(value) {
 }
 
 function withBusinessBuyerDefaults(block) {
-  const sourceFamily = bulletValue(block, "Source family") || inferSourceFamily(block);
-  const buyerSituation = bulletValue(block, "Buyer situation") || inferBuyerSituation(block);
-  const offerMatch = bulletValue(block, "Offer match") || inferOfferMatch(block, buyerSituation);
-  const evidenceSummary = bulletValue(block, "Evidence summary") || bulletValue(block, "Why it matched") || "Public-source business-buyer signal.";
-  const nextStep = bulletValue(block, "Next step") || nextStepForOffer(offerMatch);
-  const evidenceUrl = bulletValue(block, "Evidence URL") || bulletValue(block, "URL");
-  const sourceSnippet = bulletValue(block, "Source quote or snippet") || sourceSnippetFromBlock(block);
-  const freshnessScore = bulletValue(block, "Freshness score") || freshnessScoreForDate(leadFreshnessDate(block));
-  const queue = bulletValue(block, "Queue") || (String(block).startsWith("### 5/5") ? "active_lead" : "warm_reply");
+  const sourceFamily =
+    bulletValue(block, "Source family") || inferSourceFamily(block);
+  const buyerSituation =
+    bulletValue(block, "Buyer situation") || inferBuyerSituation(block);
+  const offerMatch =
+    bulletValue(block, "Offer match") || inferOfferMatch(block, buyerSituation);
+  const evidenceSummary =
+    bulletValue(block, "Evidence summary") ||
+    bulletValue(block, "Why it matched") ||
+    "Public-source business-buyer signal.";
+  const nextStep =
+    bulletValue(block, "Next step") || nextStepForOffer(offerMatch);
+  const evidenceUrl =
+    bulletValue(block, "Evidence URL") || bulletValue(block, "URL");
+  const sourceSnippet =
+    bulletValue(block, "Source quote or snippet") ||
+    sourceSnippetFromBlock(block);
+  const freshnessScore =
+    bulletValue(block, "Freshness score") ||
+    freshnessScoreForDate(leadFreshnessDate(block));
+  const queue =
+    bulletValue(block, "Queue") ||
+    (String(block).startsWith("### 5/5") ? "active_lead" : "warm_reply");
   const scoreComponents = inferredScoreComponents(block, queue);
-  const lastVerifiedAt = bulletValue(block, "Last verified at") || new Date().toISOString();
+  const lastVerifiedAt =
+    bulletValue(block, "Last verified at") || new Date().toISOString();
 
   return [
     ["Source family", sourceFamily],
     ["Buyer situation", buyerSituation],
     ["Queue", queue],
     ["Offer match", offerMatch],
-    ["Business maturity score", bulletValue(block, "Business maturity score") || scoreComponents.businessMaturityScore],
-    ["Pain severity score", bulletValue(block, "Pain severity score") || scoreComponents.painSeverityScore],
-    ["Hiring likelihood score", bulletValue(block, "Hiring likelihood score") || scoreComponents.hiringLikelihoodScore],
-    ["AI leverage score", bulletValue(block, "AI leverage score") || scoreComponents.aiLeverageScore],
-    ["Commercial fit score", bulletValue(block, "Commercial fit score") || scoreComponents.commercialFitScore],
-    ["Duncan fit score", bulletValue(block, "Duncan fit score") || scoreComponents.duncanFitScore],
-    ["Reachability score", bulletValue(block, "Reachability score") || scoreComponents.reachabilityScore],
+    [
+      "Business maturity score",
+      bulletValue(block, "Business maturity score") ||
+        scoreComponents.businessMaturityScore,
+    ],
+    [
+      "Pain severity score",
+      bulletValue(block, "Pain severity score") ||
+        scoreComponents.painSeverityScore,
+    ],
+    [
+      "Hiring likelihood score",
+      bulletValue(block, "Hiring likelihood score") ||
+        scoreComponents.hiringLikelihoodScore,
+    ],
+    [
+      "AI leverage score",
+      bulletValue(block, "AI leverage score") ||
+        scoreComponents.aiLeverageScore,
+    ],
+    [
+      "Commercial fit score",
+      bulletValue(block, "Commercial fit score") ||
+        scoreComponents.commercialFitScore,
+    ],
+    [
+      "Duncan fit score",
+      bulletValue(block, "Duncan fit score") || scoreComponents.duncanFitScore,
+    ],
+    [
+      "Reachability score",
+      bulletValue(block, "Reachability score") ||
+        scoreComponents.reachabilityScore,
+    ],
     ["Freshness score", freshnessScore],
-    ["Confidence score", bulletValue(block, "Confidence score") || scoreComponents.confidenceScore],
+    [
+      "Confidence score",
+      bulletValue(block, "Confidence score") || scoreComponents.confidenceScore,
+    ],
     ["Evidence summary", evidenceSummary],
-    ["Explicit evidence", bulletValue(block, "Explicit evidence") || evidenceSummary],
-    ["Inferred evidence", bulletValue(block, "Inferred evidence") || inferredEvidenceForBlock(block, buyerSituation, offerMatch)],
+    [
+      "Explicit evidence",
+      bulletValue(block, "Explicit evidence") || evidenceSummary,
+    ],
+    [
+      "Inferred evidence",
+      bulletValue(block, "Inferred evidence") ||
+        inferredEvidenceForBlock(block, buyerSituation, offerMatch),
+    ],
     ["Source quote or snippet", sourceSnippet],
     ["Evidence URL", evidenceUrl],
-    ["Missing evidence", bulletValue(block, "Missing evidence") || "not specified"],
-    ["Response path", bulletValue(block, "Response path") || bulletValue(block, "Free-to-pursue path") || "Review source before outreach."],
+    [
+      "Missing evidence",
+      bulletValue(block, "Missing evidence") || "not specified",
+    ],
+    [
+      "Response path",
+      bulletValue(block, "Response path") ||
+        bulletValue(block, "Free-to-pursue path") ||
+        "Review source before outreach.",
+    ],
     ["Next step", nextStep],
     ["Dismissal reason", bulletValue(block, "Dismissal reason") || "none"],
     ["Related sources", bulletValue(block, "Related sources") || "none"],
     ["Duplicate of", bulletValue(block, "Duplicate of") || "none"],
     ["Last verified at", lastVerifiedAt],
-  ].reduce((current, [label, value]) => ensureBullet(current, label, value), block);
+  ].reduce(
+    (current, [label, value]) => ensureBullet(current, label, value),
+    block,
+  );
 }
 
 function inferredScoreComponents(block, queue) {
-  const score = Number.parseInt(block.match(/^### ([1-5])\/5 - /m)?.[1] || "4", 10);
-  const explicitHiring = /\b(hire|hiring|paid|contract|consultant|expert|implementation help|looking for someone)\b/i.test(block);
+  const score = Number.parseInt(
+    block.match(/^### ([1-5])\/5 - /m)?.[1] || "4",
+    10,
+  );
+  const explicitHiring =
+    /\b(hire|hiring|paid|contract|consultant|expert|implementation help|looking for someone)\b/i.test(
+      block,
+    );
   return {
     businessMaturityScore: "4",
     painSeverityScore: score >= 5 ? "4" : "3",
-    hiringLikelihoodScore: explicitHiring || queue === "active_lead" ? "5" : "3",
+    hiringLikelihoodScore:
+      explicitHiring || queue === "active_lead" ? "5" : "3",
     aiLeverageScore: "4",
     commercialFitScore: score >= 5 ? "5" : "4",
     duncanFitScore: "4",
@@ -298,22 +437,45 @@ function inferredEvidenceForBlock(block, buyerSituation, offerMatch) {
 
 function inferSourceFamily(block) {
   const text = `${block}\n${bulletValue(block, "URL")}`.toLowerCase();
-  if (text.includes("reddit.com") || /^### [1-5]\/5 - r\//m.test(block)) return "reddit";
-  if (text.includes("community.n8n.io") || text.includes("make.com") || text.includes("airtable")) return "platform_community";
-  if (/\b(job|jobs|hiring|contract|greenhouse|lever|workable|ashby)\b/.test(text)) return "public_job_board";
-  if (/\b(rfp|request for proposal|vendor request)\b/.test(text)) return "public_rfp_vendor_request";
-  if (/\b(founder|indie hackers|startup)\b/.test(text)) return "founder_community";
+  if (text.includes("reddit.com") || /^### [1-5]\/5 - r\//m.test(block))
+    return "reddit";
+  if (
+    text.includes("community.n8n.io") ||
+    text.includes("make.com") ||
+    text.includes("airtable")
+  )
+    return "platform_community";
+  if (
+    /\b(job|jobs|hiring|contract|greenhouse|lever|workable|ashby)\b/.test(text)
+  )
+    return "public_job_board";
+  if (/\b(rfp|request for proposal|vendor request)\b/.test(text))
+    return "public_rfp_vendor_request";
+  if (/\b(founder|indie hackers|startup)\b/.test(text))
+    return "founder_community";
   return "other";
 }
 
 function inferBuyerSituation(block) {
   const text = block.toLowerCase();
-  if (/\b(hire|hiring|paid|contract|consultant|expert|implementation help|looking for someone)\b/.test(text)) return "explicit_expert_hiring";
-  if (/\b(ai strategy|use ai|using ai|ai adoption|train my team)\b/.test(text)) return "ai_adoption_strategy";
-  if (/\b(lead|sales|crm|follow[- ]?up|quote|pipeline)\b/.test(text)) return "growth_sales_leakage";
-  if (/\b(document|pdf|invoice|receipt|bookkeeping|reconcile|forms?)\b/.test(text)) return "document_finance_admin_workflow";
-  if (/\b(report|dashboard|visibility|kpi|profitability)\b/.test(text)) return "reporting_visibility";
-  if (/\b(training|sop|onboarding|handoff|team)\b/.test(text)) return "team_training_change_management";
+  if (
+    /\b(hire|hiring|paid|contract|consultant|expert|implementation help|looking for someone)\b/.test(
+      text,
+    )
+  )
+    return "explicit_expert_hiring";
+  if (/\b(ai strategy|use ai|using ai|ai adoption|train my team)\b/.test(text))
+    return "ai_adoption_strategy";
+  if (/\b(lead|sales|crm|follow[- ]?up|quote|pipeline)\b/.test(text))
+    return "growth_sales_leakage";
+  if (
+    /\b(document|pdf|invoice|receipt|bookkeeping|reconcile|forms?)\b/.test(text)
+  )
+    return "document_finance_admin_workflow";
+  if (/\b(report|dashboard|visibility|kpi|profitability)\b/.test(text))
+    return "reporting_visibility";
+  if (/\b(training|sop|onboarding|handoff|team)\b/.test(text))
+    return "team_training_change_management";
   if (/\b(job|role|hiring)\b/.test(text)) return "company_hiring_signal";
   return "operational_bottleneck";
 }
@@ -321,20 +483,30 @@ function inferBuyerSituation(block) {
 function inferOfferMatch(block, buyerSituation) {
   if (buyerSituation === "ai_adoption_strategy") return "ai_opportunity_audit";
   if (buyerSituation === "growth_sales_leakage") return "crm_lead_flow_repair";
-  if (buyerSituation === "document_finance_admin_workflow") return "document_intake_automation";
-  if (buyerSituation === "reporting_visibility") return "management_dashboard_visibility";
-  if (buyerSituation === "team_training_change_management") return "ai_team_enablement";
-  if (/\b(prototype|custom system|build|implementation)\b/i.test(block)) return "custom_system_prototype";
+  if (buyerSituation === "document_finance_admin_workflow")
+    return "document_intake_automation";
+  if (buyerSituation === "reporting_visibility")
+    return "management_dashboard_visibility";
+  if (buyerSituation === "team_training_change_management")
+    return "ai_team_enablement";
+  if (/\b(prototype|custom system|build|implementation)\b/i.test(block))
+    return "custom_system_prototype";
   return "workflow_automation_sprint";
 }
 
 function nextStepForOffer(offerMatch) {
-  if (offerMatch === "ai_opportunity_audit") return "Offer a short AI opportunity audit as the first step.";
-  if (offerMatch === "crm_lead_flow_repair") return "Offer to map and repair the lead/CRM flow first.";
-  if (offerMatch === "document_intake_automation") return "Offer one document intake automation prototype.";
-  if (offerMatch === "management_dashboard_visibility") return "Offer a dashboard/reporting discovery sprint.";
-  if (offerMatch === "ai_team_enablement") return "Offer a team enablement session plus workflow shortlist.";
-  if (offerMatch === "custom_system_prototype") return "Offer a scoped first workflow prototype.";
+  if (offerMatch === "ai_opportunity_audit")
+    return "Offer a short AI opportunity audit as the first step.";
+  if (offerMatch === "crm_lead_flow_repair")
+    return "Offer to map and repair the lead/CRM flow first.";
+  if (offerMatch === "document_intake_automation")
+    return "Offer one document intake automation prototype.";
+  if (offerMatch === "management_dashboard_visibility")
+    return "Offer a dashboard/reporting discovery sprint.";
+  if (offerMatch === "ai_team_enablement")
+    return "Offer a team enablement session plus workflow shortlist.";
+  if (offerMatch === "custom_system_prototype")
+    return "Offer a scoped first workflow prototype.";
   return "Offer a workflow automation sprint as the first step.";
 }
 
@@ -357,7 +529,8 @@ function freshnessScoreForDate(value) {
 function ensureBullet(block, label, value) {
   if (bulletValue(block, label)) return block;
   const lines = block.split("\n");
-  let insertAfter = lines.findLastIndex?.((line) => line.startsWith("- ")) ?? -1;
+  let insertAfter =
+    lines.findLastIndex?.((line) => line.startsWith("- ")) ?? -1;
   if (insertAfter === -1) {
     for (let index = lines.length - 1; index >= 0; index -= 1) {
       if (lines[index].startsWith("- ")) {
@@ -374,11 +547,18 @@ function ensureBullet(block, label, value) {
 
 function upsertBullet(block, label, value) {
   if (!bulletValue(block, label)) return ensureBullet(block, label, value);
-  return block.replace(new RegExp(`^- ${escapeRegExp(label)}: .*$`, "m"), `- ${label}: ${value}`);
+  return block.replace(
+    new RegExp(`^- ${escapeRegExp(label)}: .*$`, "m"),
+    `- ${label}: ${value}`,
+  );
 }
 
 function sourceReference(block) {
-  return bulletValue(block, "URL") || block.match(/^### [1-5]\/5 - (.+)$/m)?.[1] || "";
+  return (
+    bulletValue(block, "URL") ||
+    block.match(/^### [1-5]\/5 - (.+)$/m)?.[1] ||
+    ""
+  );
 }
 
 function countBy(items, keyFn) {
@@ -417,16 +597,22 @@ function parseLeadDate(value) {
 }
 
 function startOfUtcDay(value) {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+  return new Date(
+    Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
+  );
 }
 
 function metadataValue(markdown, label) {
-  const match = markdown.match(new RegExp(`^${escapeRegExp(label)}: (.+)$`, "m"));
+  const match = markdown.match(
+    new RegExp(`^${escapeRegExp(label)}: (.+)$`, "m"),
+  );
   return match?.[1]?.trim() ?? "";
 }
 
 function bulletValue(block, label) {
-  const match = block.match(new RegExp(`^- ${escapeRegExp(label)}: (.*)$`, "m"));
+  const match = block.match(
+    new RegExp(`^- ${escapeRegExp(label)}: (.*)$`, "m"),
+  );
   return match?.[1]?.trim() ?? "";
 }
 
@@ -449,7 +635,10 @@ function aggregateStatus(status, markdown) {
 
 function sourceFamilyDiagnosticsFromMarkdown(markdown) {
   const blocks = leadBlocks(markdown);
-  const byFamily = countBy(blocks, (block) => bulletValue(block, "Source family") || inferSourceFamily(block));
+  const byFamily = countBy(
+    blocks,
+    (block) => bulletValue(block, "Source family") || inferSourceFamily(block),
+  );
   const activeByFamily = countBy(
     blocks.filter((block) => bulletValue(block, "Queue") === "active_lead"),
     (block) => bulletValue(block, "Source family") || inferSourceFamily(block),
@@ -467,7 +656,8 @@ function sourceFamilyDiagnosticsFromMarkdown(markdown) {
 function freshnessCoverageFromBlocks(blocks) {
   const rows = new Map();
   for (const block of blocks) {
-    const family = bulletValue(block, "Source family") || inferSourceFamily(block);
+    const family =
+      bulletValue(block, "Source family") || inferSourceFamily(block);
     const row = rows.get(family) ?? { withPostedDate: 0, total: 0 };
     row.total += 1;
     if (leadFreshnessDate(block)) row.withPostedDate += 1;
@@ -500,7 +690,10 @@ async function loadDotEnv(filePath) {
         .map((line) => {
           const index = line.indexOf("=");
           const key = line.slice(0, index).trim();
-          const value = line.slice(index + 1).trim().replace(/^["']|["']$/g, "");
+          const value = line
+            .slice(index + 1)
+            .trim()
+            .replace(/^["']|["']$/g, "");
           return [key, value];
         }),
     );

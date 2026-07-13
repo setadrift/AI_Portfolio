@@ -123,18 +123,27 @@ async function main() {
   const state = await loadState(config, env);
   const fetched = await fetchDiscovery(config, { token, userAgent }, state);
   const posts = dedupePosts(fetched.results.flatMap((result) => result.posts));
-  const freshPosts = posts.filter((post) => !isStale(post, config.postMaxAgeDays ?? 7));
+  const freshPosts = posts.filter(
+    (post) => !isStale(post, config.postMaxAgeDays ?? 7),
+  );
   const staleRejects = posts
     .filter((post) => isStale(post, config.postMaxAgeDays ?? 7))
     .map((post) => rejectCandidate(post, "stale"));
   const prefiltered = prefilterPosts(freshPosts, config, state);
-  const candidates = sortCandidatesForClassification(prefiltered.candidates)
-    .slice(0, config.candidateLimit ?? 80);
+  const candidateLimit =
+    positiveIntegerEnv("REDDIT_CANDIDATE_LIMIT") ?? config.candidateLimit ?? 80;
+  const candidates = sortCandidatesForClassification(
+    prefiltered.candidates,
+  ).slice(0, candidateLimit);
   const overCapRejects = sortCandidatesForClassification(prefiltered.candidates)
-    .slice(config.candidateLimit ?? 80)
+    .slice(candidateLimit)
     .map((post) => rejectCandidate(post, "low_confidence"));
 
-  if (!env.OPENAI_API_KEY && candidates.length > 0 && process.env.REDDIT_ALLOW_MISSING_LLM !== "true") {
+  if (
+    !env.OPENAI_API_KEY &&
+    candidates.length > 0 &&
+    process.env.REDDIT_ALLOW_MISSING_LLM !== "true"
+  ) {
     const generatedAt = new Date().toISOString();
     const failureRejectCounts = {
       classifier_failed: candidates.length,
@@ -142,7 +151,8 @@ async function main() {
       ...countBy(staleRejects, "rejectionReason", {}),
       ...countBy(overCapRejects, "rejectionReason", {}),
     };
-    const failureRejectTotal = candidates.length +
+    const failureRejectTotal =
+      candidates.length +
       prefiltered.rejected.length +
       staleRejects.length +
       overCapRejects.length;
@@ -164,7 +174,8 @@ async function main() {
       sourceHealth: sourceHealthRows(state),
       quarantinedSources: [],
       outputPath: "",
-      message: "OPENAI_API_KEY is required for the quote-grounded Reddit scanner.",
+      message:
+        "OPENAI_API_KEY is required for the quote-grounded Reddit scanner.",
       feedErrors: fetched.feedErrors,
     };
     await writeStatus(status);
@@ -173,11 +184,17 @@ async function main() {
 
   const classified = [];
   for (const [index, post] of candidates.entries()) {
-    const classification = await classifyWithRetry(post, config, env.OPENAI_API_KEY);
+    const classification = await classifyWithRetry(
+      post,
+      config,
+      env.OPENAI_API_KEY,
+    );
     const candidate = finalizeCandidate(post, classification);
     classified.push(candidate);
     if ((index + 1) % 10 === 0 || index + 1 === candidates.length) {
-      console.log(`Classified ${index + 1}/${candidates.length} Reddit candidates.`);
+      console.log(
+        `Classified ${index + 1}/${candidates.length} Reddit candidates.`,
+      );
     }
   }
 
@@ -202,16 +219,24 @@ async function main() {
   });
   const digest = formatDigest(structured);
   await writeFile(outputPath, digest, "utf8");
-  await writeFile(STRUCTURED_PATH, `${JSON.stringify(structured, null, 2)}\n`, "utf8");
+  await writeFile(
+    STRUCTURED_PATH,
+    `${JSON.stringify(structured, null, 2)}\n`,
+    "utf8",
+  );
   await writeStatus({
     ...structured.status,
     outputPath,
-    message: `Wrote Reddit quote-grounded scan with ${surfaced.contact_today.length} contact and ${surfaced.comment_only.length} comment leads.`,
+    message: structured.status.ok
+      ? `Wrote Reddit quote-grounded scan with ${surfaced.contact_today.length} contact and ${surfaced.comment_only.length} comment leads.`
+      : `Reddit fetch succeeded, but all ${structured.status.classifierFailures} attempted classifications failed.`,
   });
   try {
     await writeState(config, updateStateFromRun(state, allCandidates));
   } catch (error) {
-    console.warn(`Unable to write local Reddit scan state: ${errorMessage(error)}`);
+    console.warn(
+      `Unable to write local Reddit scan state: ${errorMessage(error)}`,
+    );
   }
 
   console.log(`Wrote ${outputPath}`);
@@ -235,7 +260,8 @@ async function runFixtures({ liveLlm = false } = {}) {
   for (const fixture of fixtures) {
     const post = fixturePost(fixture);
     const prefiltered = prefilterPosts([post], config, emptyState());
-    const candidate = prefiltered.rejected[0] ??
+    const candidate =
+      prefiltered.rejected[0] ??
       finalizeCandidate(
         post,
         liveLlm
@@ -248,13 +274,18 @@ async function runFixtures({ liveLlm = false } = {}) {
     if (candidate.queue !== expected.queue) {
       errors.push(`queue expected ${expected.queue}, got ${candidate.queue}`);
     }
-    if ((candidate.rejectionReason || "") !== (expected.rejectionReason || "")) {
+    if (
+      (candidate.rejectionReason || "") !== (expected.rejectionReason || "")
+    ) {
       errors.push(
         `rejectionReason expected ${expected.rejectionReason || ""}, got ${candidate.rejectionReason || ""}`,
       );
     }
-    if (expected.ownershipVerified !== undefined &&
-      candidate.quoteVerification.ownershipVerified !== expected.ownershipVerified) {
+    if (
+      expected.ownershipVerified !== undefined &&
+      candidate.quoteVerification.ownershipVerified !==
+        expected.ownershipVerified
+    ) {
       errors.push(
         `ownershipVerified expected ${expected.ownershipVerified}, got ${candidate.quoteVerification.ownershipVerified}`,
       );
@@ -270,16 +301,25 @@ async function runFixtures({ liveLlm = false } = {}) {
   const payload = structuredRunPayload({
     generatedAt: new Date().toISOString(),
     config,
-    fetched: { successfulFeeds: config.minSuccessfulFeeds, totalFeeds: config.minSuccessfulFeeds, feedErrors: [] },
+    fetched: {
+      successfulFeeds: config.minSuccessfulFeeds,
+      totalFeeds: config.minSuccessfulFeeds,
+      feedErrors: [],
+    },
     fetchedPosts: candidates.length,
     candidates,
     surfaced,
     state: emptyState(),
   });
   const digest = formatDigest(payload);
-  const visibleCount = surfaced.contact_today.length + surfaced.comment_only.length;
+  const visibleCount =
+    surfaced.contact_today.length + surfaced.comment_only.length;
   const headingCount = (digest.match(/^### [1-5]\/5 - /gm) ?? []).length;
-  if (payload.status.leadsIncluded !== visibleCount || headingCount !== visibleCount || digest.includes("## Watch")) {
+  if (
+    payload.status.leadsIncluded !== visibleCount ||
+    headingCount !== visibleCount ||
+    digest.includes("## Watch")
+  ) {
     failures.push({
       id: "current-queue-digest-contract",
       errors: [
@@ -292,19 +332,62 @@ async function runFixtures({ liveLlm = false } = {}) {
   if (
     diagnostics.length !== (config.searchQueries ?? []).length ||
     diagnostics.some((diagnostic) =>
-      ["fetchedPosts", "prefilterRejected", "candidatesScored", "surfaced", "rejected", "manuallyApproved"]
-        .some((field) => typeof diagnostic[field] !== "number"),
+      [
+        "fetchedPosts",
+        "prefilterRejected",
+        "candidatesScored",
+        "surfaced",
+        "rejected",
+        "manuallyApproved",
+      ].some((field) => typeof diagnostic[field] !== "number"),
     )
   ) {
     failures.push({
       id: "query-diagnostics-contract",
-      errors: ["Every configured query must report the quality counters used for source review."],
+      errors: [
+        "Every configured query must report the quality counters used for source review.",
+      ],
+    });
+  }
+  const failedClassifierCandidate = finalizeCandidate(
+    fixturePost({
+      id: "classifier-health-contract",
+      subreddit: "smallbusiness",
+      title: "Need help with our client intake workflow",
+      body: "We run a small firm and need help with our client intake workflow.",
+    }),
+    classifierFailure(),
+  );
+  const failedClassifierPayload = structuredRunPayload({
+    generatedAt: new Date().toISOString(),
+    config,
+    fetched: {
+      successfulFeeds: config.minSuccessfulFeeds,
+      totalFeeds: config.minSuccessfulFeeds,
+      feedErrors: [],
+    },
+    fetchedPosts: 1,
+    candidates: [failedClassifierCandidate],
+    surfaced: selectSurfacedCandidates([failedClassifierCandidate], config),
+    state: emptyState(),
+  });
+  if (
+    failedClassifierPayload.status.ok ||
+    failedClassifierPayload.status.classifierFailures !== 1
+  ) {
+    failures.push({
+      id: "classifier-health-contract",
+      errors: [
+        "A run where every attempted classification fails must write ok=false.",
+      ],
     });
   }
 
   if (failures.length) {
     console.error(JSON.stringify(failures, null, 2));
-    throw new Error(`Reddit v2 fixtures failed: ${passed}/${fixtures.length} passed.`);
+    throw new Error(
+      `Reddit v2 fixtures failed: ${passed}/${fixtures.length} passed.`,
+    );
   }
 
   console.log(`Reddit v2 fixtures passed: ${passed}/${fixtures.length}.`);
@@ -327,8 +410,11 @@ async function loadConfig() {
     searchQueries: [],
     allowlistedSubredditQueries: [],
     caps: { contact_today: 3, comment_only: 5, watch: 5 },
-    statePath: process.env.REDDIT_SCANNER_STATE_PATH ||
-      (process.env.VERCEL ? "/tmp/reddit-scanner-state.json" : ".tmp/reddit-scanner-state.json"),
+    statePath:
+      process.env.REDDIT_SCANNER_STATE_PATH ||
+      (process.env.VERCEL
+        ? "/tmp/reddit-scanner-state.json"
+        : ".tmp/reddit-scanner-state.json"),
     ...config,
   };
 }
@@ -346,7 +432,9 @@ async function loadDotEnv(filePath) {
 }
 
 function stripQuotes(value) {
-  return String(value || "").trim().replace(/^["']|["']$/g, "");
+  return String(value || "")
+    .trim()
+    .replace(/^["']|["']$/g, "");
 }
 
 async function writeStatus(status) {
@@ -371,7 +459,9 @@ async function loadLocalState(statePath) {
       verdicts: parsed.verdicts ?? {},
       authorLabels: parsed.authorLabels ?? {},
       sourceStats: parsed.sourceStats ?? {},
-      reviewedExamples: Array.isArray(parsed.reviewedExamples) ? parsed.reviewedExamples : [],
+      reviewedExamples: Array.isArray(parsed.reviewedExamples)
+        ? parsed.reviewedExamples
+        : [],
     };
   } catch {
     return emptyState();
@@ -380,25 +470,36 @@ async function loadLocalState(statePath) {
 
 async function loadAdminFeedbackState(env) {
   const supabaseUrl = env.SUPABASE_URL;
-  const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || "";
+  const supabaseKey =
+    env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || "";
   if (!supabaseUrl || !supabaseKey) return emptyState();
 
   try {
-    const data = await fetchSupabaseRows(supabaseUrl, supabaseKey, "admin_lead_states", {
-      select: "lead_key,notes,updated_at",
-      source_id: "eq.reddit",
-      notes: "not.eq.",
-    });
+    const data = await fetchSupabaseRows(
+      supabaseUrl,
+      supabaseKey,
+      "admin_lead_states",
+      {
+        select: "lead_key,notes,updated_at",
+        source_id: "eq.reddit",
+        notes: "not.eq.",
+      },
+    );
     if (!data.length) return emptyState();
 
     const leadKeys = data.map((row) => row.lead_key).filter(Boolean);
     const payloads = new Map();
     if (leadKeys.length) {
-      const leads = await fetchSupabaseRows(supabaseUrl, supabaseKey, "admin_leads", {
-        select: "lead_key,author,payload",
-        source_id: "eq.reddit",
-        lead_key: `in.(${leadKeys.map(quotePostgrestValue).join(",")})`,
-      });
+      const leads = await fetchSupabaseRows(
+        supabaseUrl,
+        supabaseKey,
+        "admin_leads",
+        {
+          select: "lead_key,author,payload",
+          source_id: "eq.reddit",
+          lead_key: `in.(${leadKeys.map(quotePostgrestValue).join(",")})`,
+        },
+      );
       for (const row of leads) {
         payloads.set(row.lead_key, row);
       }
@@ -419,20 +520,34 @@ async function loadAdminFeedbackState(env) {
         if (marker === "good_lead" || marker.startsWith("bad_lead:")) {
           state.verdicts[row.lead_key] = {
             verdict: marker === "good_lead" ? "good" : "bad",
-            reason: marker.startsWith("bad_lead:") ? marker.split(":").slice(1).join(":") : "",
+            reason: marker.startsWith("bad_lead:")
+              ? marker.split(":").slice(1).join(":")
+              : "",
             at: row.updated_at || new Date().toISOString(),
           };
           if (source) {
-            const stats = state.sourceStats[source] ?? { surfaced: 0, good: 0, lastTen: [] };
+            const stats = state.sourceStats[source] ?? {
+              surfaced: 0,
+              good: 0,
+              lastTen: [],
+            };
             stats.surfaced += 1;
             if (marker === "good_lead") stats.good += 1;
-            stats.lastTen = [...(stats.lastTen ?? []), marker === "good_lead" ? "good" : "bad"].slice(-10);
+            stats.lastTen = [
+              ...(stats.lastTen ?? []),
+              marker === "good_lead" ? "good" : "bad",
+            ].slice(-10);
             state.sourceStats[source] = stats;
           }
         }
         if (marker.startsWith("blocklist_author:")) {
-          const author = normalizeAuthor(marker.split(":").slice(1).join(":") || leadRow?.author || payload.author);
-          if (author && author !== "unknown") state.authorLabels[author] = "blocked";
+          const author = normalizeAuthor(
+            marker.split(":").slice(1).join(":") ||
+              leadRow?.author ||
+              payload.author,
+          );
+          if (author && author !== "unknown")
+            state.authorLabels[author] = "blocked";
         }
         if (marker.startsWith("quarantine_source:")) {
           const quarantinedSource = marker.split(":").slice(1).join(":").trim();
@@ -478,7 +593,9 @@ function quotePostgrestValue(value) {
 function feedbackMarkers(notes) {
   return String(notes || "")
     .split(/\r?\n/)
-    .map((line) => line.match(/^\[reddit-v2-feedback [^\]]+\]\s+(.+)$/)?.[1]?.trim())
+    .map((line) =>
+      line.match(/^\[reddit-v2-feedback [^\]]+\]\s+(.+)$/)?.[1]?.trim(),
+    )
     .filter(Boolean);
 }
 
@@ -489,10 +606,17 @@ function mergeStates(...states) {
     Object.assign(merged.authorLabels, state.authorLabels ?? {});
     merged.reviewedExamples.push(...(state.reviewedExamples ?? []));
     for (const [source, stats] of Object.entries(state.sourceStats ?? {})) {
-      const current = merged.sourceStats[source] ?? { surfaced: 0, good: 0, lastTen: [] };
+      const current = merged.sourceStats[source] ?? {
+        surfaced: 0,
+        good: 0,
+        lastTen: [],
+      };
       current.surfaced += Number(stats.surfaced ?? 0);
       current.good += Number(stats.good ?? 0);
-      current.lastTen = [...(current.lastTen ?? []), ...(stats.lastTen ?? [])].slice(-10);
+      current.lastTen = [
+        ...(current.lastTen ?? []),
+        ...(stats.lastTen ?? []),
+      ].slice(-10);
       merged.sourceStats[source] = current;
     }
   }
@@ -515,7 +639,10 @@ function emptyState() {
   };
 }
 
-async function getRedditOAuthToken(env, { required = false, userAgent = DEFAULT_USER_AGENT } = {}) {
+async function getRedditOAuthToken(
+  env,
+  { required = false, userAgent = DEFAULT_USER_AGENT } = {},
+) {
   const clientId = env.REDDIT_CLIENT_ID;
   const clientSecret = env.REDDIT_CLIENT_SECRET;
   if (!clientId || !clientSecret || !userAgent) return "";
@@ -541,14 +668,18 @@ async function getRedditOAuthToken(env, { required = false, userAgent = DEFAULT_
     const body = await response.json().catch(() => ({}));
     if (!response.ok || !body.access_token) {
       if (!required) {
-        console.warn(`Reddit OAuth unavailable (${response.status} ${body.error || "token_error"}).`);
+        console.warn(
+          `Reddit OAuth unavailable (${response.status} ${body.error || "token_error"}).`,
+        );
       }
       return "";
     }
     return String(body.access_token);
   } catch (error) {
     if (!required) {
-      console.warn(`Reddit OAuth unavailable (${error instanceof Error ? error.message : String(error)}).`);
+      console.warn(
+        `Reddit OAuth unavailable (${error instanceof Error ? error.message : String(error)}).`,
+      );
     }
     return "";
   }
@@ -559,7 +690,10 @@ async function fetchDiscovery(config, options, state = emptyState()) {
     normalizedList(config.allowlist),
     "REDDIT_CHANNEL_LIMIT",
   );
-  const searchQueries = limitQuerySpecs(config.searchQueries ?? [], "REDDIT_SEARCH_LIMIT");
+  const searchQueries = limitQuerySpecs(
+    config.searchQueries ?? [],
+    "REDDIT_SEARCH_LIMIT",
+  );
   const subredditQueries = config.allowlistedSubredditQueries ?? [];
   const results = [];
 
@@ -579,15 +713,24 @@ async function fetchDiscovery(config, options, state = emptyState()) {
     for (const query of subredditQueries) {
       if (
         isSourceQuarantined(state, `subreddit:${subreddit}`) ||
-        isSourceQuarantined(state, `query:subreddit:${subreddit} ${query.query}`)
+        isSourceQuarantined(
+          state,
+          `query:subreddit:${subreddit} ${query.query}`,
+        )
       ) {
         continue;
       }
-      results.push(await fetchSearchQuery({
-        id: `${query.id}-${subreddit}`,
-        query: `subreddit:${subreddit} ${query.query}`,
-        sourceSubreddit: subreddit,
-      }, config, options));
+      results.push(
+        await fetchSearchQuery(
+          {
+            id: `${query.id}-${subreddit}`,
+            query: `subreddit:${subreddit} ${query.query}`,
+            sourceSubreddit: subreddit,
+          },
+          config,
+          options,
+        ),
+      );
       await sleep(250);
     }
   }
@@ -617,7 +760,13 @@ async function fetchSubreddit(subreddit, config, options) {
     });
     const body = await response.json().catch(() => null);
     if (!response.ok || !body) {
-      return { ok: false, url, status: response.status, error: JSON.stringify(body).slice(0, 200), posts: [] };
+      return {
+        ok: false,
+        url,
+        status: response.status,
+        error: JSON.stringify(body).slice(0, 200),
+        posts: [],
+      };
     }
     return {
       ok: true,
@@ -630,7 +779,13 @@ async function fetchSubreddit(subreddit, config, options) {
       }),
     };
   } catch (error) {
-    return { ok: false, url, status: "network_error", error: errorMessage(error), posts: [] };
+    return {
+      ok: false,
+      url,
+      status: "network_error",
+      error: errorMessage(error),
+      posts: [],
+    };
   }
 }
 
@@ -655,7 +810,13 @@ async function fetchSearchQuery(querySpec, config, options) {
     });
     const body = await response.json().catch(() => null);
     if (!response.ok || !body) {
-      return { ok: false, url: `reddit-search:${spec.id}`, status: response.status, error: JSON.stringify(body).slice(0, 200), posts: [] };
+      return {
+        ok: false,
+        url: `reddit-search:${spec.id}`,
+        status: response.status,
+        error: JSON.stringify(body).slice(0, 200),
+        posts: [],
+      };
     }
     return {
       ok: true,
@@ -668,7 +829,13 @@ async function fetchSearchQuery(querySpec, config, options) {
       }),
     };
   } catch (error) {
-    return { ok: false, url: `reddit-search:${spec.id}`, status: "network_error", error: errorMessage(error), posts: [] };
+    return {
+      ok: false,
+      url: `reddit-search:${spec.id}`,
+      status: "network_error",
+      error: errorMessage(error),
+      posts: [],
+    };
   }
 }
 
@@ -677,8 +844,12 @@ function parseRedditListing(body, source) {
   if (!Array.isArray(children)) return [];
   return children.map((child) => {
     const post = child.data ?? {};
-    const permalink = post.permalink ? `https://www.reddit.com${post.permalink}` : post.url || "";
-    const created = post.created_utc ? new Date(post.created_utc * 1000).toISOString() : "";
+    const permalink = post.permalink
+      ? `https://www.reddit.com${post.permalink}`
+      : post.url || "";
+    const created = post.created_utc
+      ? new Date(post.created_utc * 1000).toISOString()
+      : "";
     return {
       id: String(post.id || ""),
       redditId: String(post.id || ""),
@@ -701,7 +872,9 @@ function parseRedditListing(body, source) {
 function prefilterPosts(posts, config, state) {
   const rejected = [];
   const candidates = [];
-  const denylist = new Set(normalizedList(config.denylist).map((item) => item.toLowerCase()));
+  const denylist = new Set(
+    normalizedList(config.denylist).map((item) => item.toLowerCase()),
+  );
 
   for (const post of posts) {
     const reason = prefilterReason(post, config, state, denylist);
@@ -717,17 +890,25 @@ function prefilterPosts(posts, config, state) {
 
 function prefilterReason(post, config, state, denylist) {
   if (post.isCrosspost) return "duplicate";
-  if (state.authorLabels?.[normalizeAuthor(post.author)] === "blocked" ||
-    state.authorLabels?.[normalizeAuthor(post.author)] === "seller") {
+  if (
+    state.authorLabels?.[normalizeAuthor(post.author)] === "blocked" ||
+    state.authorLabels?.[normalizeAuthor(post.author)] === "seller"
+  ) {
     return "prefilter_blocklisted_author";
   }
   const subreddit = String(post.subreddit || "").toLowerCase();
-  if (denylist.has(subreddit) || matchesAnyPattern(post.subreddit, config.denylistPatterns ?? [])) {
+  if (
+    denylist.has(subreddit) ||
+    matchesAnyPattern(post.subreddit, config.denylistPatterns ?? [])
+  ) {
     return "prefilter_denylisted_subreddit";
   }
   if (isLinkOnly(post)) return "prefilter_link_only";
   if (hasPromoMarker(post)) return "prefilter_promo_marker";
-  if (hasJobPostingShape(post) || matchesAnyPattern(post.subreddit, ["*jobs*"])) {
+  if (
+    hasJobPostingShape(post) ||
+    matchesAnyPattern(post.subreddit, ["*jobs*"])
+  ) {
     return "prefilter_job_posting";
   }
   return "";
@@ -763,7 +944,11 @@ function rejectCandidate(post, reason) {
   return {
     ...post,
     classification: nullClassification(),
-    quoteVerification: { ownershipVerified: false, askVerified: false, failed: false },
+    quoteVerification: {
+      ownershipVerified: false,
+      askVerified: false,
+      failed: false,
+    },
     queue: "reject",
     rejectionReason: reason,
     rankKey: "",
@@ -780,7 +965,8 @@ function assignQueue(candidate) {
   if (!POSITIVE_SPEAKERS.has(classification.speaker)) {
     return {
       queue: "reject",
-      rejectionReason: SPEAKER_REJECTION[classification.speaker] || "speaker_unclear",
+      rejectionReason:
+        SPEAKER_REJECTION[classification.speaker] || "speaker_unclear",
     };
   }
   if (classification.consulting_fit === "no") {
@@ -789,11 +975,16 @@ function assignQueue(candidate) {
   if (!quoteVerification.ownershipVerified) {
     return {
       queue: "reject",
-      rejectionReason: quoteVerification.failed ? "quote_verification_failed" : "no_ownership_quote",
+      rejectionReason: quoteVerification.failed
+        ? "quote_verification_failed"
+        : "no_ownership_quote",
     };
   }
   if (!hasOwnedBusinessContext(candidate)) {
-    return { queue: "reject", rejectionReason: "missing_owned_business_context" };
+    return {
+      queue: "reject",
+      rejectionReason: "missing_owned_business_context",
+    };
   }
   if (!hasOperationalWorkflowEvidence(candidate)) {
     return { queue: "reject", rejectionReason: "missing_operational_workflow" };
@@ -804,14 +995,20 @@ function assignQueue(candidate) {
     classification.consulting_fit === "yes" &&
     classification.confidence === "high"
   ) {
-    return { queue: titleOnlyCap(candidate, "contact_today"), rejectionReason: "" };
+    return {
+      queue: titleOnlyCap(candidate, "contact_today"),
+      rejectionReason: "",
+    };
   }
   if (
     REPLY_INTENTS.has(classification.intent) &&
     classification.consulting_fit === "yes" &&
     ["high", "medium"].includes(classification.confidence)
   ) {
-    return { queue: titleOnlyCap(candidate, "comment_only"), rejectionReason: "" };
+    return {
+      queue: titleOnlyCap(candidate, "comment_only"),
+      rejectionReason: "",
+    };
   }
   if (
     classification.consulting_fit === "adjacent" ||
@@ -832,24 +1029,36 @@ function titleOnlyCap(candidate, queue) {
 }
 
 function hasOwnedBusinessContext(post) {
-  const text = normalizeForQuote(combinedText(post).replace(/https?:\/\/\S+/g, ""));
-  return /\b(?:i|we|our)\b[^.!?\n]{0,120}\b(?:business|company|agency|practice|clinic|firm|shop|store|consultancy|contracting|clients?|customers?)\b|\b(?:tax|accounting|bookkeeping)\s+(?:practice|firm)\b/.test(text);
+  const text = normalizeForQuote(
+    combinedText(post).replace(/https?:\/\/\S+/g, ""),
+  );
+  return /\b(?:i|we|our)\b[^.!?\n]{0,120}\b(?:business|company|agency|practice|clinic|firm|shop|store|consultancy|contracting|clients?|customers?)\b|\b(?:tax|accounting|bookkeeping)\s+(?:practice|firm)\b/.test(
+    text,
+  );
 }
 
 function hasOperationalWorkflowEvidence(post) {
-  return /\b(?:process|workflow|handoff|onboard(?:ing)?|intake|follow[ -]?up|quote|lead|appointment|schedule|dispatch|invoice|receipt|reconcil\w*|document|form|spreadsheet|crm|report(?:ing)?|client update|data entry|task)\b/i.test(combinedText(post));
+  return /\b(?:process|workflow|handoff|onboard(?:ing)?|intake|follow[ -]?up|quote|lead|appointment|schedule|dispatch|invoice|receipt|reconcil\w*|document|form|spreadsheet|crm|report(?:ing)?|client update|data entry|task)\b/i.test(
+    combinedText(post),
+  );
 }
 
 function verifyQuotes(post, classification) {
   const text = normalizeForQuote(`${post.title || ""}\n${post.body || ""}`);
   const ownershipQuote = classification.problem_ownership_quote;
   const askQuote = classification.ask_quote;
-  const ownershipVerified = ownershipQuote ? text.includes(normalizeForQuote(ownershipQuote)) : false;
-  const askVerified = askQuote ? text.includes(normalizeForQuote(askQuote)) : false;
+  const ownershipVerified = ownershipQuote
+    ? text.includes(normalizeForQuote(ownershipQuote))
+    : false;
+  const askVerified = askQuote
+    ? text.includes(normalizeForQuote(askQuote))
+    : false;
   return {
     ownershipVerified,
     askVerified,
-    failed: Boolean((ownershipQuote && !ownershipVerified) || (askQuote && !askVerified)),
+    failed: Boolean(
+      (ownershipQuote && !ownershipVerified) || (askQuote && !askVerified),
+    ),
   };
 }
 
@@ -864,7 +1073,9 @@ async function classifyWithRetry(post, config, apiKey, attempts = 3) {
       if (attempt < attempts) await sleep(500 * attempt);
     }
   }
-  console.warn(`Classifier failed for ${post.id || post.url}: ${errorMessage(lastError)}`);
+  console.warn(
+    `Classifier failed for ${post.id || post.url}: ${errorMessage(lastError)}`,
+  );
   return classifierFailure();
 }
 
@@ -928,7 +1139,9 @@ async function classifyWithLlm(post, config, apiKey) {
 
   const body = await response.json().catch(() => null);
   if (!response.ok || !body) {
-    throw new Error(`OpenAI classifier failed: ${response.status} ${JSON.stringify(body).slice(0, 300)}`);
+    throw new Error(
+      `OpenAI classifier failed: ${response.status} ${JSON.stringify(body).slice(0, 300)}`,
+    );
   }
 
   const text = responseText(body);
@@ -964,21 +1177,31 @@ function classifierSystemPrompt(config) {
     "- Generic tool shopping without a concrete owned business process should not receive an ownership quote.",
     "",
     fewShots.length ? `Reviewed examples:\n${JSON.stringify(fewShots)}` : "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function normalizeClassification(value) {
   const classification = value && typeof value === "object" ? value : {};
   return {
-    speaker: SPEAKERS.includes(classification.speaker) ? classification.speaker : "unclear",
-    intent: INTENTS.includes(classification.intent) ? classification.intent : "other",
-    problem_ownership_quote: nullableString(classification.problem_ownership_quote),
+    speaker: SPEAKERS.includes(classification.speaker)
+      ? classification.speaker
+      : "unclear",
+    intent: INTENTS.includes(classification.intent)
+      ? classification.intent
+      : "other",
+    problem_ownership_quote: nullableString(
+      classification.problem_ownership_quote,
+    ),
     ask_quote: nullableString(classification.ask_quote),
     consulting_fit: CONSULTING_FITS.includes(classification.consulting_fit)
       ? classification.consulting_fit
       : "no",
     reply_angle: nullableString(classification.reply_angle),
-    confidence: CONFIDENCES.includes(classification.confidence) ? classification.confidence : "low",
+    confidence: CONFIDENCES.includes(classification.confidence)
+      ? classification.confidence
+      : "low",
     classifierFailed: Boolean(classification.classifierFailed),
   };
 }
@@ -1010,26 +1233,44 @@ function classifierFailure() {
 
 function selectSurfacedCandidates(candidates, config) {
   const sorted = [...candidates].sort(compareCandidates);
-  const contactCandidates = sorted.filter((candidate) => candidate.queue === "contact_today");
-  const contactToday = contactCandidates.slice(0, config.caps?.contact_today ?? 3);
-  const contactOverflow = contactCandidates.slice(config.caps?.contact_today ?? 3);
-  const contactIds = new Set(contactToday.map(candidateId));
-  const commentCandidates = sorted.filter((candidate) =>
-    candidate.queue === "comment_only" && !contactIds.has(candidateId(candidate)),
+  const contactCandidates = sorted.filter(
+    (candidate) => candidate.queue === "contact_today",
   );
-  const commentOnly = commentCandidates.slice(0, config.caps?.comment_only ?? 5);
-  const commentOverflow = commentCandidates.slice(config.caps?.comment_only ?? 5);
+  const contactToday = contactCandidates.slice(
+    0,
+    config.caps?.contact_today ?? 3,
+  );
+  const contactOverflow = contactCandidates.slice(
+    config.caps?.contact_today ?? 3,
+  );
+  const contactIds = new Set(contactToday.map(candidateId));
+  const commentCandidates = sorted.filter(
+    (candidate) =>
+      candidate.queue === "comment_only" &&
+      !contactIds.has(candidateId(candidate)),
+  );
+  const commentOnly = commentCandidates.slice(
+    0,
+    config.caps?.comment_only ?? 5,
+  );
+  const commentOverflow = commentCandidates.slice(
+    config.caps?.comment_only ?? 5,
+  );
   const replyIds = new Set([...contactToday, ...commentOnly].map(candidateId));
-  const overflowAsWatch = [...contactOverflow, ...commentOverflow].map((candidate) => ({
-    ...candidate,
-    queue: "watch",
-  }));
+  const overflowAsWatch = [...contactOverflow, ...commentOverflow].map(
+    (candidate) => ({
+      ...candidate,
+      queue: "watch",
+    }),
+  );
   const watchCandidates = [
     ...overflowAsWatch,
-    ...sorted.filter((candidate) => candidate.queue === "watch" && !replyIds.has(candidateId(candidate))),
+    ...sorted.filter(
+      (candidate) =>
+        candidate.queue === "watch" && !replyIds.has(candidateId(candidate)),
+    ),
   ];
-  const watch = watchCandidates
-    .slice(0, config.caps?.watch ?? 5);
+  const watch = watchCandidates.slice(0, config.caps?.watch ?? 5);
   return {
     contact_today: contactToday,
     comment_only: commentOnly,
@@ -1037,7 +1278,15 @@ function selectSurfacedCandidates(candidates, config) {
   };
 }
 
-function structuredRunPayload({ generatedAt, config, fetched, fetchedPosts, candidates, surfaced, state }) {
+function structuredRunPayload({
+  generatedAt,
+  config,
+  fetched,
+  fetchedPosts,
+  candidates,
+  surfaced,
+  state,
+}) {
   const queueCounts = countBy(candidates, "queue", emptyQueueCounts());
   const rejectCounts = countBy(
     candidates.filter((candidate) => candidate.queue === "reject"),
@@ -1045,18 +1294,35 @@ function structuredRunPayload({ generatedAt, config, fetched, fetchedPosts, cand
     {},
   );
   const prefilterRejected = countBy(
-    candidates.filter((candidate) => String(candidate.rejectionReason || "").startsWith("prefilter_")),
+    candidates.filter((candidate) =>
+      String(candidate.rejectionReason || "").startsWith("prefilter_"),
+    ),
     "rejectionReason",
     {},
   );
   const sourceHealth = sourceHealthRows(state);
-  const queryDiagnostics = queryDiagnosticsForRun(config, fetched, candidates, state);
-  const leadsIncluded = surfaced.contact_today.length + surfaced.comment_only.length;
-  const classificationAttempts = candidates.filter((candidate) => candidate.classificationAttempted).length;
+  const queryDiagnostics = queryDiagnosticsForRun(
+    config,
+    fetched,
+    candidates,
+    state,
+  );
+  const leadsIncluded =
+    surfaced.contact_today.length + surfaced.comment_only.length;
+  const classificationAttempts = candidates.filter(
+    (candidate) => candidate.classificationAttempted,
+  ).length;
+  const classifierFailures = candidates.filter(
+    (candidate) => candidate.rejectionReason === "classifier_failed",
+  ).length;
+  const classifierHealthy =
+    classificationAttempts === 0 || classifierFailures < classificationAttempts;
   return {
     generatedAt,
     status: {
-      ok: fetched.successfulFeeds >= (config.minSuccessfulFeeds ?? 3),
+      ok:
+        fetched.successfulFeeds >= (config.minSuccessfulFeeds ?? 3) &&
+        classifierHealthy,
       generatedAt,
       successfulFeeds: fetched.successfulFeeds,
       totalFeeds: fetched.totalFeeds,
@@ -1064,15 +1330,19 @@ function structuredRunPayload({ generatedAt, config, fetched, fetchedPosts, cand
       scanMode: config.scanMode || "quote-grounded-v1",
       fetchedPosts,
       prefilterRejected,
-      classified: candidates.filter((candidate) => candidate.classification?.speaker !== "unclear").length,
+      classified: candidates.filter(
+        (candidate) => candidate.classification?.speaker !== "unclear",
+      ).length,
       candidatesScored: classificationAttempts,
-      classifierFailures: candidates.filter((candidate) => candidate.rejectionReason === "classifier_failed").length,
+      classifierFailures,
       leadsIncluded,
       queueCounts,
       rejectCounts,
       queryDiagnostics,
       sourceHealth,
-      quarantinedSources: sourceHealth.filter((row) => row.quarantined).map((row) => row.source),
+      quarantinedSources: sourceHealth
+        .filter((row) => row.quarantined)
+        .map((row) => row.source),
       feedErrors: fetched.feedErrors,
       outputPath: "",
       message: "",
@@ -1094,22 +1364,37 @@ function queryDiagnosticsForRun(config, fetched, candidates, state) {
     const fetchedResults = (fetched.results ?? []).filter(
       (result) => result.url === `reddit-search:${spec.id}`,
     );
-    const queryCandidates = candidates.filter((candidate) => candidate.sourceQuery === spec.query);
+    const queryCandidates = candidates.filter(
+      (candidate) => candidate.sourceQuery === spec.query,
+    );
     const sourceStats = state.sourceStats?.[`query:${spec.query}`] ?? {};
     return {
       id: spec.id,
       query: spec.query,
-      status: fetchedResults.length === 0 ? "not_run" : fetchedResults.every((result) => result.ok) ? "ok" : "failed",
-      fetchedPosts: fetchedResults.reduce((count, result) => count + result.posts.length, 0),
+      status:
+        fetchedResults.length === 0
+          ? "not_run"
+          : fetchedResults.every((result) => result.ok)
+            ? "ok"
+            : "failed",
+      fetchedPosts: fetchedResults.reduce(
+        (count, result) => count + result.posts.length,
+        0,
+      ),
       prefilterRejected: queryCandidates.filter((candidate) =>
         String(candidate.rejectionReason || "").startsWith("prefilter_"),
       ).length,
-      candidatesScored: queryCandidates.filter((candidate) => candidate.classificationAttempted).length,
+      candidatesScored: queryCandidates.filter(
+        (candidate) => candidate.classificationAttempted,
+      ).length,
       surfaced: queryCandidates.filter((candidate) =>
         ["contact_today", "comment_only"].includes(candidate.queue),
       ).length,
-      watch: queryCandidates.filter((candidate) => candidate.queue === "watch").length,
-      rejected: queryCandidates.filter((candidate) => candidate.queue === "reject").length,
+      watch: queryCandidates.filter((candidate) => candidate.queue === "watch")
+        .length,
+      rejected: queryCandidates.filter(
+        (candidate) => candidate.queue === "reject",
+      ).length,
       manuallyApproved: Number(sourceStats.good ?? 0),
     };
   });
@@ -1164,7 +1449,9 @@ function formatLead(lead, queue) {
     `- Consulting fit: ${classification.consulting_fit}`,
     `- Confidence: ${classification.confidence}`,
     `- Ownership quote: ${classification.problem_ownership_quote || ""}`,
-    ...(queue === "contact_today" ? [`- Ask quote: ${classification.ask_quote || ""}`] : []),
+    ...(queue === "contact_today"
+      ? [`- Ask quote: ${classification.ask_quote || ""}`]
+      : []),
     `- Why now: ${whyNow(lead)}`,
     `- Reply angle: ${classification.reply_angle || ""}`,
     `- Rejection reason: ${lead.rejectionReason || ""}`,
@@ -1176,9 +1463,11 @@ function formatLead(lead, queue) {
 function formatRejectionSummary(examples, counts) {
   const reasons = Object.keys(counts).sort();
   if (!reasons.length) return ["_No rejects._", ""];
-  return reasons.flatMap((reason) => [
-    `- ${reason}: ${counts[reason]}${examples[reason]?.length ? ` (${examples[reason].join("; ")})` : ""}`,
-  ]).concat("");
+  return reasons
+    .flatMap((reason) => [
+      `- ${reason}: ${counts[reason]}${examples[reason]?.length ? ` (${examples[reason].join("; ")})` : ""}`,
+    ])
+    .concat("");
 }
 
 function formatSourceHealth(rows) {
@@ -1186,8 +1475,9 @@ function formatSourceHealth(rows) {
   return [
     "| Source | Surfaced | Good | Precision | Quarantined |",
     "|---|---:|---:|---:|---|",
-    ...rows.map((row) =>
-      `| ${row.source} | ${row.surfaced} | ${row.markedGood} | ${row.precision.toFixed(2)} | ${row.quarantined ? "yes" : "no"} |`,
+    ...rows.map(
+      (row) =>
+        `| ${row.source} | ${row.surfaced} | ${row.markedGood} | ${row.precision.toFixed(2)} | ${row.quarantined ? "yes" : "no"} |`,
     ),
     "",
   ];
@@ -1195,7 +1485,9 @@ function formatSourceHealth(rows) {
 
 function formatFeedErrors(errors) {
   if (!errors.length) return ["_None._", ""];
-  return errors.map((error) => `- ${error.url}: ${error.status} ${error.error}`).concat("");
+  return errors
+    .map((error) => `- ${error.url}: ${error.status} ${error.error}`)
+    .concat("");
 }
 
 function updateStateFromRun(state, candidates) {
@@ -1205,7 +1497,8 @@ function updateStateFromRun(state, candidates) {
       const author = normalizeAuthor(candidate.author);
       if (author && author !== "unknown") {
         const existing = next.authorLabels[author];
-        if (existing !== "blocked" && existing !== "good") next.authorLabels[author] = "seller";
+        if (existing !== "blocked" && existing !== "good")
+          next.authorLabels[author] = "seller";
       }
     }
   }
@@ -1243,7 +1536,8 @@ function rejectionExamples(candidates) {
   for (const candidate of candidates) {
     if (candidate.queue !== "reject" || !candidate.rejectionReason) continue;
     const list = examples[candidate.rejectionReason] ?? [];
-    if (list.length < 3) list.push(candidate.title || candidate.url || candidate.id);
+    if (list.length < 3)
+      list.push(candidate.title || candidate.url || candidate.id);
     examples[candidate.rejectionReason] = list;
   }
   return examples;
@@ -1296,7 +1590,9 @@ function fixturePost(fixture) {
     title: fixture.title,
     body: fixture.body ?? fixture.summary ?? "",
     author: normalizeAuthor(fixture.author || "fixture"),
-    url: fixture.url || `https://www.reddit.com/r/${fixture.subreddit}/comments/${fixture.id}`,
+    url:
+      fixture.url ||
+      `https://www.reddit.com/r/${fixture.subreddit}/comments/${fixture.id}`,
     publishedAt: fixture.publishedAt || new Date().toISOString(),
     sourceQuery: fixture.sourceQuery || "",
     sourceId: fixture.sourceId || `fixture:${fixture.id}`,
@@ -1316,23 +1612,33 @@ function isStale(post, maxAgeDays) {
 
 function isLinkOnly(post) {
   const url = String(post.url || "");
-  return !String(post.body || "").trim() &&
+  return (
+    !String(post.body || "").trim() &&
     /^https?:\/\//i.test(url) &&
-    !/reddit\.com\/r\//i.test(url);
+    !/reddit\.com\/r\//i.test(url)
+  );
 }
 
 function hasPromoMarker(post) {
-  return /\b(referral|affiliate|coupon code|promo code|use my code|discount code)\b/i.test(combinedText(post));
+  return /\b(referral|affiliate|coupon code|promo code|use my code|discount code)\b/i.test(
+    combinedText(post),
+  );
 }
 
 function hasJobPostingShape(post) {
   const text = combinedText(post);
-  return /(?:📍|location:).{0,80}(?:salary|about company|full[- ]time|apply now)/i.test(text) ||
-    /\b(?:salary range|about company|we are hiring|apply now)\b/i.test(text);
+  return (
+    /(?:📍|location:).{0,80}(?:salary|about company|full[- ]time|apply now)/i.test(
+      text,
+    ) ||
+    /\b(?:salary range|about company|we are hiring|apply now)\b/i.test(text)
+  );
 }
 
 function matchesAnyPattern(value, patterns) {
-  return patterns.some((pattern) => wildcardRegex(pattern).test(String(value || "")));
+  return patterns.some((pattern) =>
+    wildcardRegex(pattern).test(String(value || "")),
+  );
 }
 
 function wildcardRegex(pattern) {
@@ -1346,7 +1652,8 @@ function dedupePosts(posts) {
   const seen = new Set();
   const deduped = [];
   for (const post of posts) {
-    const key = post.id || normalizeUrl(post.url) || `${post.subreddit}:${post.title}`;
+    const key =
+      post.id || normalizeUrl(post.url) || `${post.subreddit}:${post.title}`;
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(post);
@@ -1378,14 +1685,18 @@ function whyNow(lead) {
 }
 
 function explicitPayLanguage(value) {
-  return /\b(pay|paid|hire|hiring|consultant|freelancer|looking for someone|need someone|open to paid help)\b/i.test(String(value || ""));
+  return /\b(pay|paid|hire|hiring|consultant|freelancer|looking for someone|need someone|open to paid help)\b/i.test(
+    String(value || ""),
+  );
 }
 
 function specificityScore(value) {
   const text = String(value || "");
   return [
     /\d/.test(text),
-    /\b(client|customer|team|project|invoice|appointment|order|report|follow.?up|document|revenue)\b/i.test(text),
+    /\b(client|customer|team|project|invoice|appointment|order|report|follow.?up|document|revenue)\b/i.test(
+      text,
+    ),
     text.length > 100,
   ].filter(Boolean).length;
 }
@@ -1411,27 +1722,41 @@ function emptyQueueCounts() {
 }
 
 function sourceKey(lead) {
-  return lead.sourceQuery ? `query:${lead.sourceQuery}` : `subreddit:${lead.subreddit}`;
+  return lead.sourceQuery
+    ? `query:${lead.sourceQuery}`
+    : `subreddit:${lead.subreddit}`;
 }
 
 function candidateId(candidate) {
-  return candidate.id || candidate.url || `${candidate.subreddit}:${candidate.title}`;
+  return (
+    candidate.id || candidate.url || `${candidate.subreddit}:${candidate.title}`
+  );
 }
 
 function configuredFeedCount(config) {
-  return normalizedList(config.allowlist).length +
+  return (
+    normalizedList(config.allowlist).length +
     (config.searchQueries ?? []).length +
-    normalizedList(config.allowlist).length * (config.allowlistedSubredditQueries ?? []).length;
+    normalizedList(config.allowlist).length *
+      (config.allowlistedSubredditQueries ?? []).length
+  );
 }
 
 function normalizedList(values) {
-  return Array.isArray(values) ? values.map((value) => String(value || "").trim()).filter(Boolean) : [];
+  return Array.isArray(values)
+    ? values.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
 }
 
 function limitByEnv(values, envName) {
-  const limit = Number.parseInt(process.env[envName] || "", 10);
-  if (!Number.isFinite(limit) || limit <= 0) return values;
+  const limit = positiveIntegerEnv(envName);
+  if (!limit) return values;
   return values.slice(0, limit);
+}
+
+function positiveIntegerEnv(envName) {
+  const value = Number.parseInt(process.env[envName] || "", 10);
+  return Number.isFinite(value) && value > 0 ? value : null;
 }
 
 function limitQuerySpecs(values, envName) {
@@ -1452,11 +1777,17 @@ function normalizeQuerySpec(value) {
 }
 
 function normalizeAuthor(value) {
-  return String(value || "unknown").replace(/^u\//i, "").trim() || "unknown";
+  return (
+    String(value || "unknown")
+      .replace(/^u\//i, "")
+      .trim() || "unknown"
+  );
 }
 
 function normalizeUrl(value) {
-  return String(value || "").replace(/[?#].*$/, "").replace(/\/$/, "");
+  return String(value || "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/$/, "");
 }
 
 function dateOnly(value) {
@@ -1477,7 +1808,8 @@ function responseText(body) {
   const parts = [];
   for (const item of body.output ?? []) {
     for (const content of item.content ?? []) {
-      if (content.type === "output_text" && content.text) parts.push(content.text);
+      if (content.type === "output_text" && content.text)
+        parts.push(content.text);
       if (content.type === "text" && content.text) parts.push(content.text);
     }
   }

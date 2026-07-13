@@ -23,13 +23,28 @@ async function main() {
     throw new Error("Missing BLOB_READ_WRITE_TOKEN");
   }
 
-  const status = await readStatus();
-  const digestPath = await findDigestPath(status?.outputPath);
-  const fileName = path.basename(digestPath);
-  const markdown = await readFile(digestPath, "utf8");
+  let status = await readStatus();
+  let fileName;
+  let markdown;
+  try {
+    const digestPath = await findDigestPath(status?.outputPath);
+    fileName = path.basename(digestPath);
+    markdown = await readFile(digestPath, "utf8");
+  } catch (error) {
+    const existingRedditSource = await readPublishedRedditSource();
+    if (!existingRedditSource) throw error;
+    fileName = existingRedditSource.fileName;
+    markdown = existingRedditSource.markdown;
+    status = status ?? existingRedditSource.status ?? null;
+    console.warn(
+      "No local Reddit digest was available; republishing the current verified Blob source.",
+    );
+  }
   const existingAutomationSource = await readPublishedAutomationSource();
   if (!existingAutomationSource) {
-    console.warn("No existing automation source found while publishing lead bundle; using empty automation placeholder.");
+    console.warn(
+      "No existing automation source found while publishing lead bundle; using empty automation placeholder.",
+    );
   }
   const payload = {
     sources: [
@@ -44,9 +59,12 @@ async function main() {
       {
         id: "automation",
         label: "Codex automation",
-        description: "Broader public-web leads from the AI consulting research automation.",
-        fileName: existingAutomationSource?.fileName ?? "codex-automation-leads.md",
-        markdown: existingAutomationSource?.markdown ?? emptyAutomationMarkdown(),
+        description:
+          "Broader public-web leads from the AI consulting research automation.",
+        fileName:
+          existingAutomationSource?.fileName ?? "codex-automation-leads.md",
+        markdown:
+          existingAutomationSource?.markdown ?? emptyAutomationMarkdown(),
         status: existingAutomationSource?.status ?? null,
       },
     ],
@@ -65,7 +83,9 @@ async function main() {
       message: `Published ${fileName} to Vercel Blob at ${PUBLISHED_DIGEST_PATH}`,
       path: PUBLISHED_DIGEST_PATH,
       reddit: digestStats(markdown),
-      automation: existingAutomationSource ? digestStats(existingAutomationSource.markdown ?? "") : null,
+      automation: existingAutomationSource
+        ? digestStats(existingAutomationSource.markdown ?? "")
+        : null,
       supabase: supabaseResult,
     }),
   );
@@ -80,8 +100,12 @@ function digestStats(markdown) {
     declaredCandidates: numberValue(markdown, "Candidates included"),
     bestLeadRows: (bestLeadsSection.match(/^### [1-5]\/5 - /gm) ?? []).length,
     totalHeadingRows: (markdown.match(/^### [1-5]\/5 - /gm) ?? []).length,
-    postedDates: (bestLeadsSection.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []).length,
-    unknownPostedDates: (bestLeadsSection.match(/^- Posted date: unknown/gm) ?? []).length,
+    postedDates: (
+      bestLeadsSection.match(/^- Posted date: \d{4}-\d{2}-\d{2}$/gm) ?? []
+    ).length,
+    unknownPostedDates: (
+      bestLeadsSection.match(/^- Posted date: unknown/gm) ?? []
+    ).length,
   };
 }
 
@@ -108,7 +132,9 @@ function emptyAutomationMarkdown() {
 }
 
 async function readPublishedAutomationSource() {
-  const dedicatedSource = await readPublishedAutomationSourceAt(PUBLISHED_AUTOMATION_DIGEST_PATH);
+  const dedicatedSource = await readPublishedAutomationSourceAt(
+    PUBLISHED_AUTOMATION_DIGEST_PATH,
+  );
   if (dedicatedSource) return dedicatedSource;
 
   try {
@@ -120,7 +146,23 @@ async function readPublishedAutomationSource() {
 
     const raw = await new Response(result.stream).text();
     const payload = JSON.parse(raw);
-    return payload.sources?.find((source) => source.id === "automation") ?? null;
+    return (
+      payload.sources?.find((source) => source.id === "automation") ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function readPublishedRedditSource() {
+  try {
+    const result = await get(PUBLISHED_DIGEST_PATH, {
+      access: "private",
+      useCache: false,
+    });
+    if (!result || result.statusCode !== 200) return null;
+    const payload = JSON.parse(await new Response(result.stream).text());
+    return payload.sources?.find((source) => source.id === "reddit") ?? null;
   } catch {
     return null;
   }
@@ -147,7 +189,9 @@ function numberValue(markdown, label) {
 }
 
 function metadataValue(markdown, label) {
-  const match = markdown.match(new RegExp(`^-?\\s*${escapeRegExp(label)}: (.+)$`, "m"));
+  const match = markdown.match(
+    new RegExp(`^-?\\s*${escapeRegExp(label)}: (.+)$`, "m"),
+  );
   return match?.[1]?.trim() ?? "";
 }
 
@@ -197,7 +241,10 @@ async function loadDotEnv(filePath) {
         .map((line) => {
           const index = line.indexOf("=");
           const key = line.slice(0, index).trim();
-          const value = line.slice(index + 1).trim().replace(/^["']|["']$/g, "");
+          const value = line
+            .slice(index + 1)
+            .trim()
+            .replace(/^["']|["']$/g, "");
           return [key, value];
         }),
     );
