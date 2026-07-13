@@ -5,8 +5,8 @@
  *   [{"username":"gabby","password":"...","client":"ttg"},
  *    {"username":"jess","password":"...","client":"ttg"}]
  *
- * For development, supports ADMIN_PORTAL_PASSWORD for Duncan plus a TTG user
- * defined by PORTAL_PASSWORD.
+ * Dedicated password variables keep single-purpose portal credentials from
+ * requiring destructive edits to the shared PORTAL_USERS value.
  */
 
 export interface PortalUser {
@@ -42,6 +42,12 @@ function loadUsers(): PortalUser[] {
     } catch {
       // fall through to defaults
     }
+  }
+
+  const minaPw = process.env.MINA_PORTAL_PASSWORD;
+  if (minaPw) {
+    const username = process.env.MINA_PORTAL_USERNAME || "mina";
+    usersByName.set(username, { username, password: minaPw, client: "mina" });
   }
 
   return Array.from(usersByName.values());

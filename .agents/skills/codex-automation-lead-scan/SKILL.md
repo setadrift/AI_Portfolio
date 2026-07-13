@@ -29,18 +29,19 @@ Run the AI consulting public-source lead research workflow and load the results 
 4. Verify the actual posted/ad date from the source page or search result snippet before including a lead in `## Best Leads`.
 5. Include only score 4/5 and 5/5 leads in `## Best Leads`; do not pad the digest.
 6. Put uncertain, stale, or unverifiable-date candidates in `## Maybe / Watch` or reject them.
-7. Enforce source diversity. This is a broad public-internet pass, not an Upwork scraper.
+7. Enforce source diversity. This is a broad public-internet and job-board pass, not a paid-marketplace scraper.
 8. Check at least 5 source families when search access allows it: Reddit/local subreddits, automation/vendor communities, public/free job boards, founder/operator/small-business forums, industry forums, public company hiring pages, public RFP/vendor-request pages, local business groups, and general web search results.
-9. Exclude Upwork, Freelancer, PeoplePerHour, Guru, and every source requiring paid credits, payment to apply, or login-only details before qualification. Do not search them or surface them anywhere in the digest, tracker, status, or published admin data.
-10. If one platform dominates the digest, name the non-dominant source families checked and why they did not qualify.
-11. Do not include broad fit-based business-directory leads unless the source also shows a current trigger such as a hiring post, help request, public complaint, explicit tool failure, recent operations change, or consultant request.
-12. Treat partner/overflow opportunities as valid when they show paid implementation demand from an automation agency, freelancer, RevOps consultant, or tool specialist looking for builders, contractors, QA, documentation, or delivery support.
-13. Prioritize leads Duncan can pursue without buying marketplace credits: public comments, platform DMs, partner messages, public job/community replies, or direct contact from a public help request.
-14. Admit candidates based on business-buyer evidence before tool evidence. Tool names can increase fit only after there is evidence of an existing business, team, client/customer workflow, hiring signal, or commercially meaningful process.
-15. Do not promote generic AI/tool discussion, seller posts, job seekers, consumer support, low-budget one-off tasks, or unverifiable sources to `## Best Leads`.
-16. After writing the digest and status, run the publisher and verify Supabase has active `automation` rows.
-17. Treat `## Best Leads` as a short-term consulting queue. A job-board lead must explicitly be consulting, contract, freelance, fractional, temporary, or an RFP, and Duncan must be confirmed eligible from Canada/remote North America/worldwide. Permanent, full-time, employee-only, contractor-unknown, and location-ineligible roles are at most `3/5`.
-18. Never infer engagement type or location eligibility. Record `unknown` and keep the candidate in `## Maybe / Watch` when the source does not say.
+9. Exclude Upwork, Freelancer, PeoplePerHour, Guru, and every source requiring paid credits, payment to apply, a subscription for contact details, or login-only details before qualification. Do not search them or surface them anywhere in the digest, tracker, status, or published admin data.
+10. Include traditional job boards and company ATS boards when they have clean free-to-apply paths: Wellfound, We Work Remotely, RemoteOK, public LinkedIn/Indeed listings, Otta/Welcome to the Jungle public listings, Y Combinator Work at a Startup, company career pages, Greenhouse, Lever, Ashby, Craigslist/Kijiji gigs, and similar public boards.
+11. If one platform dominates the digest, name the non-dominant source families checked and why they did not qualify.
+12. Do not include broad fit-based business-directory leads unless the source also shows a current trigger such as a hiring post, help request, public complaint, explicit tool failure, recent operations change, or consultant request.
+13. Treat partner/overflow opportunities as valid when they show paid implementation demand from an automation agency, freelancer, RevOps consultant, or tool specialist looking for builders, contractors, QA, documentation, or delivery support.
+14. Prioritize leads Duncan can pursue without buying marketplace credits: public comments, platform DMs, partner messages, public job/community replies, direct applications, or direct contact from a public help request.
+15. Admit candidates based on business-buyer evidence before tool evidence. Tool names can increase fit only after there is evidence of an existing business, team, client/customer workflow, hiring signal, or commercially meaningful process.
+16. Do not promote generic AI/tool discussion, seller posts, job seekers, consumer support, low-budget one-off tasks, or unverifiable sources to `## Best Leads`.
+17. After writing the digest and status, run the publisher and verify Supabase has active `automation` rows.
+18. Treat `## Best Leads` as a short-term consulting queue. A job-board lead must explicitly be consulting, contract, freelance, fractional, temporary, or an RFP, and Duncan must be confirmed eligible from Canada/remote North America/worldwide. Permanent, full-time, employee-only, contractor-unknown, and location-ineligible roles are at most `3/5`.
+19. Never infer engagement type or location eligibility. Record `unknown` and keep the candidate in `## Maybe / Watch` when the source does not say.
 
 ## Procedure
 
@@ -49,7 +50,7 @@ Run the AI consulting public-source lead research workflow and load the results 
 3. Search public sources for existing business buyers with operational, growth, customer, finance, reporting, document, team, or AI-adoption problems where hiring an AI-capable expert is plausible. Start from buyer situations before tool terms. Prioritize direct-client, public RFP, and partner/overflow opportunities. Use a deliberately mixed search set:
    - Reddit public pages and local/business subreddits.
    - Automation/vendor communities such as n8n Community, Airtable Community, Zapier Community, Make Community, Softr/Glide/Notion forums.
-   - Public/free-to-apply sources such as Wellfound, We Work Remotely, RemoteOK, company ATS pages, Craigslist gigs, Kijiji/Craigslist local services, and relevant job boards. Search job boards for consulting/contract/freelance/fractional/temporary/RFP work, not conventional employment.
+   - Public job boards, company ATS boards, and free-to-apply freelance/contract boards such as Contra, Wellfound, We Work Remotely, RemoteOK, public LinkedIn/Indeed listings, Otta/Welcome to the Jungle public listings, Y Combinator Work at a Startup, company career pages, Greenhouse, Lever, Ashby, Craigslist gigs, Kijiji/Craigslist local services, and relevant job boards. Search for consulting/contract/freelance/fractional/temporary/RFP work, not conventional employment. Exclude paid-credit/pay-to-unlock marketplaces.
    - Founder/operator/small-business forums such as Indie Hackers, Hacker News hiring/freelance threads, public Alignable-style posts, and industry forums.
    - Public company hiring pages, role posts, RFP/vendor-request pages, and general web/search result pages for exact buying-intent phrases.
 4. Apply this scoring model:
@@ -83,7 +84,7 @@ Partial coverage: no
 - Engagement model: consulting, contract, freelance, fractional, temporary, RFP, permanent, full_time, or unknown
 - Location eligibility: eligible, ineligible, or unknown
 - Eligibility evidence: exact source fact supporting engagement and location eligibility
-- Recommended action: comment, dm_if_engaged, dm, apply, watch, or ignore
+- Recommended action: comment, dm_if_engaged, dm, apply, partner_note, watch, or ignore
 - Source family: business_owner_community, industry_forum, platform_community, public_job_board, founder_community, local_business_group, professional_services_forum, social_post, public_rfp_vendor_request, reddit, or other
 - Buyer situation: explicit_expert_hiring, ai_adoption_strategy, operational_bottleneck, growth_sales_leakage, knowledge_content_customer_experience, document_finance_admin_workflow, reporting_visibility, team_training_change_management, company_hiring_signal, market_intelligence, or reject
 - Queue: active_lead, warm_reply, company_signal, market_intelligence, or reject
@@ -110,7 +111,7 @@ Partial coverage: no
 - Duplicate of: canonical lead key if duplicate, or none
 - Last verified at: ISO_TIMESTAMP
 - Why it matched: concise reason including freshness and buying intent
-- Free-to-pursue path: how Duncan can act without buying marketplace credits or login-only data; reject paid-gated candidates instead
+- Free-to-pursue path: how Duncan can act without buying marketplace credits, paying to unlock/apply, or using login-only marketplace data. Reject the lead instead of writing "paid marketplace gate" for sources that require paid access.
 
 Suggested comment:
 
