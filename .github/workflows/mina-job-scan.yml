@@ -1,0 +1,45 @@
+name: Mina job scan
+
+on:
+  schedule:
+    # 07:00, 13:00, and 19:00 in Toronto during daylight-saving time.
+    - cron: "0 11,17,23 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: mina-job-scan
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      MINA_ADZUNA_APP_ID: ${{ secrets.MINA_ADZUNA_APP_ID }}
+      MINA_ADZUNA_APP_KEY: ${{ secrets.MINA_ADZUNA_APP_KEY }}
+      MINA_GREENHOUSE_BOARDS: ${{ vars.MINA_GREENHOUSE_BOARDS }}
+      MINA_ASHBY_BOARDS: ${{ vars.MINA_ASHBY_BOARDS }}
+      MINA_LEVER_SITES: ${{ vars.MINA_LEVER_SITES }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify ranking rules
+        run: npm run jobs:mina:test
+
+      - name: Refresh Mina's job list
+        run: npm run jobs:mina:scan
