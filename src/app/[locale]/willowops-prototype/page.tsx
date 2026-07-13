@@ -4,13 +4,7 @@ import { setRequestLocale } from "next-intl/server";
 import WillowOpsPrototypePage from "@/app/willowops-prototype/page";
 import { SITE } from "@/lib/constants";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}): Promise<Metadata> {
-  const { locale } = await params;
-
+export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Willow Grey Data-Entry Prototype | Duncan Anderson",
     description:
@@ -18,13 +12,7 @@ export async function generateMetadata({
     alternates: {
       canonical: `${SITE.url}/willowops-prototype`,
     },
-    robots:
-      locale === "fr"
-        ? {
-            index: false,
-            follow: true,
-          }
-        : undefined,
+    robots: { index: false, follow: false },
   };
 }
 

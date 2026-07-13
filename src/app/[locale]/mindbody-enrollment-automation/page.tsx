@@ -4,13 +4,7 @@ import { setRequestLocale } from "next-intl/server";
 import MindbodyEnrollmentAutomationPage from "@/app/mindbody-enrollment-automation/page";
 import { SITE } from "@/lib/constants";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}): Promise<Metadata> {
-  const { locale } = await params;
-
+export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Mindbody Enrollment Automation | Duncan Anderson",
     description:
@@ -18,13 +12,7 @@ export async function generateMetadata({
     alternates: {
       canonical: `${SITE.url}/mindbody-enrollment-automation`,
     },
-    robots:
-      locale === "fr"
-        ? {
-            index: false,
-            follow: true,
-          }
-        : undefined,
+    robots: { index: false, follow: false },
   };
 }
 
