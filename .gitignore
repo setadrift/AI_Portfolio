@@ -43,6 +43,7 @@ yarn-error.log*
 
 # supabase
 supabase/.temp/
+/outputs/mina-job-research/
 
 # typescript
 *.tsbuildinfo

@@ -10,14 +10,20 @@ import type {
   MinaRoleFamily,
   MinaWorkModel,
 } from "@/lib/portal/mina/jobs";
+import { plainDescription } from "@/lib/portal/mina/text";
 
-type View = "today" | "all" | "applications";
 type Sort = "best" | "newest" | "salary";
+type ScanResponse = {
+  ok?: boolean;
+  data?: MinaJobsData;
+  message?: string;
+  error?: string;
+};
 
 const STATUS_LABELS: Record<MinaJobStatus, string> = {
   new: "New",
   saved: "Saved",
-  preparing: "Preparing",
+  preparing: "Saved",
   applied: "Applied",
   recruiter_screen: "Recruiter screen",
   interview: "Interview",
@@ -52,48 +58,27 @@ const ACTIVE_APPLICATION_STATUSES: MinaJobStatus[] = [
 
 export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsData }) {
   const [jobs, setJobs] = useState(initialData.jobs);
-  const [view, setView] = useState<View>("today");
+  const [sourceHealth, setSourceHealth] = useState(initialData.sourceHealth);
   const [selectedId, setSelectedId] = useState(initialData.jobs[0]?.id ?? "");
   const [search, setSearch] = useState("");
-  const [role, setRole] = useState<MinaRoleFamily | "all">("all");
-  const [workModel, setWorkModel] = useState<MinaWorkModel | "all">("all");
-  const [salaryOnly, setSalaryOnly] = useState(false);
   const [sort, setSort] = useState<Sort>("best");
   const [showAddForm, setShowAddForm] = useState(false);
   const [notice, setNotice] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const activeJobs = useMemo(() => jobs.filter((job) => job.active), [jobs]);
-  const pipelineCount = useMemo(
-    () => jobs.filter((job) => ACTIVE_APPLICATION_STATUSES.includes(job.state.status)).length,
+  const currentJobs = useMemo(
+    () => jobs.filter((job) => job.active && !["rejected", "expired"].includes(job.state.status)),
     [jobs],
   );
-  const todayCount = useMemo(
-    () =>
-      activeJobs.filter(
-        (job) => job.state.status === "new" && job.matchScore >= 60,
-      ).length,
-    [activeJobs],
+  const savedCount = useMemo(
+    () => currentJobs.filter((job) => ACTIVE_APPLICATION_STATUSES.includes(job.state.status)).length,
+    [currentJobs],
   );
 
   const visibleJobs = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return activeJobs
-      .filter((job) => {
-        if (view === "today") return job.state.status === "new" && job.matchScore >= 60;
-        if (view === "applications")
-          return ACTIVE_APPLICATION_STATUSES.includes(job.state.status);
-        return !["rejected", "expired"].includes(job.state.status);
-      })
-      .filter((job) => role === "all" || job.roleFamily === role)
-      .filter((job) => workModel === "all" || job.workModel === workModel)
-      .filter(
-        (job) =>
-          !salaryOnly ||
-          (job.salaryCurrency === initialData.profile.salaryCurrency &&
-            job.salaryMinCents !== null &&
-            job.salaryMinCents >= initialData.profile.targetSalaryCents),
-      )
+    return currentJobs
       .filter((job) => {
         if (!needle) return true;
         return [job.title, job.company, job.location, job.description]
@@ -103,20 +88,14 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
       })
       .sort((a, b) => sortJobs(a, b, sort));
   }, [
-    activeJobs,
-    initialData.profile.salaryCurrency,
-    initialData.profile.targetSalaryCents,
-    role,
-    salaryOnly,
+    currentJobs,
     search,
     sort,
-    view,
-    workModel,
   ]);
 
   const selectedJob =
     visibleJobs.find((job) => job.id === selectedId) ?? visibleJobs[0] ?? null;
-  const topJobs = view === "today" ? visibleJobs.slice(0, 5) : visibleJobs;
+  const topJobs = visibleJobs;
 
   function updateState(job: MinaJob, patch: Partial<MinaJobState>, message: string) {
     const previousState = job.state;
@@ -146,6 +125,33 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
     });
   }
 
+  async function runScan() {
+    setIsScanning(true);
+    setNotice("");
+    try {
+      const response = await fetch("/api/portal/mina/scan", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+      const payload = (await response.json()) as ScanResponse;
+      if (!response.ok || !payload.ok || !payload.data) {
+        throw new Error(payload.error || "The scan could not finish.");
+      }
+      setJobs(payload.data.jobs);
+      setSourceHealth(payload.data.sourceHealth);
+      setSelectedId((current) =>
+        payload.data?.jobs.some((job) => job.id === current && job.active)
+          ? current
+          : payload.data?.jobs.find((job) => job.active)?.id ?? "",
+      );
+      setNotice(payload.message || "Scan complete. Your board is up to date.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The scan could not finish. Please try again.");
+    } finally {
+      setIsScanning(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-12">
       <section className="border-b border-[#d7d9d2] pb-8">
@@ -155,9 +161,9 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
               Your search, without the noise
             </p>
             <h1 className="font-display text-4xl leading-tight text-[#263a30] sm:text-5xl">
-              {todayCount > 0
-                ? `${todayCount} promising ${todayCount === 1 ? "role" : "roles"} to look at`
-                : "Nothing urgent. That’s useful too."}
+              {currentJobs.length > 0
+                ? `${currentJobs.length} ${currentJobs.length === 1 ? "job" : "jobs"} worth reviewing`
+                : "No current jobs yet"}
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-[#5f655e]">
               Ranked for HR leadership scope, your CAD {formatWholeDollars(initialData.profile.targetSalaryCents)} target,
@@ -165,6 +171,15 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={runScan}
+              disabled={isScanning || !initialData.configured}
+              aria-busy={isScanning}
+              className="rounded-md bg-[#315440] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#284735] disabled:cursor-not-allowed disabled:bg-[#8a978e]"
+            >
+              {isScanning ? "Checking job sources…" : "Check for new jobs"}
+            </button>
             <button
               type="button"
               onClick={() => setShowAddForm((current) => !current)}
@@ -175,11 +190,11 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
           </div>
         </div>
         <div className="mt-7 flex flex-wrap gap-2" aria-label="Search summary">
-          <SummaryPill label="New matches" value={todayCount} />
-          <SummaryPill label="In progress" value={pipelineCount} />
+          <SummaryPill label="Current jobs" value={currentJobs.length} />
+          <SummaryPill label="Saved & applied" value={savedCount} />
           <SummaryPill
             label="Sources checked"
-            value={initialData.sourceHealth.filter((source) => source.ok).length}
+            value={sourceHealth.filter((source) => source.ok).length}
           />
         </div>
       </section>
@@ -190,9 +205,8 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
           onAdded={(job) => {
             setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)]);
             setSelectedId(job.id);
-            setView("applications");
             setShowAddForm(false);
-            setNotice("Saved. It is now in your application list.");
+            setNotice("Saved to your list.");
           }}
         />
       ) : null}
@@ -206,18 +220,8 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
 
       <section className="mt-8">
         <div className="flex flex-col gap-4 border-b border-[#d7d9d2] pb-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex gap-1 rounded-md bg-[#e9ebe5] p-1" role="tablist" aria-label="Job views">
-            <ViewButton active={view === "today"} count={todayCount} onClick={() => setView("today")}>
-              Today
-            </ViewButton>
-            <ViewButton active={view === "all"} count={activeJobs.length} onClick={() => setView("all")}>
-              Find jobs
-            </ViewButton>
-            <ViewButton active={view === "applications"} count={pipelineCount} onClick={() => setView("applications")}>
-              Applications
-            </ViewButton>
-          </div>
-          <div className="flex flex-wrap gap-2">
+          <h2 className="font-display text-2xl text-[#304538]">Current jobs</h2>
+          <div className="flex flex-wrap gap-2 xl:justify-end">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -225,28 +229,6 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
               aria-label="Search jobs"
               className="min-w-52 rounded-md border border-[#cfd3cc] bg-white px-3 py-2 text-sm outline-none placeholder:text-[#92978f] focus:border-[#637c6b] focus:ring-2 focus:ring-[#637c6b]/15"
             />
-            <select
-              value={role}
-              onChange={(event) => setRole(event.target.value as MinaRoleFamily | "all")}
-              aria-label="Filter by role"
-              className="rounded-md border border-[#cfd3cc] bg-white px-3 py-2 text-sm text-[#50574f]"
-            >
-              <option value="all">All target roles</option>
-              {Object.entries(ROLE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-            <select
-              value={workModel}
-              onChange={(event) => setWorkModel(event.target.value as MinaWorkModel | "all")}
-              aria-label="Filter by work model"
-              className="rounded-md border border-[#cfd3cc] bg-white px-3 py-2 text-sm text-[#50574f]"
-            >
-              <option value="all">Any work model</option>
-              {Object.entries(WORK_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
             <select
               value={sort}
               onChange={(event) => setSort(event.target.value as Sort)}
@@ -257,15 +239,6 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
               <option value="newest">Newest</option>
               <option value="salary">Highest salary</option>
             </select>
-            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-[#cfd3cc] bg-white px-3 py-2 text-sm text-[#50574f]">
-              <input
-                type="checkbox"
-                checked={salaryOnly}
-                onChange={(event) => setSalaryOnly(event.target.checked)}
-                className="accent-[#395744]"
-              />
-              {`Meets $${formatWholeDollars(initialData.profile.targetSalaryCents)} target`}
-            </label>
           </div>
         </div>
 
@@ -302,14 +275,14 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
             ) : null}
           </div>
         ) : (
-          <EmptyState view={view} hasJobs={activeJobs.length > 0} onAdd={() => setShowAddForm(true)} />
+          <EmptyState hasJobs={currentJobs.length > 0} onAdd={() => setShowAddForm(true)} />
         )}
       </section>
 
       <section className="mt-12 border-t border-[#d7d9d2] pt-6 text-sm text-[#6b716a]">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <p>
-            {sourceSummary(initialData)}
+            {sourceSummary({ ...initialData, jobs, sourceHealth })}
           </p>
           {!initialData.profile.profileComplete ? (
             <p className="font-medium text-[#806a2d]">Search profile needs Mina&apos;s resume and preferences for calibrated ranking.</p>
@@ -356,7 +329,7 @@ function JobRow({
       <p className="mt-3 text-sm text-[#666c65]">{job.location} · {WORK_LABELS[job.workModel]}</p>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         <span className={clearsTarget ? "font-semibold text-[#326044]" : "text-[#4f554f]"}>{pay}</span>
-        <span className="text-[#858a83]">{ageLabel(job.postedAt || job.firstSeenAt)}</span>
+        <span className="text-[#858a83]">{ageLabel(job.sourcePostedAt)}</span>
         {job.state.status !== "new" ? (
           <span className="font-medium text-[#6d6040]">{STATUS_LABELS[job.state.status]}</span>
         ) : null}
@@ -400,7 +373,7 @@ function JobDetail({
       <div className="mt-6 grid gap-3 border-y border-[#e1e3de] py-5 sm:grid-cols-3">
         <DetailFact label="Compensation" value={salaryLabel(job)} strong={payClearsTarget} />
         <DetailFact label="Role family" value={ROLE_LABELS[job.roleFamily]} />
-        <DetailFact label="Posted" value={dateLabel(job.postedAt || job.firstSeenAt)} />
+        <DetailFact label="Posted" value={dateLabel(job.sourcePostedAt)} />
       </div>
 
       <section className="mt-6">
@@ -440,28 +413,26 @@ function JobDetail({
           href={job.applyUrl || job.canonicalUrl}
           target="_blank"
           rel="noreferrer"
-          onClick={() => {
-            if (job.state.status === "new")
-              onUpdate({ status: "preparing", nextAction: "Review and submit application" }, "Moved to Preparing.");
-          }}
           className="rounded-md bg-[#304d3a] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#263f2f]"
         >
-          Review and apply
+          Open job posting
         </a>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            onUpdate(
-              { status: "saved", favourite: true, nextAction: "Prepare application" },
-              "Saved for application prep.",
-            )
-          }
-          className="rounded-md border border-[#b8c0b9] px-4 py-2.5 text-sm font-medium text-[#35473b] transition hover:bg-[#f1f5f0] disabled:opacity-50"
-        >
-          Save
-        </button>
-        {job.state.status !== "applied" ? (
+        {["new", "saved", "preparing"].includes(job.state.status) ? (
+          <button
+            type="button"
+            disabled={pending || job.state.status !== "new"}
+            onClick={() =>
+              onUpdate(
+                { status: "saved", favourite: true, nextAction: "Review application requirements" },
+                "Saved to your list.",
+              )
+            }
+            className="rounded-md border border-[#b8c0b9] px-4 py-2.5 text-sm font-medium text-[#35473b] transition hover:bg-[#f1f5f0] disabled:cursor-default disabled:bg-[#f1f5f0] disabled:opacity-70"
+          >
+            {job.state.status === "new" ? "Save" : "Saved"}
+          </button>
+        ) : null}
+        {["new", "saved", "preparing"].includes(job.state.status) ? (
           <button
             type="button"
             disabled={pending}
@@ -623,15 +594,10 @@ function FormField({
   );
 }
 
-function EmptyState({ view, hasJobs, onAdd }: { view: View; hasJobs: boolean; onAdd: () => void }) {
-  const copy =
-    view === "today"
-      ? hasJobs
-        ? "No new high-confidence matches survived today's filters. Try Find jobs for the wider list."
-        : "No jobs have arrived yet. Save one you found or run the first source scan."
-      : view === "applications"
-        ? "Nothing is in progress yet. Save a promising job when you are ready."
-        : "No current jobs match these filters.";
+function EmptyState({ hasJobs, onAdd }: { hasJobs: boolean; onAdd: () => void }) {
+  const copy = hasJobs
+    ? "No current jobs match this search."
+    : "No jobs have arrived yet. Save one you found or run the first source scan.";
   return (
     <div className="mt-8 border-y border-[#d7d9d2] py-16 text-center">
       <h2 className="font-display text-2xl text-[#34443a]">A quiet list is better than a bad list.</h2>
@@ -642,20 +608,6 @@ function EmptyState({ view, hasJobs, onAdd }: { view: View; hasJobs: boolean; on
         </button>
       ) : null}
     </div>
-  );
-}
-
-function ViewButton({ active, count, onClick, children }: { active: boolean; count: number; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={`rounded px-3 py-2 text-sm font-medium transition ${active ? "bg-white text-[#304538] shadow-sm" : "text-[#697069] hover:text-[#354239]"}`}
-    >
-      {children} <span className="ml-1 text-xs text-[#8a9189]">{count}</span>
-    </button>
   );
 }
 
@@ -677,7 +629,7 @@ function DetailFact({ label, value, strong = false }: { label: string; value: st
 }
 
 function sortJobs(a: MinaJob, b: MinaJob, sort: Sort) {
-  if (sort === "newest") return timestamp(b.postedAt || b.firstSeenAt) - timestamp(a.postedAt || a.firstSeenAt);
+  if (sort === "newest") return timestamp(b.sourcePostedAt) - timestamp(a.sourcePostedAt);
   if (sort === "salary") {
     if (a.salaryCurrency !== b.salaryCurrency) {
       if (a.salaryCurrency === "CAD") return -1;
@@ -685,7 +637,7 @@ function sortJobs(a: MinaJob, b: MinaJob, sort: Sort) {
     }
     return (b.salaryMaxCents ?? b.salaryMinCents ?? 0) - (a.salaryMaxCents ?? a.salaryMinCents ?? 0);
   }
-  return b.matchScore - a.matchScore || timestamp(b.postedAt || b.firstSeenAt) - timestamp(a.postedAt || a.firstSeenAt);
+  return b.matchScore - a.matchScore || timestamp(b.sourcePostedAt) - timestamp(a.sourcePostedAt);
 }
 
 function salaryLabel(job: MinaJob) {
@@ -718,20 +670,6 @@ function ageLabel(value: string) {
   if (days === 0) return "Today";
   if (days === 1) return "Yesterday";
   return `${days} days ago`;
-}
-
-function plainDescription(value: string) {
-  return value
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]+/g, " ")
-    .trim();
 }
 
 function numberOrNull(value: FormDataEntryValue | null) {
