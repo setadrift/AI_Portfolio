@@ -14,6 +14,10 @@ const AUTOMATION_LEAD_MAX_AGE_MS =
   AUTOMATION_LEAD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
 
 async function main() {
+  if (process.argv.includes("--test-gates")) {
+    testPursuitGate();
+    return;
+  }
   const env = {
     ...process.env,
     ...(await loadDotEnv(".env.local")),
@@ -243,11 +247,42 @@ function isExcludedLeadSource(block) {
       /\b(upwork|freelancer|peopleperhour|guru)\b|upwork\.com|freelancer\.com|peopleperhour\.com|guru\.com/i.test(
         value,
       ),
-    ) ||
-    /paid marketplace|paid credits|payment to apply|login-only/i.test(
-      pursuitPath,
-    )
+    ) || requiresPaidPursuit(pursuitPath)
   );
+}
+
+function requiresPaidPursuit(value) {
+  const path = String(value || "").toLowerCase();
+  if (
+    /\b(?:no|without|does not|doesn't|not)\b.{0,35}\b(?:paid (?:marketplace|credits?)|payment to apply|login-only)\b/.test(
+      path,
+    )
+  ) {
+    return false;
+  }
+  return /\b(?:requires?|must|needs?|buy|purchase|pay)\b.{0,40}\b(?:paid (?:marketplace|credits?)|credits? to apply|payment to apply|login-only (?:details|access))\b|\bpayment to apply required\b/.test(
+    path,
+  );
+}
+
+function testPursuitGate() {
+  const cases = [
+    ["Public application; no paid credits required.", false],
+    ["Public reply without paid marketplace credits.", false],
+    ["Does not require payment to apply or login-only access.", false],
+    ["Requires paid marketplace credits to apply.", true],
+    ["You must purchase credits to apply.", true],
+    ["Payment to apply required.", true],
+  ];
+  for (const [value, expected] of cases) {
+    const actual = requiresPaidPursuit(value);
+    if (actual !== expected) {
+      throw new Error(
+        `Pursuit gate expected ${expected} for ${JSON.stringify(value)}, got ${actual}`,
+      );
+    }
+  }
+  console.log(`Automation pursuit gate fixtures passed: ${cases.length}.`);
 }
 
 function passesConsultingEngagementGate(block) {
