@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import AiWorkflowAuditForm from "@/components/ads/AiWorkflowAuditForm";
 import Button from "@/components/ui/Button";
-import { BOOKING_URL, PROJECTS, SITE } from "@/lib/constants";
+import { BOOKING_URL, SITE } from "@/lib/constants";
+import { FEATURED_PORTFOLIO, localize, portfolioStatusClass } from "@/lib/portfolio";
 
 export async function generateMetadata({
   params,
@@ -56,11 +57,11 @@ const rescueStack = [
   "Email and SMS handoffs",
 ];
 
-const proofSlugs = [
+const proofSlugs = new Set([
   "alex-parker-property-ops",
   "trauma-therapy-group-publisher",
   "the-lineup",
-];
+]);
 
 function SectionHeader({
   eyebrow,
@@ -141,9 +142,7 @@ export default async function AutomationRescuePage({
   setRequestLocale(locale);
 
   const localePrefix = locale === "en" ? "/en" : `/${locale}`;
-  const proofProjects = PROJECTS.filter((project) =>
-    proofSlugs.includes(project.slug),
-  );
+  const proofProjects = FEATURED_PORTFOLIO.filter((project) => proofSlugs.has(project.slug));
 
   return (
     <>
@@ -264,14 +263,17 @@ export default async function AutomationRescuePage({
                 href={`${localePrefix}/projects/${project.slug}`}
                 className="group border border-border bg-white p-5 transition-colors hover:border-accent"
               >
-                <p className="font-mono text-xs uppercase tracking-[0.22em] text-cream-dim">
-                  {project.clientType}
+                <span className={`inline-block px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${portfolioStatusClass(project)}`}>
+                  {localize(project.status, "en")}
+                </span>
+                <p className="mt-5 font-mono text-xs uppercase tracking-[0.22em] text-cream-dim">
+                  {localize(project.clientType, "en")}
                 </p>
                 <h3 className="mt-4 font-display text-2xl text-cream">
-                  {project.title}
+                  {localize(project.title, "en")}
                 </h3>
                 <p className="mt-4 text-sm leading-6 text-cream-muted">
-                  {project.result}
+                  {localize(project.result, "en")}
                 </p>
                 <span className="mt-5 inline-block text-sm font-medium text-accent group-hover:text-accent-hover">
                   Read case study

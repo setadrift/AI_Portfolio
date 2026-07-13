@@ -1,12 +1,68 @@
 {
   "ok": true,
-  "generatedAt": "2026-07-08T14:52:00Z",
-  "successfulFeeds": 37,
-  "totalFeeds": 37,
-  "fetchedPosts": 49,
-  "candidatesScored": 18,
-  "leadsIncluded": 7,
-  "outputPath": "/Users/duncananderson/Desktop/AI_Portfolio/worktrees/slot-1/outputs/ai-consulting-leads/2026-07-08.md",
-  "message": "Codex automation lead scan completed with 7 included public-source leads.",
-  "feedErrors": []
+  "generatedAt": "2026-07-13T13:20:35Z",
+  "successfulFeeds": 42,
+  "totalFeeds": 42,
+  "fetchedPosts": 25,
+  "candidatesScored": 16,
+  "leadsIncluded": 6,
+  "outputPath": "/Users/duncananderson/Desktop/AI_Portfolio/worktrees/slot-1/outputs/ai-consulting-leads/2026-07-13.md",
+  "message": "Codex automation lead scan completed with 6 public/free-to-pursue leads.",
+  "feedErrors": [],
+  "sourceFamilyDiagnostics": {
+    "configuredSourcesChecked": {
+      "reddit": 6,
+      "platform_community": 8,
+      "public_job_board": 15,
+      "founder_community": 4,
+      "public_rfp_vendor_request": 3,
+      "local_business_group": 3,
+      "other": 3
+    },
+    "candidateCountBySourceFamily": {
+      "reddit": 2,
+      "platform_community": 4,
+      "public_job_board": 6,
+      "founder_community": 2,
+      "public_rfp_vendor_request": 1,
+      "local_business_group": 0,
+      "other": 1
+    },
+    "activeLeadCountBySourceFamily": {
+      "reddit": 0,
+      "public_job_board": 3,
+      "founder_community": 1,
+      "public_rfp_vendor_request": 1
+    },
+    "duplicatesRemoved": {
+      "all": 3
+    },
+    "freshnessCoverage": {
+      "reddit": {
+        "withPostedDate": 2,
+        "total": 2
+      },
+      "platform_community": {
+        "withPostedDate": 2,
+        "total": 4
+      },
+      "public_job_board": {
+        "withPostedDate": 6,
+        "total": 6
+      },
+      "founder_community": {
+        "withPostedDate": 2,
+        "total": 2
+      },
+      "public_rfp_vendor_request": {
+        "withPostedDate": 1,
+        "total": 1
+      },
+      "other": {
+        "withPostedDate": 0,
+        "total": 1
+      }
+    },
+    "sourcePolicy": "public_free_to_pursue_only"
+  }
 }

@@ -1,11 +1,16 @@
 import type { MetadataRoute } from "next";
 import { SITE, PROJECTS } from "@/lib/constants";
 import { WORKFLOW_VERTICALS } from "@/lib/ai-workflow-verticals";
+import { FEATURED_PORTFOLIO } from "@/lib/portfolio";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const locales = ["en", "fr"] as const;
 
   const pages: MetadataRoute.Sitemap = [];
+  const publicProjectSlugs = new Set([
+    ...FEATURED_PORTFOLIO.map((project) => project.slug),
+    "deal-engine",
+  ]);
 
   for (const locale of locales) {
     const prefix = locale === "en" ? "" : `/${locale}`;
@@ -56,7 +61,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       }
     }
 
-    for (const project of PROJECTS) {
+    for (const project of PROJECTS.filter((item) => publicProjectSlugs.has(item.slug))) {
       pages.push({
         url: `${SITE.url}${prefix}/projects/${project.slug}`,
         lastModified: new Date(),

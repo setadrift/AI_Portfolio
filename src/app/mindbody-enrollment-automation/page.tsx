@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import {
   buildEnrollmentChecks,
   coursePurchase,
@@ -6,6 +7,11 @@ import {
   student,
 } from "@/lib/mindbody-enrollment/prototype-data";
 import ScenarioRunner from "./ScenarioRunner";
+
+export const metadata: Metadata = {
+  title: "Mindbody Enrollment Automation",
+  robots: { index: false, follow: false },
+};
 
 const enrollmentChecks = buildEnrollmentChecks();
 const alreadyBooked = enrollmentChecks.filter((check) => check.status === "Already enrolled");

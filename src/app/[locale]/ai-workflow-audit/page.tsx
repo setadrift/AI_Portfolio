@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { setRequestLocale } from "next-intl/server";
 import AiWorkflowAuditForm from "@/components/ads/AiWorkflowAuditForm";
 import Button from "@/components/ui/Button";
-import { PROJECTS, SITE } from "@/lib/constants";
+import { SITE } from "@/lib/constants";
+import { FEATURED_PORTFOLIO, localize, portfolioStatusClass } from "@/lib/portfolio";
 
 const copy = {
   en: {
@@ -141,14 +142,6 @@ export async function generateMetadata({
   };
 }
 
-const projectTranslationKeys: Record<string, string> = {
-  "dispute-defender": "disputeDefender",
-  "deal-engine": "dealEngine",
-  "the-lineup": "theLineup",
-  "alex-parker-property-ops": "alexParkerPropertyOps",
-  "trauma-therapy-group-publisher": "traumaTherapyGroupPublisher",
-};
-
 function OperationsMap({
   inputs,
   outputs,
@@ -234,17 +227,8 @@ export default async function AiWorkflowAuditPage({
   const { locale } = await params;
   setRequestLocale(locale);
   const pageCopy = locale === "fr" ? copy.fr : copy.en;
-  const projectT = await getTranslations({ locale, namespace: "projects" });
-
-  const proofProjects = PROJECTS.filter((project) =>
-    [
-      "dispute-defender",
-      "deal-engine",
-      "the-lineup",
-      "alex-parker-property-ops",
-      "trauma-therapy-group-publisher",
-    ].includes(project.slug),
-  );
+  const proofProjects = FEATURED_PORTFOLIO;
+  const portfolioLocale = locale === "fr" ? "fr" : "en";
   const localePrefix = locale === "en" ? "/en" : `/${locale}`;
 
   return (
@@ -310,21 +294,25 @@ export default async function AiWorkflowAuditPage({
               </article>
             ))}
           </div>
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
+          <div className="mt-14 grid gap-6 md:grid-cols-2">
             {proofProjects.map((project) => (
               <a
                 key={project.slug}
                 href={`${localePrefix}/projects/${project.slug}`}
                 className="group border border-border bg-white p-5 transition-colors hover:border-accent"
               >
-                <p className="font-mono text-xs uppercase tracking-[0.22em] text-cream-dim">
-                  {projectT(`${projectTranslationKeys[project.slug]}.clientType`)}
+                <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em]">
+                  <span className={`px-2.5 py-1.5 ${portfolioStatusClass(project)}`}>{localize(project.status, portfolioLocale)}</span>
+                  <span className="text-cream-dim">{localize(project.role, portfolioLocale)}</span>
+                </div>
+                <p className="mt-5 font-mono text-xs uppercase tracking-[0.22em] text-cream-dim">
+                  {localize(project.clientType, portfolioLocale)}
                 </p>
                 <h3 className="mt-4 font-display text-2xl text-cream">
-                  {projectT(`${projectTranslationKeys[project.slug]}.title`)}
+                  {localize(project.title, portfolioLocale)}
                 </h3>
                 <p className="mt-4 text-sm leading-6 text-cream-muted">
-                  {projectT(`${projectTranslationKeys[project.slug]}.result`)}
+                  {localize(project.result, portfolioLocale)}
                 </p>
                 <span className="mt-5 inline-block text-sm font-medium text-accent group-hover:text-accent-hover">
                   {pageCopy.readCaseStudy}

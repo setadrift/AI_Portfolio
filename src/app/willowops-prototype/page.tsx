@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Willow Grey Data-Entry Prototype",
   description:
     "A review-first prototype that turns messy notes into structured, human-approved records.",
+  robots: { index: false, follow: false },
 };
 
 const pageStyle: React.CSSProperties = {
