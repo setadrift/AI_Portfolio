@@ -6,6 +6,27 @@ import { isIP } from "node:net";
 
 const TRACKING_PARAMS = /^(utm_|gclid$|fbclid$|mc_|ref$|referrer$|source$|src$)/i;
 const CLOSED_PATTERN = /(?:position|role|job|posting).{0,50}(?:has been filled|is no longer available|is closed|has expired)|no longer accepting applications/i;
+const DISCOVERY_ONLY_DOMAINS = [
+  "adzuna.ca",
+  "adzuna.com",
+  "eluta.ca",
+  "emploicrha.org",
+  "emploisrh.ca",
+  "fashionjobs.com",
+  "glassdoor.ca",
+  "glassdoor.com",
+  "himalayas.app",
+  "indeed.ca",
+  "indeed.com",
+  "jobbank.gc.ca",
+  "jobillico.com",
+  "jobboom.com",
+  "jooble.org",
+  "linkedin.com",
+  "reddit.com",
+  "remotive.com",
+  "ziprecruiter.com",
+];
 
 export function freshnessFor(value, now = Date.now()) {
   const posted = Date.parse(value || "");
@@ -14,12 +35,11 @@ export function freshnessFor(value, now = Date.now()) {
   if (ageHours <= 24) return { bucket: "hot", ageHours, queueEligible: true };
   if (ageHours <= 72) return { bucket: "fresh", ageHours, queueEligible: true };
   if (ageHours <= 168) return { bucket: "recent", ageHours, queueEligible: true };
-  if (ageHours <= 336) return { bucket: "aging", ageHours, queueEligible: false };
-  return { bucket: "archive", ageHours, queueEligible: false };
+  return { bucket: "aging", ageHours, queueEligible: false };
 }
 
 export function qualityTier({ score, freshnessBucket, canonicalStatus }) {
-  if (freshnessBucket === "archive" || canonicalStatus === "closed") return "archive";
+  if (canonicalStatus === "closed") return "archive";
   if (canonicalStatus !== "open") return "watch";
   if ((freshnessBucket === "hot" || freshnessBucket === "fresh") && score >= 80) return "priority";
   if (["hot", "fresh", "recent"].includes(freshnessBucket) && score >= 70) return "strong";
@@ -39,6 +59,15 @@ export function canonicalizeUrl(value) {
     return url.toString();
   } catch {
     return "";
+  }
+}
+
+export function isDiscoveryOnlyUrl(value) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+    return DISCOVERY_ONLY_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+  } catch {
+    return true;
   }
 }
 
@@ -98,20 +127,31 @@ export async function verifyCanonical(url, { timeoutMs = 8_000, maxBytes = 1_500
   try {
     const response = await safeFetch(requested, { timeoutMs, maxBytes, fetchImpl });
     const html = response.body;
+    const visibleText = stripHtml(html).slice(0, 30_000);
     const structured = extractJobPosting(html, response.url);
-    const closed = response.status === 404 || response.status === 410 || CLOSED_PATTERN.test(stripHtml(html).slice(0, 30_000));
+    const validThroughExpired = isPostingExpired(structured?.closesAt);
+    const closed = response.status === 404
+      || response.status === 410
+      || validThroughExpired
+      || CLOSED_PATTERN.test(visibleText);
     return {
       ok: response.status >= 200 && response.status < 400 && !closed,
       status: closed ? "closed" : response.status >= 200 && response.status < 400 ? "open" : "error",
       httpStatus: response.status,
       canonicalUrl: structured?.canonicalUrl || response.url,
       structured,
+      visibleText,
       verifiedAt: new Date().toISOString(),
       error: response.status >= 400 && !closed ? `HTTP ${response.status}` : "",
     };
   } catch (error) {
     return verificationError("fetch_error", error instanceof Error ? error.message : String(error));
   }
+}
+
+export function isPostingExpired(value, now = Date.now()) {
+  const closesAt = Date.parse(value || "");
+  return !Number.isNaN(closesAt) && closesAt < now;
 }
 
 async function safeFetch(initialUrl, { timeoutMs, maxBytes, fetchImpl }) {
@@ -276,7 +316,7 @@ function extractApplicantLocation(value) {
 }
 
 function verificationError(category, error) {
-  return { ok: false, status: "error", httpStatus: null, canonicalUrl: "", structured: null, verifiedAt: new Date().toISOString(), category, error };
+  return { ok: false, status: "error", httpStatus: null, canonicalUrl: "", structured: null, visibleText: "", verifiedAt: new Date().toISOString(), category, error };
 }
 
 function normalizeKey(value) {
@@ -293,5 +333,11 @@ function textValue(value) {
 }
 
 function stripHtml(value) {
-  return String(value || "").replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ").replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ");
+  return String(value || "")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/\s+/g, " ");
 }

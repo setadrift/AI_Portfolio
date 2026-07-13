@@ -9,11 +9,13 @@ import {
   canonicalizeUrl,
   discoveryFingerprint,
   freshnessFor,
+  isDiscoveryOnlyUrl,
   qualityTier,
   verifyCanonical,
 } from "./mina-jobs/discovery.mjs";
 import {
   fetchHimalayas,
+  fetchJobBank,
   fetchJooble,
   fetchPublicWebSearch,
   fetchReddit,
@@ -21,14 +23,19 @@ import {
   loadSearchConfig,
 } from "./mina-jobs/sources.mjs";
 import { notifyNewJobs } from "./mina-jobs/notify.mjs";
+import {
+  isCanadaBasedGlobalRole,
+  isEligibleLocation,
+  isMontrealIsland,
+  isRemoteCanada,
+  matchTargetRole,
+} from "./mina-jobs/profile.mjs";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const STAGE_ONLY = process.argv.includes("--stage-only");
 const VERBOSE = process.argv.includes("--verbose");
 const TARGET_SALARY_CENTS = 11_000_000;
 const ACCEPTABLE_SALARY_CENTS = 10_700_000;
-const TITLE_PATTERN =
-  /(?:(?:senior|strategic|regional)\s+)?(?:hr|human resources)\s+(?:business partner|manager)|(?:senior\s+manager,?\s*)?(?:hr|human resources)\s+business partner|(?:senior\s+)?people (?:business )?partner|people (?:operations|& culture|and culture) manager|head of people|(?:global\s+)?talent acquisition (?:manager|lead)|(?:manager|lead),?\s*(?:global\s+)?talent acquisition|(?:global\s+)?recruit(?:ing|ment) (?:manager|lead)|(?:manager|lead),?\s*(?:global\s+)?recruit(?:ing|ment)|international recruitment(?:\s*(?:&|and)\s*(?:hr|human resources))? manager|(?:gestionnaire|responsable|chef)(?:\s+de\s+l['’])?,?\s+acquisition\s+de\s+talents|responsable\s+(?:du\s+)?recrutement|partenaire\s+d['’]affaires,?\s+(?:ressources humaines|rh)|gestionnaire\s+(?:des\s+)?ressources humaines|directeur(?:trice)?\s+(?:des\s+)?ressources humaines/i;
 
 const DEFAULT_GREENHOUSE_BOARDS = {
   stackadapt: "StackAdapt",
@@ -69,8 +76,21 @@ async function runMinaJobScan() {
   const skippedFamilies = [];
   const sources = [
     ...(await loadConfiguredDirectSources(db, env)),
-    { name: "himalayas:canada-hr", family: "structured_api", trustedOpen: false, fetch: fetchHimalayas },
-    { name: "remotive:hr", family: "structured_api", trustedOpen: false, fetch: fetchRemotive },
+    {
+      name: "jobbank:canada",
+      family: "canadian_market",
+      trustedOpen: true,
+      expireMissing: true,
+      queryIds: [
+        "jobbank-qc-hr-managers",
+        "jobbank-qc-hr-professionals",
+        "jobbank-remote-hr-managers",
+        "jobbank-remote-hr-professionals",
+      ],
+      fetch: fetchJobBank,
+    },
+    { name: "himalayas:canada-hr", family: "structured_api", trustedOpen: false, expireMissing: false, fetch: fetchHimalayas },
+    { name: "remotive:hr", family: "structured_api", trustedOpen: false, expireMissing: false, fetch: fetchRemotive },
   ];
 
   if (env.MINA_ADZUNA_APP_ID && env.MINA_ADZUNA_APP_KEY) {
@@ -78,6 +98,7 @@ async function runMinaJobScan() {
       name: "adzuna:canada",
       family: "structured_api",
       trustedOpen: false,
+      expireMissing: false,
       fetch: () => fetchAdzuna(env.MINA_ADZUNA_APP_ID, env.MINA_ADZUNA_APP_KEY),
     });
   } else {
@@ -89,21 +110,34 @@ async function runMinaJobScan() {
       name: "jooble:canada",
       family: "structured_api",
       trustedOpen: false,
+      expireMissing: false,
       fetch: () => fetchJooble(env.JOOBLE_API_KEY),
     });
   } else {
     skippedFamilies.push({ family: "structured_api", source: "jooble:canada", reason: "credentials_missing" });
   }
 
-  if (env.SERPAPI_API_KEY && await sourceIsDue(db, "serpapi:google-jobs", 360)) {
+  const publicSearchProvider = env.BRAVE_SEARCH_API_KEY
+    ? { name: "brave-web", source: "brave:web", key: env.BRAVE_SEARCH_API_KEY }
+    : env.SERPAPI_API_KEY
+      ? { name: "serpapi-google-jobs", source: "serpapi:google-jobs", key: env.SERPAPI_API_KEY }
+      : null;
+  if (publicSearchProvider) {
     sources.push({
-      name: "serpapi:google-jobs",
+      name: publicSearchProvider.source,
       family: "whole_web",
       trustedOpen: false,
-      fetch: () => fetchPublicWebSearch("serpapi-google-jobs", env.SERPAPI_API_KEY, searchConfig.queries, 2),
+      expireMissing: false,
+      queryIds: searchConfig.queries.map((query) => query.id),
+      fetch: () => fetchPublicWebSearch(
+        publicSearchProvider.name,
+        publicSearchProvider.key,
+        searchConfig.queries,
+        searchConfig.queries.length,
+      ),
     });
   } else {
-    skippedFamilies.push({ family: "whole_web", source: "serpapi:google-jobs", reason: env.SERPAPI_API_KEY ? "query_budget_cadence" : "credentials_missing" });
+    skippedFamilies.push({ family: "whole_web", source: "brave-or-serpapi", reason: "optional_credentials_missing" });
   }
 
   if (env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET) {
@@ -111,16 +145,14 @@ async function runMinaJobScan() {
       name: "reddit:global-search",
       family: "social",
       trustedOpen: false,
+      expireMissing: false,
       fetch: () => fetchReddit(env, searchConfig.redditQueries),
     });
   } else {
     skippedFamilies.push({ family: "social", source: "reddit:global-search", reason: "credentials_missing" });
   }
 
-  skippedFamilies.push(
-    { family: "quebec_specialist", source: "public-query-pack", reason: "requires_search_provider_or_codex" },
-    { family: "codex_research", source: "codex-public-web", reason: "independent_automation" },
-  );
+  skippedFamilies.push({ family: "codex_research", source: "codex-public-web", reason: "independent_automation" });
 
   const receipts = [];
   for (const source of sources) {
@@ -131,6 +163,7 @@ async function runMinaJobScan() {
   const notification = DRY_RUN || STAGE_ONLY ? { enabled: false, attempted: 0, sent: 0, skipped: newJobs.length, reason: DRY_RUN ? "dry_run" : "stage_only" } : await notifyNewJobs(db, newJobs, env);
   const successfulFamilies = new Set(receipts.filter((receipt) => receipt.ok).map((receipt) => receipt.family));
   const attemptedFamilies = new Set(receipts.map((receipt) => receipt.family));
+  const coverage = buildCoverageSummary(receipts);
 
   const summary = {
     dryRun: DRY_RUN,
@@ -144,13 +177,42 @@ async function runMinaJobScan() {
     attemptedFamilies: [...attemptedFamilies],
     successfulFamilies: [...successfulFamilies],
     skippedFamilies,
-    partialCoverage: successfulFamilies.size < 4 || !successfulFamilies.has("direct_ats") || ![...successfulFamilies].some((family) => ["structured_api", "whole_web"].includes(family)),
+    ...coverage,
+    partialCoverage: !coverage.webHealthy || !coverage.directAtsHealthy,
     notification,
     errors: receipts.filter((receipt) => !receipt.ok).map((receipt) => ({ source: receipt.source, error: receipt.error })),
   };
   if (!DRY_RUN) await writeBroadReceipt(db, summary, receipts);
   console.log(JSON.stringify(summary, null, 2));
   return summary;
+}
+
+function buildCoverageSummary(receipts) {
+  const requiredMarketReceipts = receipts.filter((receipt) => receipt.family === "canadian_market");
+  const webReceipts = receipts.filter((receipt) => ["canadian_market", "whole_web"].includes(receipt.family));
+  const directReceipts = receipts.filter((receipt) => receipt.family === "direct_ats");
+  const marketQueriesAttempted = sum(webReceipts, "queriesAttempted");
+  const marketQueriesSucceeded = sum(webReceipts, "queriesSucceeded");
+  const employerBoardsAttempted = directReceipts.length;
+  const employerBoardsSucceeded = directReceipts.filter((receipt) => receipt.ok).length;
+  const requiredMarketQueriesAttempted = sum(requiredMarketReceipts, "queriesAttempted");
+  const requiredMarketQueriesSucceeded = sum(requiredMarketReceipts, "queriesSucceeded");
+  const webHealthy = requiredMarketReceipts.length > 0
+    && requiredMarketQueriesAttempted > 0
+    && requiredMarketQueriesSucceeded / requiredMarketQueriesAttempted >= 0.9;
+  const directAtsHealthy = employerBoardsAttempted > 0
+    && employerBoardsSucceeded / employerBoardsAttempted >= 0.8;
+  return {
+    marketQueriesAttempted,
+    marketQueriesSucceeded,
+    employerBoardsAttempted,
+    employerBoardsSucceeded,
+    candidatesChecked: sum(receipts, "candidates"),
+    canonicalVerified: sum(receipts, "verified"),
+    queryFailures: webReceipts.flatMap((receipt) => receipt.queryFailures || []),
+    webHealthy,
+    directAtsHealthy,
+  };
 }
 
 async function loadConfiguredDirectSources(db, env) {
@@ -201,39 +263,35 @@ async function loadConfiguredDirectSources(db, env) {
   });
 }
 
-async function sourceIsDue(db, source, cadenceMinutes) {
-  const { data, error } = await db.from("mina_source_runs")
-    .select("finished_at")
-    .eq("source", source)
-    .eq("ok", true)
-    .order("finished_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error || !data?.finished_at) return true;
-  return Date.now() - Date.parse(data.finished_at) >= cadenceMinutes * 60_000;
-}
-
 async function writeBroadReceipt(db, summary, receipts) {
   const now = new Date().toISOString();
   const { error } = await db.from("mina_source_runs").insert({
     source: "broad:mina-discovery-v2",
     started_at: receipts.map((receipt) => receipt.startedAt).filter(Boolean).sort()[0] || now,
     finished_at: now,
-    ok: !summary.partialCoverage && summary.errors.length === 0,
+    ok: !summary.partialCoverage,
     fetched_count: summary.fetched,
     matched_count: summary.matched,
     upserted_count: summary.upserted,
     partial_coverage: summary.partialCoverage,
     configured_family_count: summary.configuredFamilies,
     successful_family_count: summary.successfulFamilies.length,
-    query_count: receipts.filter((receipt) => ["whole_web", "social"].includes(receipt.family)).length,
-    error: summary.errors.length ? `${summary.errors.length} source failure(s)` : null,
-    error_category: summary.errors.length ? "source_failure" : null,
-    diagnostic_message: summary.partialCoverage ? "Broad scan completed with partial family coverage." : "Broad scan completed with healthy family coverage.",
+    query_count: summary.marketQueriesAttempted,
+    error: summary.partialCoverage ? "Required market coverage was incomplete." : null,
+    error_category: summary.partialCoverage ? "coverage_incomplete" : null,
+    diagnostic_message: summary.partialCoverage ? "Partial scan: required market coverage was incomplete." : "Complete scan: Canadian market and direct employer coverage succeeded.",
     details: {
       attemptedFamilies: summary.attemptedFamilies,
       successfulFamilies: summary.successfulFamilies,
       skippedFamilies: summary.skippedFamilies,
+      marketQueriesAttempted: summary.marketQueriesAttempted,
+      marketQueriesSucceeded: summary.marketQueriesSucceeded,
+      employerBoardsAttempted: summary.employerBoardsAttempted,
+      employerBoardsSucceeded: summary.employerBoardsSucceeded,
+      candidatesChecked: summary.candidatesChecked,
+      canonicalVerified: summary.canonicalVerified,
+      queryFailures: summary.queryFailures,
+      sourceErrors: summary.errors,
       notifications: summary.notification,
     },
   });
@@ -244,7 +302,11 @@ async function scanSource(db, source) {
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
   try {
-    const fetched = (await source.fetch()).map((job) => ({
+    const sourceResult = await source.fetch();
+    const sourceJobs = Array.isArray(sourceResult) ? sourceResult : sourceResult.jobs;
+    const queryResults = Array.isArray(sourceResult?.queryResults) ? sourceResult.queryResults : [];
+    if (!Array.isArray(sourceJobs)) throw new Error("Job source did not return a job list.");
+    const fetched = sourceJobs.map((job) => ({
       ...job,
       sourceFamily: job.sourceFamily || source.family,
       canonicalTrustedOpen: job.canonicalTrustedOpen ?? source.trustedOpen,
@@ -255,7 +317,7 @@ async function scanSource(db, source) {
       verifyAndRescore(rawJob, initiallyScored));
     if (!DRY_RUN) {
       await stageCandidates(db, fetched, startedAt, normalized);
-      await updateQueryMetrics(db, fetched, normalized, startedAt);
+      await updateQueryMetrics(db, fetched, normalized, startedAt, queryResults);
     }
     if (VERBOSE) {
       for (const job of normalized) {
@@ -288,27 +350,36 @@ async function scanSource(db, source) {
       await writeProvenance(db, data ?? [], normalized, startedAt);
       await linkStagedCandidates(db, data ?? [], normalized);
     }
-    if (!DRY_RUN && !STAGE_ONLY && source.expireMissing !== false) {
+    if (!DRY_RUN && !STAGE_ONLY && source.expireMissing !== false
+      && (!queryResults.length || queryResults.every((query) => query.ok))) {
       await expireMissingJobs(db, source.name, normalized.map((job) => job.source_job_id));
     }
 
+    const queriesAttempted = queryResults.length;
+    const queriesSucceeded = queryResults.filter((query) => query.ok).length;
+    const sourceOk = queriesAttempted ? queriesSucceeded > 0 : true;
     const receipt = {
       source: source.name,
       family: source.family,
-      ok: true,
+      ok: sourceOk,
       fetched: fetched.length,
       matched: normalized.length,
+      candidates: eligible.length,
+      verified: normalized.filter((job) => job.canonical_status === "open" && job.active).length,
       upserted,
       newJobs,
+      queriesAttempted,
+      queriesSucceeded,
+      queryFailures: queryResults.filter((query) => !query.ok).map((query) => ({ queryId: query.queryId, error: query.error })),
       durationMs: Date.now() - startedMs,
       startedAt,
-      error: "",
+      error: sourceOk ? "" : "Every configured market query failed.",
     };
     if (!DRY_RUN) {
       await writeReceipt(db, receipt, startedAt);
-      await updateSourceHealth(db, source.name, true, startedAt);
+      await updateSourceHealth(db, source.name, sourceOk, startedAt);
     }
-    console.log(`${source.name}: ${fetched.length} fetched, ${normalized.length} matched${DRY_RUN ? " (dry run)" : STAGE_ONLY ? " (stage only)" : ""}`);
+    console.log(`${source.name}: ${fetched.length} fetched, ${eligible.length} candidates, ${receipt.verified} verified${DRY_RUN ? " (dry run)" : STAGE_ONLY ? " (stage only)" : ""}`);
     return receipt;
   } catch (error) {
     const receipt = {
@@ -317,8 +388,13 @@ async function scanSource(db, source) {
       ok: false,
       fetched: 0,
       matched: 0,
+      candidates: 0,
+      verified: 0,
       upserted: 0,
       newJobs: [],
+      queriesAttempted: source.queryIds?.length || 0,
+      queriesSucceeded: 0,
+      queryFailures: (source.queryIds || []).map((queryId) => ({ queryId, error: error instanceof Error ? error.message : String(error) })),
       durationMs: Date.now() - startedMs,
       startedAt,
       error: error instanceof Error ? error.message : String(error),
@@ -362,22 +438,38 @@ async function updateSourceHealth(db, sourceId, ok, attemptedAt) {
   if (updateError) console.warn(`${sourceId}: unable to update source health: ${updateError.message}`);
 }
 
-async function updateQueryMetrics(db, fetched, normalized, runAt) {
-  const queryIds = [...new Set(fetched.map((job) => job.queryId).filter((id) => /^((en|fr)-)/.test(id)))];
+async function updateQueryMetrics(db, fetched, normalized, runAt, queryResults = []) {
+  const resultById = new Map(queryResults.map((result) => [result.queryId, result]));
+  const queryIds = [...new Set([
+    ...queryResults.map((result) => result.queryId),
+    ...fetched.map((job) => job.queryId),
+  ].filter(Boolean))];
   for (const queryId of queryIds) {
     const queryFetched = fetched.filter((job) => job.queryId === queryId);
     const queryMatched = normalized.filter((job) => job.source_evidence?.queryId === queryId);
     const { data, error } = await db.from("mina_search_queries").select("*").eq("id", queryId).maybeSingle();
     if (error || !data) continue;
+    const queryResult = resultById.get(queryId);
+    const succeeded = queryResult ? queryResult.ok : true;
+    const patch = {
+      last_run_at: runAt,
+      updated_at: new Date().toISOString(),
+    };
+    if (!succeeded) {
+      const { error: updateError } = await db.from("mina_search_queries").update(patch).eq("id", queryId);
+      if (updateError) console.warn(`${queryId}: unable to update query attempt: ${updateError.message}`);
+      continue;
+    }
     const included = queryMatched.filter((job) => ["priority", "strong"].includes(job.quality_tier)).length;
     const stale = queryMatched.filter((job) => ["aging", "archive"].includes(job.freshness_bucket)).length;
     const verified = queryMatched.filter((job) => job.canonical_status === "open").length;
-    const fetchedTotal = Number(data.fetched_count || 0) + queryFetched.length;
+    const observedCount = Number(queryResult?.resultCount ?? queryFetched.length);
+    const fetchedTotal = Number(data.fetched_count || 0) + observedCount;
     const admittedTotal = Number(data.admitted_count || 0) + queryMatched.length;
     const { error: updateError } = await db.from("mina_search_queries").update({
-      last_run_at: runAt,
+      ...patch,
       last_success_at: new Date().toISOString(),
-      last_result_at: queryFetched.length ? new Date().toISOString() : data.last_result_at,
+      last_result_at: observedCount ? new Date().toISOString() : data.last_result_at,
       last_verified_job_at: verified ? new Date().toISOString() : data.last_verified_job_at,
       last_priority_strong_at: included ? new Date().toISOString() : data.last_priority_strong_at,
       fetched_count: fetchedTotal,
@@ -385,9 +477,8 @@ async function updateQueryMetrics(db, fetched, normalized, runAt) {
       verified_count: Number(data.verified_count || 0) + verified,
       included_count: Number(data.included_count || 0) + included,
       stale_count: Number(data.stale_count || 0) + stale,
-      rejected_count: Number(data.rejected_count || 0) + Math.max(0, queryFetched.length - queryMatched.length),
+      rejected_count: Number(data.rejected_count || 0) + Math.max(0, observedCount - queryMatched.length),
       accepted_yield_rate: fetchedTotal ? admittedTotal / fetchedTotal : 0,
-      updated_at: new Date().toISOString(),
     }).eq("id", queryId);
     if (updateError) console.warn(`${queryId}: unable to update query metrics: ${updateError.message}`);
   }
@@ -404,8 +495,11 @@ async function verifyAndRescore(rawJob, initiallyScored) {
   }
   const verification = await verifyCanonical(rawJob.canonicalUrl || rawJob.applyUrl);
   const structured = verification.structured;
-  const identityMatches = structured ? canonicalIdentityMatches(rawJob, structured) : null;
-  const canonicalStatus = verification.status === "open" && identityMatches === false
+  const identityMatches = structured
+    ? canonicalIdentityMatches(rawJob, structured)
+    : canonicalVisibleTextMatches(rawJob, verification.visibleText);
+  const discoveryOnlyPage = verification.status === "open" && isDiscoveryOnlyUrl(verification.canonicalUrl);
+  const canonicalStatus = verification.status === "open" && (identityMatches !== true || discoveryOnlyPage)
     ? "error"
     : verification.status;
   const verifiedPostedAt = structured?.postedAt || rawJob.postedAt || "";
@@ -414,7 +508,9 @@ async function verifyAndRescore(rawJob, initiallyScored) {
     title: identityMatches === false ? rawJob.title : structured?.title || rawJob.title,
     company: identityMatches === false ? rawJob.company : structured?.company || rawJob.company,
     location: identityMatches === false ? rawJob.location : structured?.location || rawJob.location,
-    description: identityMatches === false ? rawJob.description : structured?.description || rawJob.description,
+    description: identityMatches === false
+      ? rawJob.description
+      : structured?.description || verification.visibleText || rawJob.description,
     employmentType: identityMatches === false ? rawJob.employmentType : structured?.employmentType || rawJob.employmentType,
     postedAt: verifiedPostedAt,
     sourceUpdatedAt: structured?.updatedAt || rawJob.sourceUpdatedAt,
@@ -431,9 +527,15 @@ async function verifyAndRescore(rawJob, initiallyScored) {
         httpStatus: verification.httpStatus,
         verifiedAt: verification.verifiedAt,
         structuredJobPosting: Boolean(structured),
+        visibleTextFallback: !structured && identityMatches === true,
+        discoveryOnlyPage,
         identityMatches,
         identifier: structured?.identifier || null,
-        error: identityMatches === false ? "Canonical title or employer did not match the discovery candidate." : verification.error || undefined,
+        error: discoveryOnlyPage
+          ? "Discovery result did not resolve to an employer or public ATS page."
+          : identityMatches === false
+            ? "Canonical title, employer, or location did not match the discovery candidate."
+            : verification.error || undefined,
       },
     },
   });
@@ -443,6 +545,15 @@ async function verifyAndRescore(rawJob, initiallyScored) {
     last_verified_at: verification.verifiedAt,
     quality_tier: canonicalStatus === "closed" ? "archive" : "watch",
   };
+}
+
+function canonicalVisibleTextMatches(rawJob, visibleText) {
+  if (!visibleText || tokenOverlap(rawJob.title, visibleText) < 0.8) return false;
+  const rawCompany = cleanKey(rawJob.company).replace(/\b(?:inc|corp|corporation|company|ltd|limited|llc)\b/g, "").trim();
+  const normalizedText = cleanKey(visibleText);
+  const companyMatches = !rawCompany || rawCompany === "unknown company" || normalizedText.includes(rawCompany);
+  const workModel = inferWorkModel(rawJob.location, visibleText);
+  return companyMatches && isEligibleLocation(rawJob.location, visibleText, workModel);
 }
 
 function canonicalIdentityMatches(rawJob, structured) {
@@ -478,7 +589,7 @@ async function stageCandidates(db, jobs, discoveredAt, normalized = []) {
     source_family: job.sourceFamily,
     source_name: job.source,
     source_result_id: job.sourceJobId || null,
-    query_id: /^((en|fr)-)/.test(job.queryId || "") ? job.queryId : null,
+    query_id: job.sourceFamily === "whole_web" ? job.queryId || null : null,
     raw_title: clean(job.title),
     raw_company: clean(job.company),
     raw_location: clean(job.location),
@@ -512,11 +623,12 @@ async function stageCandidates(db, jobs, discoveredAt, normalized = []) {
 
 function candidateEligibility(job) {
   if (!job) return "rejected";
+  if (!job.active) return "rejected";
   return ["priority", "strong"].includes(job.quality_tier) ? "accepted" : "watch";
 }
 
 function rejectionGate(job) {
-  if (!TITLE_PATTERN.test(clean(job.title))) return "title";
+  if (!matchTargetRole(clean(job.title))) return "title";
   if (!isEligibleLocation(clean(job.location), job.description, job.workModel)) return "location";
   return "normalization";
 }
@@ -539,7 +651,9 @@ async function writeProvenance(db, savedRows, normalized, observedAt) {
       source_name: (job._discovery || job).source,
       source_result_id: (job._discovery || job).source_job_id || null,
       source_url: canonicalizeUrl((job._discovery || job).canonical_url),
-      query_id: /^((en|fr)-)/.test((job._discovery || job).source_evidence?.queryId || "") ? (job._discovery || job).source_evidence.queryId : null,
+      query_id: (job._discovery || job).source_evidence?.sourceFamily === "whole_web"
+        ? (job._discovery || job).source_evidence.queryId || null
+        : null,
       source_posted_at: (job._discovery || job).source_posted_at,
       source_updated_at: (job._discovery || job).source_updated_at,
       last_seen_at: observedAt,
@@ -559,7 +673,9 @@ async function linkStagedCandidates(db, savedRows, normalized) {
     const saved = byFingerprint.get(job.job_fingerprint);
     if (!saved) continue;
     const discovery = job._discovery || job;
-    const status = ["priority", "strong"].includes(discovery.quality_tier) ? "accepted" : "watch";
+    const status = !discovery.active
+      ? "rejected"
+      : ["priority", "strong"].includes(discovery.quality_tier) ? "accepted" : "watch";
     const { error } = await db.from("mina_discovery_candidates").update({
       extraction_status: discovery.canonical_status === "open" ? "verified" : discovery.canonical_status === "error" ? "failed" : "partial",
       eligibility_status: status,
@@ -612,7 +728,7 @@ async function fetchAshby(board, company) {
     applyUrl: job.applyUrl || job.jobUrl,
     title: job.title,
     company,
-    location: job.location || "",
+    location: ashbyLocation(job),
     employmentType: job.employmentType || "",
     description: job.descriptionHtml || job.descriptionPlain || "",
     postedAt: job.publishedAt || "",
@@ -654,34 +770,29 @@ async function fetchLever(site, company) {
 
 async function fetchAdzuna(appId, appKey) {
   const queries = [
-    "HR Business Partner",
-    "Human Resources Manager",
-    "Recruiting Manager",
-    "Talent Acquisition Manager",
-    "Global Talent Acquisition Manager",
-    "International Recruitment Manager",
-    "International Recruitment HR Manager",
-    "Gestionnaire acquisition de talents",
-    "Partenaire affaires ressources humaines",
-    "Gestionnaire ressources humaines",
-    "People Partner",
-    "People Operations Manager",
+    { what: "HR Business Partner", where: "Montreal" },
+    { what: "Human Resources Manager", where: "Montreal" },
+    { what: "People Operations Manager", where: "Montreal" },
+    { what: "Talent Acquisition Manager", where: "Montreal" },
+    { what: "Gestionnaire acquisition de talents", where: "Montreal" },
+    { what: "Partenaire affaires ressources humaines", where: "Montreal" },
+    { what: "Global Talent Acquisition Manager", where: "Canada" },
+    { what: "International Recruitment Manager", where: "Canada" },
+    { what: "People Partner remote", where: "Canada" },
   ];
-  const selectedQueries = rotateByWindow(queries, 3, 12 * 60 * 60 * 1000);
   const batches = await Promise.all(
-    selectedQueries.map(async (query) => {
+    queries.map(async (query) => {
       const url = new URL("https://api.adzuna.com/v1/api/jobs/ca/search/1");
       url.searchParams.set("app_id", appId);
       url.searchParams.set("app_key", appKey);
       url.searchParams.set("results_per_page", "50");
-      url.searchParams.set("what", query);
-      url.searchParams.set("where", "Montreal");
-      url.searchParams.set("salary_min", "100000");
+      url.searchParams.set("what", query.what);
+      url.searchParams.set("where", query.where);
       url.searchParams.set("sort_by", "date");
       url.searchParams.set("content-type", "application/json");
       const response = await fetchPublic(url, { headers: { "User-Agent": "MinaJobsPortal/1.0" } });
       if (!response.ok) throw new Error(`Adzuna returned ${response.status}`);
-      return (await response.json()).results ?? [];
+      return ((await response.json()).results ?? []).map((job) => ({ ...job, searchQuery: query }));
     }),
   );
   const seen = new Set();
@@ -706,27 +817,25 @@ async function fetchAdzuna(appId, appKey) {
     salaryMax: dollarsToCents(job.salary_max),
     salaryCurrency: "CAD",
     compensationText: "",
-    evidence: { provider: "Adzuna", category: job.category?.label || "" },
+    evidence: { provider: "Adzuna", category: job.category?.label || "", query: job.searchQuery },
   }));
-}
-
-function rotateByWindow(items, count, windowMs) {
-  if (items.length <= count) return items;
-  const offset = Math.floor(Date.now() / windowMs) % items.length;
-  return Array.from({ length: count }, (_, index) => items[(offset + index) % items.length]);
 }
 
 function scoreJob(job) {
   const title = clean(job.title);
   const location = clean(job.location);
-  if (!TITLE_PATTERN.test(title)) return null;
+  const roleMatch = matchTargetRole(title);
+  if (!roleMatch) return null;
   if (!isEligibleLocation(location, job.description, job.workModel)) return null;
 
-  const roleFamily = classifyRole(title);
+  const roleFamily = roleMatch.family;
   const parsedSalary = parseSalary(job.compensationText || "");
   const salaryMin = job.salaryMin ?? parsedSalary.min;
   const salaryMax = job.salaryMax ?? parsedSalary.max;
   const salaryCurrency = job.salaryCurrency ?? parsedSalary.currency ?? "CAD";
+  const salaryCeiling = salaryMax ?? salaryMin;
+  const knownBelowFloor = Boolean(salaryCeiling && salaryCurrency === "CAD" && salaryCeiling < ACCEPTABLE_SALARY_CENTS);
+  const salaryIsEstimated = job.salaryMin == null && job.salaryMax == null && Boolean(parsedSalary.estimated);
   const reasons = [roleReason(roleFamily)];
   const flags = [];
   const scoreBreakdown = {
@@ -760,19 +869,20 @@ function scoreJob(job) {
   } else if (salaryMin && salaryMin >= ACCEPTABLE_SALARY_CENTS) {
     scoreBreakdown.compensation = 12;
     reasons.push("Posted salary floor is within Mina's acceptable CAD 107k–110k band");
-  } else if (salaryMax && salaryMax >= TARGET_SALARY_CENTS) {
+  } else if (salaryCeiling && salaryCeiling >= TARGET_SALARY_CENTS) {
     scoreBreakdown.compensation = 7;
     reasons.push("Posted salary range overlaps the CAD 110k target");
     flags.push("Salary floor may be below CAD 107k");
-  } else if (salaryMax && salaryMax >= ACCEPTABLE_SALARY_CENTS) {
+  } else if (salaryCeiling && salaryCeiling >= ACCEPTABLE_SALARY_CENTS) {
     scoreBreakdown.compensation = 5;
     reasons.push("Posted salary range reaches Mina's acceptable CAD 107k band");
     flags.push("Salary floor is below the preferred range");
-  } else if (salaryMax && salaryMax < ACCEPTABLE_SALARY_CENTS) {
+  } else if (salaryCeiling && salaryCeiling < ACCEPTABLE_SALARY_CENTS) {
     flags.push("Posted salary appears below CAD 107k");
   } else {
     flags.push("Salary not posted");
   }
+  if (salaryIsEstimated) flags.push("Hourly salary annualized at 2,080 hours");
   if (/contract|temporary|fixed[- ]term/i.test(job.employmentType || title)) {
     flags.push("Contract or temporary role");
   }
@@ -780,7 +890,7 @@ function scoreJob(job) {
   scoreBreakdown.freshness = { hot: 20, fresh: 16, recent: 10 }[freshness.bucket] || 0;
   if (freshness.queueEligible) reasons.push(`Employer posting is ${freshness.bucket}`);
   else if (freshness.bucket === "unknown") flags.push("Employer posting date could not be verified");
-  else flags.push(`Posting is ${freshness.bucket}; not eligible for Today's queue`);
+  else flags.push("Employer posting is older, but the role is still open");
 
   const evidence = scoreProfileEvidence(`${title} ${stripHtml(job.description || "")}`, flags);
   scoreBreakdown.cvEvidence = Math.min(20, evidence.score);
@@ -797,7 +907,7 @@ function scoreJob(job) {
   const freshnessConfidence = job.freshnessConfidence || (job.postedAt ? "high" : "low");
   let tier = qualityTier({ score, freshnessBucket: freshness.bucket, canonicalStatus });
   if (freshnessConfidence !== "high") tier = freshness.bucket === "archive" ? "archive" : "watch";
-  if ((salaryMax && salaryCurrency === "CAD" && salaryMax < ACCEPTABLE_SALARY_CENTS) || /contract|temporary|fixed[- ]term/i.test(job.employmentType || title)) {
+  if (knownBelowFloor || /contract|temporary|fixed[- ]term/i.test(job.employmentType || title)) {
     tier = freshness.bucket === "archive" ? "archive" : "watch";
   }
 
@@ -823,12 +933,18 @@ function scoreJob(job) {
     salary_max_cents: salaryMax,
     salary_currency: salaryCurrency,
     salary_period: "year",
-    salary_is_estimated: false,
+    salary_is_estimated: salaryIsEstimated,
     match_score: Math.max(0, Math.min(100, score)),
     fit_reasons: [...new Set(reasons.filter(Boolean))],
     flags: [...new Set(flags)],
     requirements: [],
-    source_evidence: { ...job.evidence, sourceFamily: job.sourceFamily || "unknown", queryId: job.queryId || null, verifiedAt: now },
+    source_evidence: {
+      ...job.evidence,
+      sourceFamily: job.sourceFamily || "unknown",
+      queryId: job.queryId || null,
+      matchedRoleAlias: roleMatch.alias,
+      verifiedAt: now,
+    },
     date_evidence: {
       sourcePostedAt: validDate(job.postedAt),
       sourceUpdatedAt: validDate(job.sourceUpdatedAt),
@@ -841,7 +957,8 @@ function scoreJob(job) {
     freshness_confidence: freshnessConfidence,
     quality_tier: tier,
     last_verified_at: validDate(job.lastVerifiedAt),
-    active: freshness.bucket !== "archive" && canonicalStatus === "open",
+    active: canonicalStatus === "open" && !knownBelowFloor,
+    first_seen_at: now,
     last_seen_at: now,
     updated_at: now,
   };
@@ -985,13 +1102,23 @@ async function writeReceipt(db, receipt, startedAt) {
     fetched_count: receipt.fetched,
     matched_count: receipt.matched,
     upserted_count: receipt.upserted,
+    rejected_count: Math.max(0, receipt.fetched - receipt.candidates),
     duration_ms: receipt.durationMs,
     partial_coverage: false,
     configured_family_count: 1,
     successful_family_count: receipt.ok ? 1 : 0,
     provider: receipt.source.split(":")[0],
     error: receipt.error || null,
-    details: { targetSalaryCad: TARGET_SALARY_CENTS / 100, sourceFamily: receipt.family },
+    query_count: receipt.queriesAttempted || 0,
+    details: {
+      targetSalaryCad: TARGET_SALARY_CENTS / 100,
+      sourceFamily: receipt.family,
+      candidates: receipt.candidates,
+      canonicalVerified: receipt.verified,
+      queriesAttempted: receipt.queriesAttempted,
+      queriesSucceeded: receipt.queriesSucceeded,
+      queryFailures: receipt.queryFailures,
+    },
   });
   if (error) console.warn(`${receipt.source}: unable to save source receipt: ${error.message}`);
 }
@@ -1007,12 +1134,28 @@ function mergeBoards(defaults, raw) {
 
 function parseSalary(value) {
   const text = stripHtml(String(value || ""));
+  const hourly = text.match(/(?:CA\$|US\$|\$)?\s*(?<![\d,])(\d{1,3}(?:[.,]\d{1,4})?)(?![\d,])(?:\s*(?:-|–|—|to|à)\s*(?:CA\$|US\$|\$)?\s*(\d{1,3}(?:[.,]\d{1,4})?)(?![\d,]))?\s*(?:hourly|per hour|\/\s*(?:h|hr|heure))/i);
+  if (hourly) {
+    const hourlyMin = decimalNumber(hourly[1]);
+    const hourlyMax = decimalNumber(hourly[2]);
+    if (hourlyMin > 0 && hourlyMin <= 250 && (!hourlyMax || (hourlyMax >= hourlyMin && hourlyMax <= 250))) {
+      return {
+        min: Math.round(hourlyMin * 2_080 * 100),
+        max: hourlyMax ? Math.round(hourlyMax * 2_080 * 100) : null,
+        currency: /(?:USD|US\$)/i.test(text) ? "USD" : "CAD",
+        estimated: true,
+      };
+    }
+  }
+  if (/(?:hourly|per hour|\/\s*(?:h|hr|heure))/i.test(text)) {
+    return { min: null, max: null, currency: null };
+  }
   const match = text.match(
-    /(?:(CA|US)\$|(CAD|USD)\s*\$|\$)\s*([\d,]{5,})(?:\s*(?:-|–|—|to)\s*(?:(CA|US)\$|(CAD|USD)\s*\$|\$)?\s*([\d,]{5,}))?\s*(CAD|USD)?/i,
+    /(?:(CA|US)\$|(CAD|USD)\s*\$|\$)\s*([\d,]{5,})(?:\.\d{2})?(?:\s*(?:-|–|—|to)\s*(?:(CA|US)\$|(CAD|USD)\s*\$|\$)?\s*([\d,]{5,})(?:\.\d{2})?)?\s*(CAD|USD)?/i,
   );
   const frenchMatch = match
     ? null
-    : text.match(/([\d ]{5,})\s*\$(?:\s*(?:-|–|—|à)\s*([\d ]{5,})\s*\$)?\s*(CAD)?/i);
+    : text.match(/([\d ]{5,})(?:[,.]\d{2})?\s*\$(?:\s*(?:-|–|—|à)\s*([\d ]{5,})(?:[,.]\d{2})?\s*\$)?\s*(CAD)?/i);
   if (!match && !frenchMatch) return { min: null, max: null, currency: null };
   const firstRaw = match?.[3] ?? frenchMatch?.[1] ?? "";
   const secondRaw = match?.[6] ?? frenchMatch?.[2] ?? "";
@@ -1025,6 +1168,12 @@ function parseSalary(value) {
   if (!first || first < 5_000_000 || first > 40_000_000) return { min: null, max: null, currency: null };
   if (second && (second < first || second > 40_000_000)) return { min: first, max: null, currency };
   return { min: first, max: second || null, currency };
+}
+
+function decimalNumber(value) {
+  const normalized = String(value || "").replace(",", ".");
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
 }
 
 function formatSalary(job) {
@@ -1050,27 +1199,16 @@ function ashbyWorkModel(job) {
   return inferWorkModel(job.location, job.descriptionHtml);
 }
 
-function isEligibleLocation(location, description, workModel) {
-  return isMontrealIsland(location) || isRemoteCanada(location, description, workModel) || isCanadaBasedGlobalRole(location, description);
-}
-
-function isMontrealIsland(location) {
-  return /montr[ée]al|west island|dorval|saint[- ]laurent|verdun|lasalle|outremont|mont[- ]royal|c[oô]te[- ]saint[- ]luc|pointe[- ]claire|kirkland|beaconsfield|dollard[- ]des[- ]ormeaux/i.test(location);
-}
-
-function isRemoteCanada(location, description, workModel) {
-  const text = `${location} ${stripHtml(description || "").slice(0, 5000)}`;
-  const remote = workModel === "remote" || /\bremote\b|work from home/i.test(location);
-  const canada = /canada|canadian|toronto|ontario|anywhere in canada|remote\s*[-–—/]?\s*(?:in\s+)?canada/i.test(text);
-  const restrictedElsewhere = /new york|london|united states|\busa\b|remote\s*[-–—/]?\s*us/i.test(location);
-  const explicitlyIncludesCanada = /canada|canadian/i.test(location);
-  return remote && canada && (!restrictedElsewhere || explicitlyIncludesCanada);
-}
-
-function isCanadaBasedGlobalRole(location, description) {
-  if (!/global|international|multiple locations/i.test(location)) return false;
-  const text = stripHtml(description || "").slice(0, 8000);
-  return /(?:based|located) in (?:canada|montr[ée]al)|canada[- ]based|montr[ée]al[- ]based/i.test(text);
+function ashbyLocation(job) {
+  const locations = [
+    job.location,
+    ...(Array.isArray(job.secondaryLocations) ? job.secondaryLocations.map((entry) => entry?.location) : []),
+  ].map((value) => clean(value)).filter(Boolean);
+  const unique = [...new Set(locations)];
+  if (job.isRemote || /remote/i.test(job.workplaceType || "")) {
+    return unique.length ? `Remote — ${unique.join(", ")}` : "Remote";
+  }
+  return unique.join(", ");
 }
 
 function scoreProfileEvidence(text, flags) {
@@ -1103,14 +1241,6 @@ function scoreProfileEvidence(text, flags) {
     flags.push("May require 8+ years of direct strategic HRBP experience");
   }
   return { score, reasons };
-}
-
-function classifyRole(title) {
-  if (/recruit(ing|ment)(?:\s*(?:&|and)\s*(?:hr|human resources))? (?:manager|lead)|talent acquisition (?:manager|lead)|(?:manager|lead),?\s*(?:global\s+)?(?:talent acquisition|recruiting|recruitment)|(?:gestionnaire|responsable|chef)(?:\s+de\s+l['’])?,?\s+acquisition\s+de\s+talents|responsable\s+(?:du\s+)?recrutement/i.test(title)) return "recruiting_manager";
-  if (/business partner|people partner|partenaire\s+d['’]affaires,?\s+(?:ressources humaines|rh)/i.test(title)) return "hr_business_partner";
-  if (/people operations|people & culture|people and culture|head of people/i.test(title)) return "people_operations";
-  if (/human resources manager|hr manager|gestionnaire\s+(?:des\s+)?ressources humaines|directeur(?:trice)?\s+(?:des\s+)?ressources humaines/i.test(title)) return "hr_manager";
-  return "other";
 }
 
 function roleReason(role) {
@@ -1210,12 +1340,12 @@ async function loadDotEnv(filePath) {
   return env;
 }
 
-export { canonicalIdentityMatches, fingerprint, isEligibleLocation, mergeCanonicalDuplicate, parseSalary, runMinaJobScan, scanSource, scoreJob, stripHtml };
+export { ashbyLocation, buildCoverageSummary, canonicalIdentityMatches, fingerprint, isEligibleLocation, matchTargetRole, mergeCanonicalDuplicate, parseSalary, runMinaJobScan, scanSource, scoreJob, stripHtml };
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   runMinaJobScan()
     .then((summary) => {
-      if (!summary.successfulSources || summary.errors.length) process.exitCode = 1;
+      if (!summary.successfulSources || summary.partialCoverage) process.exitCode = 1;
     })
     .catch((error) => {
       console.error(error instanceof Error ? error.message : String(error));

@@ -9,6 +9,7 @@
   },
   "sourceFamilies": [
     "direct_ats",
+    "canadian_market",
     "structured_api",
     "whole_web",
     "social",

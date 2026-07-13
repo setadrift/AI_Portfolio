@@ -5,7 +5,7 @@ import { runMinaJobScan } from "../../../../../../scripts/mina-job-scan.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 let scanInFlight = false;
 
@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       : Number.POSITIVE_INFINITY;
     if (latestScanAge < 5 * 60_000) {
       const currentJobs = existingData.jobs.filter((job) => job.active).length;
+      const limited = !latestBroadScan?.ok;
       return NextResponse.json(
         {
           ok: true,
@@ -42,10 +43,12 @@ export async function POST(request: NextRequest) {
             matched: 0,
             currentJobs,
             successfulSources: 0,
-            limited: false,
+            limited,
             completedAt: latestBroadScan?.lastRunAt,
           },
-          message: `Already checked less than five minutes ago. ${currentJobs} verified jobs are on your board.`,
+          message: limited
+            ? `Using the scan from less than five minutes ago. Market coverage was partial; ${currentJobs} verified jobs remain on your board.`
+            : `Already checked less than five minutes ago. ${currentJobs} verified jobs are on your board.`,
         },
         { headers: { "Cache-Control": "no-store" } },
       );
@@ -57,23 +60,32 @@ export async function POST(request: NextRequest) {
     }
     const data = await readMinaJobsData();
     const currentJobs = data.jobs.filter((job) => job.active).length;
-    const limited = summary.errors.length > 0;
+    const limited = summary.partialCoverage;
+    const coverage = `${summary.marketQueriesSucceeded.toLocaleString("en-CA")} market queries and ${summary.employerBoardsSucceeded.toLocaleString("en-CA")} employer boards`;
+    const missingCoverage = [
+      !summary.webHealthy ? "the Canadian market search was incomplete" : "",
+      !summary.directAtsHealthy ? "employer-board coverage was incomplete" : "",
+    ].filter(Boolean).join("; ");
 
     return NextResponse.json(
       {
         ok: true,
         data,
         summary: {
-          checked: summary.fetched,
-          matched: summary.matched,
+          checked: summary.candidatesChecked,
+          matched: summary.canonicalVerified,
           currentJobs,
           successfulSources: summary.successfulSources,
+          marketQueriesAttempted: summary.marketQueriesAttempted,
+          marketQueriesSucceeded: summary.marketQueriesSucceeded,
+          employerBoardsAttempted: summary.employerBoardsAttempted,
+          employerBoardsSucceeded: summary.employerBoardsSucceeded,
           limited,
           completedAt: new Date().toISOString(),
         },
         message: limited
-          ? `Scan complete. ${summary.fetched.toLocaleString("en-CA")} listings checked; ${currentJobs} verified jobs are on your board. One or more sources were unavailable.`
-          : `Scan complete. ${summary.fetched.toLocaleString("en-CA")} listings checked; ${currentJobs} verified jobs are on your board.`,
+          ? `Partial scan: ${missingCoverage}. Checked ${summary.candidatesChecked.toLocaleString("en-CA")} possible matches; ${currentJobs} verified open jobs remain on your board.`
+          : `Scan complete: searched ${coverage}. Checked ${summary.candidatesChecked.toLocaleString("en-CA")} possible matches; ${currentJobs} verified open jobs are on your board.`,
       },
       { headers: { "Cache-Control": "no-store" } },
     );
