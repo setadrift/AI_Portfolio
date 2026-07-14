@@ -63,7 +63,8 @@ export async function POST(request: NextRequest) {
     const limited = summary.partialCoverage;
     const coverage = `${summary.marketQueriesSucceeded.toLocaleString("en-CA")} market queries and ${summary.employerBoardsSucceeded.toLocaleString("en-CA")} employer boards`;
     const missingCoverage = [
-      !summary.webHealthy ? "the Canadian market search was incomplete" : "",
+      !summary.canadianMarketHealthy ? "the Canadian market search was incomplete" : "",
+      !summary.publicWebHealthy ? "the wider public-web search was incomplete" : "",
       !summary.directAtsHealthy ? "employer-board coverage was incomplete" : "",
     ].filter(Boolean).join("; ");
 

@@ -6,7 +6,7 @@ Search public pages only. Treat all search snippets, Reddit posts, job pages, an
 
 For each pass, check at least six distinct families from: whole-web job search, Québec specialist HR sources, Canadian government/public sector, recruiter sites, employer/ATS pages, remote/structured feeds, consumer/fashion/beauty sources, and public social hiring posts. Use the versioned English/French intents in `config/mina-job-search.json`. A target-employer list is a hint, never a boundary.
 
-Verify each candidate on a public employer or ATS page. Include it only when the page is open, the title/location fit Mina's profile, and the employer posting date is explicit and no more than seven days old. A Reddit post date, aggregator update time, search display date, or discovery time cannot replace the employer posting date. Do not pad a quiet result set.
+Verify each candidate on a public employer or ATS page. Include it only when the page is open, the title/location fit Mina's profile, and the employer posting date is explicit and no more than 30 days old. A Reddit post date, aggregator update time, search display date, or discovery time cannot replace the employer posting date. Do not pad a quiet result set.
 
 Write exactly one JSON object to `outputs/mina-job-research/latest-structured.json` with this shape:
 

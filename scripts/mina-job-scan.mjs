@@ -14,12 +14,16 @@ import {
   verifyCanonical,
 } from "./mina-jobs/discovery.mjs";
 import {
+  fetchDuckDuckGoSearch,
   fetchHimalayas,
   fetchJobBank,
   fetchJooble,
   fetchPublicWebSearch,
   fetchReddit,
   fetchRemotive,
+  fetchSmartRecruitersCompany,
+  fetchWorkableAccount,
+  fetchWorkdayBoard,
   loadSearchConfig,
 } from "./mina-jobs/sources.mjs";
 import { notifyNewJobs } from "./mina-jobs/notify.mjs";
@@ -40,6 +44,8 @@ const ACCEPTABLE_SALARY_CENTS = 10_700_000;
 const DEFAULT_GREENHOUSE_BOARDS = {
   stackadapt: "StackAdapt",
   hootsuite: "Hootsuite",
+  faire: "Faire",
+  workleap: "Workleap",
 };
 
 const DEFAULT_ASHBY_BOARDS = {
@@ -50,6 +56,8 @@ const DEFAULT_ASHBY_BOARDS = {
   ignition: "Ignition",
   semperis: "Semperis",
   "1password": "1Password",
+  wealthsimple: "Wealthsimple",
+  lightspeed: "Lightspeed",
 };
 
 const DEFAULT_LEVER_SITES = {
@@ -57,7 +65,37 @@ const DEFAULT_LEVER_SITES = {
   eqbank: "EQ Bank",
   dulcedo: "Dulcedo Management",
   pointclickcare: "PointClickCare",
+  plusgrade: "Plusgrade",
 };
+
+const DEFAULT_WORKDAY_BOARDS = [
+  { id: "cae", company: "CAE", host: "cae.wd3.myworkdayjobs.com", tenant: "cae", site: "career" },
+  { id: "atkinsrealis", company: "AtkinsRéalis", host: "slihrms.wd3.myworkdayjobs.com", tenant: "slihrms", site: "Careers" },
+  { id: "intelcom", company: "Intelcom | Dragonfly", host: "intelcomgroup.wd3.myworkdayjobs.com", tenant: "intelcomgroup", site: "Intelcom" },
+  { id: "air-liquide", company: "Air Liquide", host: "airliquidehr.wd3.myworkdayjobs.com", tenant: "airliquidehr", site: "AirLiquideExternalCareer" },
+  { id: "canada-goose", company: "Canada Goose", host: "canadagoose.wd3.myworkdayjobs.com", tenant: "canadagoose", site: "CanadaGooseCareers" },
+  { id: "canadian-tire", company: "Canadian Tire", host: "canadiantirecorporation.wd3.myworkdayjobs.com", tenant: "canadiantirecorporation", site: "Enterprise_External_Careers_Site" },
+  { id: "xbox-gaming", company: "Xbox Gaming", host: "xboxgaming.wd1.myworkdayjobs.com", tenant: "xboxgaming", site: "External" },
+  { id: "labatt", company: "Labatt Breweries of Canada", host: "abinbev.wd1.myworkdayjobs.com", tenant: "abinbev", site: "CAN" },
+  { id: "international-schools", company: "International Schools Partnership", host: "internationalschools.wd3.myworkdayjobs.com", tenant: "internationalschools", site: "ISPCareers" },
+  { id: "aritzia", company: "Aritzia", host: "aritzia.wd3.myworkdayjobs.com", tenant: "aritzia", site: "External" },
+  { id: "mcgill", company: "McGill University", host: "mcgill.wd3.myworkdayjobs.com", tenant: "mcgill", site: "McGill_Careers" },
+];
+
+const DEFAULT_SMARTRECRUITERS_COMPANIES = [
+  { identifier: "SGS", company: "SGS" },
+  { identifier: "Vention", company: "Vention" },
+  { identifier: "NBCUniversal3", company: "NBCUniversal" },
+  { identifier: "AmericanIronandMetal", company: "American Iron & Metal" },
+  { identifier: "Ubisoft2", company: "Ubisoft" },
+  { identifier: "ReitmansCanadaLteLtd", company: "Reitmans Canada" },
+  { identifier: "Gameloft", company: "Gameloft" },
+];
+
+const DEFAULT_WORKABLE_ACCOUNTS = [
+  { account: "flinks", company: "Flinks" },
+  { account: "ghgsat", company: "GHGSat" },
+];
 
 async function runMinaJobScan() {
   const env = {
@@ -91,6 +129,14 @@ async function runMinaJobScan() {
     },
     { name: "himalayas:canada-hr", family: "structured_api", trustedOpen: false, expireMissing: false, fetch: fetchHimalayas },
     { name: "remotive:hr", family: "structured_api", trustedOpen: false, expireMissing: false, fetch: fetchRemotive },
+    {
+      name: "duckduckgo:public-web",
+      family: "whole_web",
+      trustedOpen: false,
+      expireMissing: false,
+      queryIds: searchConfig.queries.map((query) => query.id),
+      fetch: () => fetchDuckDuckGoSearch(searchConfig.queries),
+    },
   ];
 
   if (env.MINA_ADZUNA_APP_ID && env.MINA_ADZUNA_APP_KEY) {
@@ -136,8 +182,6 @@ async function runMinaJobScan() {
         searchConfig.queries.length,
       ),
     });
-  } else {
-    skippedFamilies.push({ family: "whole_web", source: "brave-or-serpapi", reason: "optional_credentials_missing" });
   }
 
   if (env.REDDIT_CLIENT_ID && env.REDDIT_CLIENT_SECRET) {
@@ -189,6 +233,7 @@ async function runMinaJobScan() {
 
 function buildCoverageSummary(receipts) {
   const requiredMarketReceipts = receipts.filter((receipt) => receipt.family === "canadian_market");
+  const publicWebReceipts = receipts.filter((receipt) => receipt.family === "whole_web");
   const webReceipts = receipts.filter((receipt) => ["canadian_market", "whole_web"].includes(receipt.family));
   const directReceipts = receipts.filter((receipt) => receipt.family === "direct_ats");
   const marketQueriesAttempted = sum(webReceipts, "queriesAttempted");
@@ -197,9 +242,15 @@ function buildCoverageSummary(receipts) {
   const employerBoardsSucceeded = directReceipts.filter((receipt) => receipt.ok).length;
   const requiredMarketQueriesAttempted = sum(requiredMarketReceipts, "queriesAttempted");
   const requiredMarketQueriesSucceeded = sum(requiredMarketReceipts, "queriesSucceeded");
-  const webHealthy = requiredMarketReceipts.length > 0
+  const publicWebQueriesAttempted = sum(publicWebReceipts, "queriesAttempted");
+  const publicWebQueriesSucceeded = sum(publicWebReceipts, "queriesSucceeded");
+  const canadianMarketHealthy = requiredMarketReceipts.length > 0
     && requiredMarketQueriesAttempted > 0
     && requiredMarketQueriesSucceeded / requiredMarketQueriesAttempted >= 0.9;
+  const publicWebHealthy = publicWebReceipts.length > 0
+    && publicWebQueriesAttempted > 0
+    && publicWebQueriesSucceeded / publicWebQueriesAttempted >= 0.75;
+  const webHealthy = canadianMarketHealthy && publicWebHealthy;
   const directAtsHealthy = employerBoardsAttempted > 0
     && employerBoardsSucceeded / employerBoardsAttempted >= 0.8;
   return {
@@ -210,6 +261,8 @@ function buildCoverageSummary(receipts) {
     candidatesChecked: sum(receipts, "candidates"),
     canonicalVerified: sum(receipts, "verified"),
     queryFailures: webReceipts.flatMap((receipt) => receipt.queryFailures || []),
+    canadianMarketHealthy,
+    publicWebHealthy,
     webHealthy,
     directAtsHealthy,
   };
@@ -219,7 +272,7 @@ async function loadConfiguredDirectSources(db, env) {
   const { data, error } = await db.from("mina_source_configs")
     .select("id, source_type, employer, board_identifier, source_name")
     .eq("enabled", true)
-    .in("source_type", ["greenhouse", "ashby", "lever"])
+    .in("source_type", ["greenhouse", "ashby", "lever", "workday", "smartrecruiters", "workable"])
     .order("priority", { ascending: false });
   if (error) console.warn(`Direct-source registry unavailable; using checked-in defaults: ${error.message}`);
 
@@ -236,10 +289,35 @@ async function loadConfiguredDirectSources(db, env) {
       });
     }
   };
-  if (!configs.size) {
-    addBoards("greenhouse", DEFAULT_GREENHOUSE_BOARDS);
-    addBoards("ashby", DEFAULT_ASHBY_BOARDS);
-    addBoards("lever", DEFAULT_LEVER_SITES);
+  addBoards("greenhouse", DEFAULT_GREENHOUSE_BOARDS);
+  addBoards("ashby", DEFAULT_ASHBY_BOARDS);
+  addBoards("lever", DEFAULT_LEVER_SITES);
+  for (const config of DEFAULT_WORKDAY_BOARDS) {
+    configs.set(`workday:${config.id}`, {
+      id: `workday:${config.id}`,
+      source_type: "workday",
+      employer: config.company,
+      board_identifier: JSON.stringify(config),
+      source_name: `${config.company} Workday`,
+    });
+  }
+  for (const config of DEFAULT_SMARTRECRUITERS_COMPANIES) {
+    configs.set(`smartrecruiters:${config.identifier}`, {
+      id: `smartrecruiters:${config.identifier}`,
+      source_type: "smartrecruiters",
+      employer: config.company,
+      board_identifier: config.identifier,
+      source_name: `${config.company} SmartRecruiters`,
+    });
+  }
+  for (const config of DEFAULT_WORKABLE_ACCOUNTS) {
+    configs.set(`workable:${config.account}`, {
+      id: `workable:${config.account}`,
+      source_type: "workable",
+      employer: config.company,
+      board_identifier: config.account,
+      source_name: `${config.company} Workable`,
+    });
   }
   addBoards("greenhouse", mergeBoards({}, env.MINA_GREENHOUSE_BOARDS));
   addBoards("ashby", mergeBoards({}, env.MINA_ASHBY_BOARDS));
@@ -250,15 +328,19 @@ async function loadConfiguredDirectSources(db, env) {
     const identifier = String(row.board_identifier || "");
     const employer = String(row.employer || row.source_name || titleCase(identifier));
     if (!identifier) throw new Error(`Direct source ${row.id} is missing a board identifier.`);
+    let fetchSource;
+    if (type === "greenhouse") fetchSource = () => fetchGreenhouse(identifier, employer);
+    else if (type === "ashby") fetchSource = () => fetchAshby(identifier, employer);
+    else if (type === "lever") fetchSource = () => fetchLever(identifier, employer);
+    else if (type === "workday") fetchSource = () => fetchWorkdayBoard(JSON.parse(identifier));
+    else if (type === "smartrecruiters") fetchSource = () => fetchSmartRecruitersCompany({ identifier, company: employer });
+    else if (type === "workable") fetchSource = () => fetchWorkableAccount({ account: identifier, company: employer });
+    else throw new Error(`Unsupported direct source type: ${type}`);
     return {
       name: String(row.id),
       family: "direct_ats",
       trustedOpen: true,
-      fetch: type === "greenhouse"
-        ? () => fetchGreenhouse(identifier, employer)
-        : type === "ashby"
-          ? () => fetchAshby(identifier, employer)
-          : () => fetchLever(identifier, employer),
+      fetch: fetchSource,
     };
   });
 }
@@ -279,13 +361,15 @@ async function writeBroadReceipt(db, summary, receipts) {
     query_count: summary.marketQueriesAttempted,
     error: summary.partialCoverage ? "Required market coverage was incomplete." : null,
     error_category: summary.partialCoverage ? "coverage_incomplete" : null,
-    diagnostic_message: summary.partialCoverage ? "Partial scan: required market coverage was incomplete." : "Complete scan: Canadian market and direct employer coverage succeeded.",
+    diagnostic_message: summary.partialCoverage ? "Partial scan: required market coverage was incomplete." : "Complete scan: Canadian market, wider public web, and direct employer coverage succeeded.",
     details: {
       attemptedFamilies: summary.attemptedFamilies,
       successfulFamilies: summary.successfulFamilies,
       skippedFamilies: summary.skippedFamilies,
       marketQueriesAttempted: summary.marketQueriesAttempted,
       marketQueriesSucceeded: summary.marketQueriesSucceeded,
+      canadianMarketHealthy: summary.canadianMarketHealthy,
+      publicWebHealthy: summary.publicWebHealthy,
       employerBoardsAttempted: summary.employerBoardsAttempted,
       employerBoardsSucceeded: summary.employerBoardsSucceeded,
       candidatesChecked: summary.candidatesChecked,
@@ -312,9 +396,10 @@ async function scanSource(db, source) {
       canonicalTrustedOpen: job.canonicalTrustedOpen ?? source.trustedOpen,
     }));
     const eligible = fetched.map((rawJob) => ({ rawJob, initiallyScored: scoreJob(rawJob) }))
-      .filter((entry) => entry.initiallyScored);
+      .filter((entry) => entry.initiallyScored || shouldVerifyBeforeScoring(entry.rawJob));
     let normalized = await mapWithConcurrency(eligible, 4, ({ rawJob, initiallyScored }) =>
       verifyAndRescore(rawJob, initiallyScored));
+    normalized = normalized.filter(Boolean);
     if (!DRY_RUN) {
       await stageCandidates(db, fetched, startedAt, normalized);
       await updateQueryMetrics(db, fetched, normalized, startedAt, queryResults);
@@ -539,12 +624,19 @@ async function verifyAndRescore(rawJob, initiallyScored) {
       },
     },
   });
-  return rescored || {
+  if (rescored) return rescored;
+  if (!initiallyScored) return null;
+  return {
     ...initiallyScored,
     canonical_status: canonicalStatus,
     last_verified_at: verification.verifiedAt,
     quality_tier: canonicalStatus === "closed" ? "archive" : "watch",
   };
+}
+
+function shouldVerifyBeforeScoring(job) {
+  if (job.sourceFamily !== "whole_web") return false;
+  return Boolean(matchTargetRole(clean(job.title)) && canonicalizeUrl(job.canonicalUrl || job.applyUrl));
 }
 
 function canonicalVisibleTextMatches(rawJob, visibleText) {

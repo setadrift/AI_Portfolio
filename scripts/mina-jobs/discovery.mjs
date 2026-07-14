@@ -35,6 +35,7 @@ export function freshnessFor(value, now = Date.now()) {
   if (ageHours <= 24) return { bucket: "hot", ageHours, queueEligible: true };
   if (ageHours <= 72) return { bucket: "fresh", ageHours, queueEligible: true };
   if (ageHours <= 168) return { bucket: "recent", ageHours, queueEligible: true };
+  if (ageHours <= 720) return { bucket: "aging", ageHours, queueEligible: true };
   return { bucket: "aging", ageHours, queueEligible: false };
 }
 
@@ -125,6 +126,8 @@ export async function verifyCanonical(url, { timeoutMs = 8_000, maxBytes = 1_500
   const requested = canonicalizeUrl(url);
   if (!requested) return verificationError("invalid_url", "Canonical URL must be public HTTP(S).");
   try {
+    const atsVerification = await verifyStructuredAts(requested, { timeoutMs, maxBytes, fetchImpl });
+    if (atsVerification) return atsVerification;
     const response = await safeFetch(requested, { timeoutMs, maxBytes, fetchImpl });
     const html = response.body;
     const visibleText = stripHtml(html).slice(0, 30_000);
@@ -146,6 +149,132 @@ export async function verifyCanonical(url, { timeoutMs = 8_000, maxBytes = 1_500
     };
   } catch (error) {
     return verificationError("fetch_error", error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function verifyStructuredAts(requested, options) {
+  const workdayUrl = workdayDetailUrl(requested);
+  if (workdayUrl) {
+    const response = await safeFetch(workdayUrl, options);
+    if (response.status === 404 || response.status === 410) return structuredClosed(requested, response.status);
+    if (response.status < 200 || response.status >= 400) return null;
+    const payload = parseJson(response.body);
+    const info = payload?.jobPostingInfo;
+    if (!info?.title) return null;
+    const open = info.posted !== false && info.canApply !== false;
+    const description = textValue(info.jobDescription);
+    return {
+      ok: open,
+      status: open ? "open" : "closed",
+      httpStatus: response.status,
+      canonicalUrl: requested,
+      structured: {
+        title: textValue(info.title),
+        company: textValue(payload.hiringOrganization),
+        location: textValue(info.location || info.jobRequisitionLocation?.descriptor),
+        description,
+        postedAt: validDate(info.startDate),
+        updatedAt: null,
+        closesAt: validDate(info.endDate),
+        employmentType: textValue(info.timeType),
+        canonicalUrl: requested,
+        identifier: textValue(info.jobReqId || info.id),
+        directApply: true,
+      },
+      visibleText: stripHtml(description),
+      verifiedAt: new Date().toISOString(),
+      error: "",
+    };
+  }
+
+  const smartRecruitersUrl = smartRecruitersDetailUrl(requested);
+  if (smartRecruitersUrl) {
+    const response = await safeFetch(smartRecruitersUrl, options);
+    if (response.status === 404 || response.status === 410) return structuredClosed(requested, response.status);
+    if (response.status < 200 || response.status >= 400) return null;
+    const payload = parseJson(response.body);
+    if (!payload?.name) return null;
+    const sections = payload.jobAd?.sections ?? {};
+    const description = Object.values(sections).map((section) => section?.text || "").filter(Boolean).join("\n");
+    const location = payload.location?.fullLocation
+      || [payload.location?.city, payload.location?.region, payload.location?.country].filter(Boolean).join(", ");
+    const open = payload.active !== false;
+    return {
+      ok: open,
+      status: open ? "open" : "closed",
+      httpStatus: response.status,
+      canonicalUrl: requested,
+      structured: {
+        title: textValue(payload.name),
+        company: textValue(payload.company?.name),
+        location,
+        description,
+        postedAt: validDate(payload.releasedDate),
+        updatedAt: null,
+        closesAt: null,
+        employmentType: textValue(payload.typeOfEmployment?.label),
+        canonicalUrl: requested,
+        identifier: textValue(payload.id),
+        directApply: true,
+      },
+      visibleText: stripHtml(description),
+      verifiedAt: new Date().toISOString(),
+      error: "",
+    };
+  }
+  return null;
+}
+
+function workdayDetailUrl(value) {
+  try {
+    const url = new URL(value);
+    if (!/\.myworkdayjobs\.com$/i.test(url.hostname)) return "";
+    const parts = url.pathname.split("/").filter(Boolean);
+    const jobIndex = parts.indexOf("job");
+    if (jobIndex < 1) return "";
+    const localeIndex = parts.findIndex((part) => /^[a-z]{2}-[A-Z]{2}$/.test(part));
+    const siteIndex = localeIndex >= 0 ? localeIndex + 1 : 0;
+    const site = parts[siteIndex];
+    if (!site || site === "job") return "";
+    const tenant = url.hostname.split(".")[0];
+    return `${url.origin}/wday/cxs/${encodeURIComponent(tenant)}/${encodeURIComponent(site)}/${parts.slice(jobIndex).join("/")}`;
+  } catch {
+    return "";
+  }
+}
+
+function smartRecruitersDetailUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.hostname !== "jobs.smartrecruiters.com") return "";
+    const [company, posting] = url.pathname.split("/").filter(Boolean);
+    const id = posting?.match(/^\d+/)?.[0];
+    return company && id
+      ? `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(company)}/postings/${encodeURIComponent(id)}`
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+function structuredClosed(canonicalUrl, httpStatus) {
+  return {
+    ok: false,
+    status: "closed",
+    httpStatus,
+    canonicalUrl,
+    structured: null,
+    visibleText: "",
+    verifiedAt: new Date().toISOString(),
+    error: "",
+  };
+}
+
+function parseJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
   }
 }
 

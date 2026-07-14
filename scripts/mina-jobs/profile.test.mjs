@@ -20,7 +20,13 @@ test("matches Mina's English and French leadership title variants", () => {
     ["Global Head of Talent Acquisition", "recruiting_manager"],
     ["Global Talent Acquisition Manager", "recruiting_manager"],
     ["International Recruitment & HR Manager", "recruiting_manager"],
+    ["Talent Acquisition Partner", "recruiting_manager"],
+    ["Senior Talent Acquisition Advisor", "recruiting_manager"],
+    ["Principal Recruiter", "recruiting_manager"],
+    ["Senior Recruiter", "recruiting_manager"],
     ["Gestionnaire, Acquisition de talents", "recruiting_manager"],
+    ["Partenaire en acquisition de talents", "recruiting_manager"],
+    ["Recruteuse principale", "recruiting_manager"],
     ["Responsable du recrutement", "recruiting_manager"],
     ["Directeur/directrice du recrutement", "recruiting_manager"],
     ["Directeur/directrice des ressources humaines", "hr_manager"],
@@ -30,6 +36,10 @@ test("matches Mina's English and French leadership title variants", () => {
     ["Human Resources Manager", "hr_manager"],
     ["Directrice des ressources humaines", "hr_manager"],
     ["Partenaire d’affaires, Ressources humaines", "hr_business_partner"],
+    ["Talent Operations Manager", "people_operations"],
+    ["Employee Experience Manager", "people_operations"],
+    ["Workforce Planning Manager", "people_operations"],
+    ["HR Transformation Manager", "people_operations"],
   ]);
 
   for (const [title, family] of expected) {
@@ -42,6 +52,7 @@ test("rejects junior, specialist, individual-contributor, and executive near mis
     "Talent Acquisition Coordinator",
     "Senior Talent Acquisition Specialist",
     "Corporate Recruiter",
+    "Junior Corporate Recruiter",
     "Human Resources Generalist",
     "Employee Relations Specialist",
     "Learning and Development Manager",

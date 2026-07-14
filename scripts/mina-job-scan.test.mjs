@@ -285,20 +285,33 @@ test("keeps unknown salary eligible and removes known sub-floor salary from the 
 test("marks scans partial unless the required Canadian market and employer-board lanes are healthy", () => {
   const healthy = buildCoverageSummary([
     { family: "canadian_market", queriesAttempted: 4, queriesSucceeded: 4, candidates: 8, verified: 4 },
-    { family: "whole_web", queriesAttempted: 20, queriesSucceeded: 0, candidates: 0, verified: 0 },
+    { family: "whole_web", queriesAttempted: 20, queriesSucceeded: 18, candidates: 4, verified: 2 },
     ...Array.from({ length: 10 }, () => ({ family: "direct_ats", ok: true, candidates: 1, verified: 1 })),
   ]);
   assert.equal(healthy.webHealthy, true);
+  assert.equal(healthy.canadianMarketHealthy, true);
+  assert.equal(healthy.publicWebHealthy, true);
   assert.equal(healthy.directAtsHealthy, true);
   assert.equal(healthy.marketQueriesAttempted, 24);
-  assert.equal(healthy.candidatesChecked, 18);
+  assert.equal(healthy.candidatesChecked, 22);
 
   const partial = buildCoverageSummary([
     { family: "canadian_market", queriesAttempted: 4, queriesSucceeded: 2, candidates: 1, verified: 0 },
     { family: "direct_ats", ok: true, candidates: 0, verified: 0 },
   ]);
   assert.equal(partial.webHealthy, false);
+  assert.equal(partial.publicWebHealthy, false);
   assert.equal(partial.directAtsHealthy, true);
+});
+
+test("does not call a scan complete when wider public-web discovery did not run", () => {
+  const coverage = buildCoverageSummary([
+    { family: "canadian_market", queriesAttempted: 4, queriesSucceeded: 4, candidates: 8, verified: 4 },
+    ...Array.from({ length: 10 }, () => ({ family: "direct_ats", ok: true, candidates: 1, verified: 1 })),
+  ]);
+  assert.equal(coverage.canadianMarketHealthy, true);
+  assert.equal(coverage.publicWebHealthy, false);
+  assert.equal(coverage.webHealthy, false);
 });
 
 test("keeps genuine Reddit hiring links and rejects job-seeker chatter", () => {

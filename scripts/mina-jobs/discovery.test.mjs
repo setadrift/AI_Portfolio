@@ -18,7 +18,10 @@ test("classifies employer posting ages without using discovery time", () => {
   assert.equal(freshnessFor("2026-07-13T08:00:00Z", NOW).bucket, "hot");
   assert.equal(freshnessFor("2026-07-11T16:00:00Z", NOW).bucket, "fresh");
   assert.equal(freshnessFor("2026-07-07T18:00:00Z", NOW).bucket, "recent");
+  assert.equal(freshnessFor("2026-06-20T18:00:00Z", NOW).bucket, "aging");
   assert.equal(freshnessFor("2026-05-29T18:00:00Z", NOW).bucket, "aging");
+  assert.equal(freshnessFor("2026-05-29T18:00:00Z", NOW).queueEligible, false);
+  assert.equal(freshnessFor("2026-06-20T18:00:00Z", NOW).queueEligible, true);
   assert.equal(freshnessFor("", NOW).bucket, "unknown");
 });
 
@@ -74,6 +77,43 @@ test("blocks private canonical hosts before making a request", async () => {
   assert.equal(result.status, "error");
   assert.equal(called, false);
   assert.match(result.error, /blocked/i);
+});
+
+test("verifies Workday canonical pages through the public CXS detail record", async () => {
+  const result = await verifyCanonical(
+    "https://cae.wd3.myworkdayjobs.com/en-US/career/job/Montreal/HR-Business-Partner_123",
+    { fetchImpl: async (url) => {
+      assert.match(String(url), /\/wday\/cxs\/cae\/career\/job\/Montreal\/HR-Business-Partner_123$/);
+      return new Response(JSON.stringify({
+        hiringOrganization: "CAE",
+        jobPostingInfo: {
+          id: "abc", jobReqId: "123", title: "HR Business Partner", location: "Montreal (St. Laurent)",
+          jobDescription: "Workforce planning and employee relations", startDate: "2026-07-01",
+          timeType: "Full time", posted: true, canApply: true,
+        },
+      }), { status: 200 });
+    } },
+  );
+  assert.equal(result.status, "open");
+  assert.equal(result.structured.company, "CAE");
+  assert.equal(result.structured.postedAt, "2026-07-01T00:00:00.000Z");
+});
+
+test("verifies SmartRecruiters canonical pages through its public posting API", async () => {
+  const result = await verifyCanonical(
+    "https://jobs.smartrecruiters.com/NBCUniversal3/744000130043719-manager-human-resources",
+    { fetchImpl: async (url) => {
+      assert.equal(String(url), "https://api.smartrecruiters.com/v1/companies/NBCUniversal3/postings/744000130043719");
+      return new Response(JSON.stringify({
+        id: "744000130043719", name: "Manager, Human Resources", active: true,
+        company: { name: "NBCUniversal" }, location: { fullLocation: "Montreal, QUEBEC, Canada" },
+        releasedDate: "2026-06-03T16:03:56.092Z", typeOfEmployment: { label: "Full-time" },
+        jobAd: { sections: { jobDescription: { text: "Lead HR support in Quebec" } } },
+      }), { status: 200 });
+    } },
+  );
+  assert.equal(result.status, "open");
+  assert.equal(result.structured.location, "Montreal, QUEBEC, Canada");
 });
 
 test("notification retries produce the same durable dedupe key", () => {

@@ -74,7 +74,7 @@ function validateCandidate(candidate, index, now) {
   const canonicalUrl = canonicalizeUrl(candidate.canonicalUrl);
   const sourceUrl = canonicalizeUrl(candidate.sourceUrl);
   if (!canonicalUrl || !sourceUrl) throw new Error(`${label} has an invalid public URL.`);
-  if (!freshnessFor(candidate.sourcePostedAt, now).queueEligible) throw new Error(`${label} does not have a verified posting date within seven days.`);
+  if (!freshnessFor(candidate.sourcePostedAt, now).queueEligible) throw new Error(`${label} does not have a verified posting date within 30 days.`);
   return {
     title: clean(candidate.title, 300),
     company: clean(candidate.company, 300),
@@ -138,7 +138,7 @@ function runGateTests() {
   const checked = validatePayload(good, now);
   if (checked.candidates[0].canonicalUrl.includes("utm_source")) throw new Error("Tracking parameter gate failed.");
   assertThrows(() => validatePayload({ ...good, run: { ...good.run, sourceFamiliesChecked: ["whole_web"] } }, now), "six checked");
-  assertThrows(() => validatePayload({ ...good, candidates: [{ ...good.candidates[0], sourcePostedAt: new Date(now - 10 * 86_400_000).toISOString() }] }, now), "within seven days");
+  assertThrows(() => validatePayload({ ...good, candidates: [{ ...good.candidates[0], sourcePostedAt: new Date(now - 31 * 86_400_000).toISOString() }] }, now), "within 30 days");
   console.log("Codex Mina research publisher gates passed.");
 }
 
