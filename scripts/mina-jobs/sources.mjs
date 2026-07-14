@@ -4,6 +4,11 @@ import { searchPublicJobs } from "./search/provider.mjs";
 const USER_AGENT = "MinaJobsResearch/2.0 (+public-job-discovery)";
 const JOB_BANK_PAGE_SIZE = 25;
 const JOB_BANK_MAX_PAGES = 4;
+const ATS_SEARCH_TERMS = ["human resources", "talent acquisition", "people operations", "recruiting"];
+const WORKDAY_SEARCH_TERMS = ["human resources", "talent acquisition", "people operations"];
+const WORKDAY_PAGE_SIZE = 20;
+const WORKDAY_MAX_PAGES = 4;
+const POTENTIAL_HR_TITLE = /\b(?:hr|human resources|people|talent|recruit|workforce|employee experience|ressources humaines|rh|talents?|recrutement)\b/i;
 
 const JOB_BANK_QUERIES = [
   { id: "jobbank-qc-hr-managers", noc: "10011", province: "QC" },
@@ -14,6 +19,230 @@ const JOB_BANK_QUERIES = [
 
 export async function loadSearchConfig(path = "config/mina-job-search.json") {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+export async function fetchDuckDuckGoSearch(queries, fetchImpl = fetchPublic) {
+  const outcomes = await mapWithConcurrency(queries, 3, async (query) => {
+    try {
+      const url = new URL("https://html.duckduckgo.com/html/");
+      url.searchParams.set("q", query.query);
+      url.searchParams.set("df", query.freshness === "month" ? "m" : "w");
+      const response = await fetchImpl(url, {
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": query.language === "fr" ? "fr-CA,fr;q=0.9,en;q=0.6" : "en-CA,en;q=0.9,fr;q=0.6",
+          "User-Agent": USER_AGENT,
+        },
+      });
+      if (!response.ok) throw new Error(`DuckDuckGo returned ${response.status}`);
+      const jobs = parseDuckDuckGoResults(await response.text(), query);
+      return { queryId: query.id, ok: true, jobs, error: "" };
+    } catch (error) {
+      return {
+        queryId: query.id,
+        ok: false,
+        jobs: [],
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  });
+  const seen = new Set();
+  const jobs = outcomes.flatMap((outcome) => outcome.jobs).filter((job) => {
+    if (seen.has(job.sourceJobId)) return false;
+    seen.add(job.sourceJobId);
+    return true;
+  });
+  return {
+    jobs,
+    queryResults: outcomes.map(({ queryId, ok, jobs: queryJobs, error }) => ({
+      queryId,
+      ok,
+      resultCount: queryJobs.length,
+      error,
+    })),
+  };
+}
+
+export function parseDuckDuckGoResults(html, query = {}) {
+  const anchors = [...String(html || "").matchAll(
+    /<a\b[^>]*class=["'][^"']*\bresult__a\b[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+  )];
+  return anchors.map((match, index) => {
+    const nextIndex = anchors[index + 1]?.index ?? String(html || "").length;
+    const block = String(html || "").slice(match.index, nextIndex);
+    const snippetMatch = block.match(/<(?:a|div)\b[^>]*class=["'][^"']*\bresult__snippet\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div)>/i);
+    const canonicalUrl = duckDuckGoDestination(decodeEntities(match[1]));
+    const title = stripMarkup(match[2]);
+    const description = stripMarkup(snippetMatch?.[1] || "");
+    if (!canonicalUrl || !POTENTIAL_HR_TITLE.test(title)) return null;
+    return {
+      source: "duckduckgo:public-web",
+      sourceFamily: "whole_web",
+      sourceJobId: canonicalUrl,
+      queryId: query.id,
+      sourceRank: index + 1,
+      canonicalUrl,
+      applyUrl: canonicalUrl,
+      title,
+      company: companyFromUrl(canonicalUrl),
+      location: inferLocation(`${title} ${description} ${query.query || ""}`),
+      employmentType: "",
+      description,
+      postedAt: "",
+      closesAt: "",
+      workModel: /remote/i.test(`${title} ${description}`) ? "remote" : "unknown",
+      compensationText: description,
+      canonicalTrustedOpen: false,
+      freshnessConfidence: "low",
+      evidence: {
+        provider: "DuckDuckGo HTML search",
+        query: query.query,
+        queryId: query.id,
+        requestedFreshness: query.freshness,
+        rank: index + 1,
+      },
+    };
+  }).filter(Boolean);
+}
+
+export async function fetchWorkdayBoard(config, fetchImpl = fetchPublic) {
+  const origin = `https://${config.host}`;
+  const endpoint = `${origin}/wday/cxs/${encodeURIComponent(config.tenant)}/${encodeURIComponent(config.site)}/jobs`;
+  const searches = await mapWithConcurrency(WORKDAY_SEARCH_TERMS, 2, (searchText) =>
+    fetchWorkdaySearch(endpoint, searchText, config.company, fetchImpl));
+  const postings = uniqueBy(searches.flat(), (job) => job.externalPath)
+    .filter((job) => POTENTIAL_HR_TITLE.test(job.title || ""));
+  const details = await mapWithConcurrency(postings, 4, async (posting) => {
+    const detailUrl = `${origin}/wday/cxs/${encodeURIComponent(config.tenant)}/${encodeURIComponent(config.site)}${posting.externalPath}`;
+    const response = await fetchImpl(detailUrl, { headers: { Accept: "application/json", "User-Agent": USER_AGENT } });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const info = payload.jobPostingInfo ?? {};
+    if (info.posted === false || info.canApply === false) return null;
+    const description = info.jobDescription || "";
+    const canonicalUrl = info.externalUrl
+      ? new URL(info.externalUrl, origin).toString()
+      : `${origin}/en-US/${config.site}${posting.externalPath}`;
+    return {
+      source: `workday:${config.id}`,
+      sourceFamily: "direct_ats",
+      sourceJobId: String(info.jobReqId || info.id || posting.externalPath),
+      canonicalUrl,
+      applyUrl: canonicalUrl,
+      title: info.title || posting.title,
+      company: textValue(payload.hiringOrganization) || config.company,
+      location: info.location || info.jobRequisitionLocation?.descriptor || posting.locationsText || "",
+      employmentType: info.timeType || "",
+      description,
+      postedAt: validDate(info.startDate) || relativeDate(posting.postedOn),
+      closesAt: validDate(info.endDate),
+      workModel: inferWorkModel(`${info.location || ""} ${description}`),
+      compensationText: description,
+      canonicalTrustedOpen: true,
+      freshnessConfidence: info.startDate ? "high" : "medium",
+      evidence: { provider: "Workday CXS", tenant: config.tenant, site: config.site },
+    };
+  });
+  return details.filter(Boolean);
+}
+
+async function fetchWorkdaySearch(endpoint, searchText, company, fetchImpl) {
+  const requestPage = async (offset) => {
+    const response = await fetchImpl(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": USER_AGENT },
+      body: JSON.stringify({ appliedFacets: {}, limit: WORKDAY_PAGE_SIZE, offset, searchText }),
+    });
+    if (!response.ok) throw new Error(`Workday ${company} returned ${response.status}`);
+    return response.json();
+  };
+  const first = await requestPage(0);
+  const pageCount = Math.min(WORKDAY_MAX_PAGES, Math.ceil(Number(first.total || 0) / WORKDAY_PAGE_SIZE));
+  const rest = await Promise.all(Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) =>
+    requestPage((index + 1) * WORKDAY_PAGE_SIZE)));
+  return [first, ...rest].flatMap((page) => page.jobPostings ?? []);
+}
+
+export async function fetchSmartRecruitersCompany(config, fetchImpl = fetchPublic) {
+  const searches = await mapWithConcurrency(ATS_SEARCH_TERMS, 2, async (query) => {
+    const url = new URL(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(config.identifier)}/postings`);
+    url.searchParams.set("limit", "100");
+    url.searchParams.set("q", query);
+    const response = await fetchImpl(url, { headers: { Accept: "application/json", "User-Agent": USER_AGENT } });
+    if (!response.ok) throw new Error(`SmartRecruiters ${config.company} returned ${response.status}`);
+    return (await response.json()).content ?? [];
+  });
+  const postings = uniqueBy(searches.flat(), (job) => job.id)
+    .filter((job) => POTENTIAL_HR_TITLE.test(job.name || ""));
+  const details = await mapWithConcurrency(postings, 4, async (posting) => {
+    const detailUrl = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(config.identifier)}/postings/${encodeURIComponent(posting.id)}`;
+    const response = await fetchImpl(detailUrl, { headers: { Accept: "application/json", "User-Agent": USER_AGENT } });
+    if (!response.ok) return null;
+    const job = await response.json();
+    if (job.active === false) return null;
+    const sections = job.jobAd?.sections ?? {};
+    const description = Object.values(sections).map((section) => section?.text || "").filter(Boolean).join("\n");
+    const location = job.location?.fullLocation
+      || [job.location?.city, job.location?.region, job.location?.country].filter(Boolean).join(", ");
+    return {
+      source: `smartrecruiters:${config.identifier}`,
+      sourceFamily: "direct_ats",
+      sourceJobId: String(job.id),
+      canonicalUrl: job.postingUrl || `https://jobs.smartrecruiters.com/${config.identifier}/${job.id}`,
+      applyUrl: job.applyUrl || job.postingUrl,
+      title: job.name,
+      company: job.company?.name || config.company,
+      location,
+      employmentType: job.typeOfEmployment?.label || "",
+      description,
+      postedAt: validDate(job.releasedDate),
+      closesAt: "",
+      workModel: job.location?.remote ? "remote" : job.location?.hybrid ? "hybrid" : "unknown",
+      compensationText: description,
+      canonicalTrustedOpen: true,
+      freshnessConfidence: job.releasedDate ? "high" : "medium",
+      evidence: { provider: "SmartRecruiters public API", companyIdentifier: config.identifier },
+    };
+  });
+  return details.filter(Boolean);
+}
+
+export async function fetchWorkableAccount(config, fetchImpl = fetchPublic) {
+  const endpoint = `https://apply.workable.com/api/v3/accounts/${encodeURIComponent(config.account)}/jobs`;
+  const response = await fetchImpl(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "User-Agent": USER_AGENT },
+    body: JSON.stringify({ query: "", location: [], department: [], worktype: [], remote: [] }),
+  });
+  if (!response.ok) throw new Error(`Workable ${config.company} returned ${response.status}`);
+  const payload = await response.json();
+  return (payload.results ?? []).filter((job) => job.state === "published" && POTENTIAL_HR_TITLE.test(job.title || "")).map((job) => {
+    const locations = uniqueBy(job.locations ?? [job.location], (location) => JSON.stringify(location)).filter(Boolean);
+    const countries = [...new Set(locations.map((location) => location.country).filter(Boolean))];
+    const location = job.remote && countries.includes("Canada")
+      ? "Remote — Canada"
+      : locations.map((item) => item.display || [item.city, item.region, item.country].filter(Boolean).join(", ")).filter(Boolean).join(" / ");
+    const canonicalUrl = `https://apply.workable.com/${config.account}/j/${job.shortcode}/`;
+    return {
+      source: `workable:${config.account}`,
+      sourceFamily: "direct_ats",
+      sourceJobId: String(job.id || job.shortcode),
+      canonicalUrl,
+      applyUrl: canonicalUrl,
+      title: job.title,
+      company: config.company,
+      location,
+      employmentType: job.type || "",
+      description: "",
+      postedAt: validDate(job.published),
+      closesAt: "",
+      workModel: job.workplace === "remote" || job.remote ? "remote" : job.workplace === "hybrid" ? "hybrid" : "unknown",
+      compensationText: "",
+      canonicalTrustedOpen: true,
+      freshnessConfidence: job.published ? "high" : "medium",
+      evidence: { provider: "Workable public jobs API", account: config.account },
+    };
+  });
 }
 
 export async function fetchJobBank(fetchImpl = fetchPublic, queries = JOB_BANK_QUERIES) {
@@ -479,4 +708,73 @@ function inferLocation(text) {
   if (/montr[ée]al/i.test(text)) return "Montréal, QC";
   if (/remote.{0,30}canada|canada.{0,30}remote/i.test(text)) return "Remote — Canada";
   return "";
+}
+
+function duckDuckGoDestination(value) {
+  try {
+    const url = new URL(value, "https://duckduckgo.com");
+    if (url.hostname.endsWith("duckduckgo.com") && url.searchParams.get("uddg")) {
+      return new URL(url.searchParams.get("uddg")).toString();
+    }
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function companyFromUrl(value) {
+  try {
+    const url = new URL(value);
+    if (/\.myworkdayjobs\.com$/i.test(url.hostname)) return titleFromSlug(url.hostname.split(".")[0]);
+    if (url.hostname === "jobs.smartrecruiters.com") return titleFromSlug(url.pathname.split("/").filter(Boolean)[0]);
+    if (url.hostname === "apply.workable.com") return titleFromSlug(url.pathname.split("/").filter(Boolean)[0]);
+    return "Unknown company";
+  } catch {
+    return "Unknown company";
+  }
+}
+
+function inferWorkModel(value) {
+  if (/\bremote\b|work from home/i.test(value || "")) return "remote";
+  if (/\bhybrid\b/i.test(value || "")) return "hybrid";
+  if (/\bon[ -]?site\b/i.test(value || "")) return "on_site";
+  return "unknown";
+}
+
+function relativeDate(value, now = Date.now()) {
+  const text = String(value || "");
+  if (/today/i.test(text)) return new Date(now).toISOString();
+  if (/yesterday/i.test(text)) return new Date(now - 86_400_000).toISOString();
+  const match = text.match(/(\d+)\s+(day|week|month)s?\s+ago/i);
+  if (!match) return "";
+  const days = Number(match[1]) * ({ day: 1, week: 7, month: 30 }[match[2].toLowerCase()] || 0);
+  return new Date(now - days * 86_400_000).toISOString();
+}
+
+function validDate(value) {
+  const timestamp = Date.parse(value || "");
+  return Number.isNaN(timestamp) ? "" : new Date(timestamp).toISOString();
+}
+
+function textValue(value) {
+  if (typeof value === "string") return value.trim();
+  return String(value?.name || value?.descriptor || "").trim();
+}
+
+function titleFromSlug(value) {
+  return String(value || "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .trim() || "Unknown company";
+}
+
+function uniqueBy(items, keyFor) {
+  const seen = new Set();
+  return (items || []).filter((item) => {
+    const key = keyFor(item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

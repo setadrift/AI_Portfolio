@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "profile": {
     "targetSalaryCad": 110000,
     "softFloorCad": 107000,
@@ -22,15 +22,15 @@
       "family": "core_hrbp",
       "language": "en",
       "locationModel": "montreal_island",
-      "freshness": "week",
-      "query": "(\"HR Business Partner\" OR \"People Partner\") Montreal"
+      "freshness": "month",
+      "query": "(\"HR Business Partner\" OR \"People Partner\" OR \"Human Resources Manager\") Montreal"
     },
     {
       "id": "fr-montreal-hrbp",
       "family": "core_hrbp",
       "language": "fr",
       "locationModel": "montreal_island",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(\"partenaire d'affaires RH\" OR \"partenaire d'affaires ressources humaines\") Montreal"
     },
     {
@@ -38,23 +38,23 @@
       "family": "recruiting_leadership",
       "language": "en",
       "locationModel": "remote_canada",
-      "freshness": "week",
-      "query": "(\"Talent Acquisition Manager\" OR \"Recruiting Manager\" OR \"Global Recruiting Manager\") Canada remote"
+      "freshness": "month",
+      "query": "(\"Talent Acquisition Manager\" OR \"Talent Acquisition Partner\" OR \"Senior Recruiter\" OR \"Talent Operations Manager\") Canada remote"
     },
     {
       "id": "fr-montreal-ta",
       "family": "recruiting_leadership",
       "language": "fr",
       "locationModel": "montreal_island",
-      "freshness": "week",
-      "query": "(\"gestionnaire acquisition de talents\" OR \"responsable acquisition de talents\") Montreal"
+      "freshness": "month",
+      "query": "(\"gestionnaire acquisition de talents\" OR \"partenaire acquisition de talents\" OR \"recruteur principal\") Montreal"
     },
     {
       "id": "en-consumer-hr",
       "family": "preferred_sector",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(HR manager OR People manager) (fashion OR beauty OR cosmetics OR apparel OR sportswear) Canada"
     },
     {
@@ -62,7 +62,7 @@
       "family": "quebec_specialist",
       "language": "fr",
       "locationModel": "montreal_island",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(gestionnaire RH OR directrice RH OR directeur RH) Montreal"
     },
     {
@@ -70,7 +70,7 @@
       "family": "people_leadership",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(\"People Operations Manager\" OR \"People & Culture Manager\" OR \"Head of People\") Canada"
     },
     {
@@ -78,7 +78,7 @@
       "family": "global_recruiting",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(\"Global Talent Acquisition Manager\" OR \"International Recruitment Manager\" OR \"Global Recruiting Lead\") Canada"
     },
     {
@@ -86,7 +86,7 @@
       "family": "recruiting_leadership",
       "language": "fr",
       "locationModel": "montreal_island",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(\"responsable recrutement\" OR \"chef acquisition de talents\" OR \"direction recrutement\") Montréal"
     },
     {
@@ -94,7 +94,7 @@
       "family": "preferred_sector",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(\"HR Business Partner\" OR \"HR Manager\" OR \"Talent Acquisition Manager\") (fashion OR apparel OR beauty OR cosmetics OR luxury OR retail) Canada"
     },
     {
@@ -102,7 +102,7 @@
       "family": "preferred_sector",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(\"HR Manager\" OR \"People Partner\") (sportswear OR athletic wear OR consumer brand) Canada"
     },
     {
@@ -110,7 +110,7 @@
       "family": "canadian_business",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(\"HR Business Partner\" OR \"HR Manager\" OR \"Recruiting Manager\") (\"Canadian company\" OR Canada)"
     },
     {
@@ -118,31 +118,31 @@
       "family": "ats_discovery",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
-      "query": "site:myworkdayjobs.com (\"HR Business Partner\" OR \"Talent Acquisition Manager\") Canada"
+      "freshness": "month",
+      "query": "site:myworkdayjobs.com (\"HR Business Partner\" OR \"Human Resources Manager\" OR \"Talent Acquisition Partner\") Canada"
     },
     {
       "id": "site-icims-jibe-hr",
       "family": "ats_discovery",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
-      "query": "(site:icims.com OR site:jobs.*.com) (\"HR Business Partner\" OR \"Recruitment Manager\") Montreal Canada"
+      "freshness": "month",
+      "query": "(site:boards.greenhouse.io OR site:jobs.lever.co OR site:apply.workable.com OR site:successfactors.com) (\"HR Business Partner\" OR \"Recruitment Manager\") Montreal Canada"
     },
     {
       "id": "site-smartrecruiters-hr",
       "family": "ats_discovery",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
-      "query": "site:jobs.smartrecruiters.com (\"HR Manager\" OR \"People Partner\" OR \"Talent Acquisition Manager\") Canada"
+      "freshness": "month",
+      "query": "site:jobs.smartrecruiters.com (\"HR Business Partner\" OR \"HR Manager\" OR \"People Partner\" OR \"Talent Acquisition Manager\") Canada"
     },
     {
       "id": "fr-quebec-specialist-boards",
       "family": "quebec_specialist",
       "language": "fr",
       "locationModel": "montreal_island",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(site:emploicrha.org OR site:emploisrh.ca OR site:jobboom.com OR site:jobillico.com) (gestionnaire OR partenaire OR acquisition) Montréal"
     },
     {
@@ -150,7 +150,7 @@
       "family": "canadian_job_index",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(site:eluta.ca OR site:jobbank.gc.ca) (\"HR Business Partner\" OR \"HR Manager\" OR \"Recruiting Manager\") Montreal Canada"
     },
     {
@@ -158,7 +158,7 @@
       "family": "government_institutional",
       "language": "fr",
       "locationModel": "montreal_island",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(site:quebec.ca OR site:montreal.ca OR site:mcgill.ca OR site:concordia.ca OR site:umontreal.ca OR site:uqam.ca) (ressources humaines OR acquisition de talents) Montréal"
     },
     {
@@ -166,7 +166,7 @@
       "family": "recruiter",
       "language": "en",
       "locationModel": "montreal_island",
-      "freshness": "week",
+      "freshness": "month",
       "query": "(site:randstad.ca OR site:hays.ca OR site:michaelpage.ca OR site:roberthalf.com) (\"HR Manager\" OR \"Talent Acquisition Manager\") Montreal"
     },
     {
@@ -174,7 +174,7 @@
       "family": "preferred_sector",
       "language": "en",
       "locationModel": "canada",
-      "freshness": "week",
+      "freshness": "month",
       "query": "site:fashionjobs.com Canada (human resources OR talent acquisition OR people manager)"
     }
   ],
