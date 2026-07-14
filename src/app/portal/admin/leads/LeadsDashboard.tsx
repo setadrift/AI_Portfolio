@@ -869,7 +869,9 @@ export default function LeadsDashboard({
                       <th className="w-[155px] px-4 py-3">How to pursue</th>
                       <th className="w-[135px] px-4 py-3">Status</th>
                       <th className="w-[70px] px-4 py-3">Fit</th>
-                      <th className="w-[80px] px-4 py-3 text-right"></th>
+                      <th className="w-[120px] px-4 py-3 text-right">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -902,9 +904,16 @@ export default function LeadsDashboard({
                           />
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <div className="font-medium leading-5">
+                          <a
+                            href={lead.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(event) => event.stopPropagation()}
+                            className="font-medium leading-5 text-white underline decoration-white/25 underline-offset-4 transition hover:decoration-white"
+                            aria-label={`Open ${lead.title} in a new tab`}
+                          >
                             {lead.title}
-                          </div>
+                          </a>
                           <div className="mt-1 line-clamp-1 text-xs leading-5 text-white/45">
                             {lead.ownershipQuote
                               ? lead.ownershipQuote
@@ -958,16 +967,27 @@ export default function LeadsDashboard({
                           </span>
                         </td>
                         <td
-                          className="px-4 py-4 text-right align-top"
+                          className="px-4 py-4 align-top"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <button
-                            type="button"
-                            onClick={() => setSelectedLeadUrl(lead.url)}
-                            className="text-sm text-white/65 hover:text-white"
-                          >
-                            Details
-                          </button>
+                          <div className="flex flex-col items-end gap-2">
+                            <a
+                              href={lead.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-md bg-white px-3 py-1.5 text-xs font-medium text-[#151515] transition hover:bg-[#f3f0e8]"
+                              aria-label={`Open ${lead.title} in a new tab`}
+                            >
+                              Open lead
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLeadUrl(lead.url)}
+                              className="text-xs text-white/50 transition hover:text-white"
+                            >
+                              View details
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
