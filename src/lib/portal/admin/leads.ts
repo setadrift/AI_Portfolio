@@ -8,6 +8,7 @@ import {
   readLeadStatesFromDatabase,
   stateStorageKey,
 } from "./lead-db";
+import { freshestLeadSource } from "./lead-publish-policy";
 
 const REDDIT_DIGEST_DIR = outputDir(
   "REDDIT_LEAD_OUTPUT_DIR",
@@ -267,7 +268,7 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
           ),
         }
       : null;
-  const redditSource = redditSources[0] ??
+  const redditSource = freshestLeadSource(redditSources) ??
     localQuoteGroundedSource ?? {
       id: "reddit" as const,
       label: "Quality-first Reddit",
@@ -276,11 +277,11 @@ export async function readLeadDashboardData(): Promise<LeadDashboardData> {
       status: null,
       diagnostic: diagnosticForDigest("reddit", null, null),
     };
-  const automationSource = databaseSources.find(
-    (source) => source.id === "automation",
-  ) ??
-    publishedAutomationSource ??
-    publishedSources.find((source) => source.id === "automation") ?? {
+  const automationSource = freshestLeadSource([
+    databaseSources.find((source) => source.id === "automation"),
+    publishedAutomationSource,
+    publishedSources.find((source) => source.id === "automation"),
+  ]) ?? {
       id: "automation" as const,
       label: "Codex automation",
       description:
@@ -417,6 +418,8 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
     );
   }
 
+  await persistLeadSourcesToDatabase([redditSource]);
+
   await put(
     PUBLISHED_DIGEST_PATH,
     JSON.stringify(
@@ -461,32 +464,6 @@ export async function publishLatestLeadDigest(outputDir = REDDIT_DIGEST_DIR) {
     automation: existingAutomationSource?.diagnostic ?? null,
   });
 
-  await persistLeadSourcesToDatabase(
-    [
-      redditSource,
-      existingAutomationSource
-        ? {
-            id: existingAutomationSource.id,
-            label: existingAutomationSource.label,
-            description: existingAutomationSource.description,
-            fileName:
-              existingAutomationSource.digest?.fileName ??
-              "codex-automation-leads.md",
-            markdown: existingAutomationSource.markdown,
-            status: existingAutomationSource.status,
-            diagnostic: existingAutomationSource.diagnostic,
-            digest:
-              existingAutomationSource.digest ??
-              parseDigest(
-                "codex-automation-leads.md",
-                existingAutomationSource.markdown,
-                "automation",
-              ),
-          }
-        : null,
-    ].filter((source): source is NonNullable<typeof source> => Boolean(source)),
-  );
-
   return `Published ${fileName} to Vercel Blob at ${PUBLISHED_DIGEST_PATH}`;
 }
 
@@ -514,6 +491,19 @@ export async function publishLatestAutomationLeadDigest(
     status: aggregateAutomationStatus(status, markdown),
   };
 
+  await persistLeadSourcesToDatabase([
+    {
+      id: payload.id,
+      label: payload.label,
+      description: payload.description,
+      fileName,
+      markdown,
+      status: payload.status,
+      diagnostic,
+      digest,
+    },
+  ]);
+
   await put(
     PUBLISHED_AUTOMATION_DIGEST_PATH,
     JSON.stringify(payload, null, 2),
@@ -529,19 +519,6 @@ export async function publishLatestAutomationLeadDigest(
     path: PUBLISHED_AUTOMATION_DIGEST_PATH,
     diagnostic,
   });
-
-  await persistLeadSourcesToDatabase([
-    {
-      id: payload.id,
-      label: payload.label,
-      description: payload.description,
-      fileName,
-      markdown,
-      status: payload.status,
-      diagnostic,
-      digest,
-    },
-  ]);
 
   return `Published ${fileName} to Vercel Blob at ${PUBLISHED_AUTOMATION_DIGEST_PATH}`;
 }

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createClient } from "@supabase/supabase-js";
+import { assertLeadSourceIsNotOlder } from "./lead-source-freshness.mjs";
 
 export async function persistAdminLeadBundleToSupabase(payload) {
   const sources = payload.sources ?? (payload.id ? [payload] : []);
@@ -22,6 +23,35 @@ export async function persistAdminLeadBundleToSupabase(payload) {
     ),
   }));
 
+  const { data: existingSources, error: existingSourceError } = await supabase
+    .from("admin_lead_sources")
+    .select("id,generated_at")
+    .in(
+      "id",
+      sources.map((source) => source.id),
+    );
+  if (existingSourceError) {
+    return { ok: false, error: existingSourceError.message };
+  }
+  const existingGeneratedAt = new Map(
+    (existingSources ?? []).map((source) => [source.id, source.generated_at]),
+  );
+  try {
+    for (const sourceRow of sourceRows) {
+      assertLeadSourceIsNotOlder({
+        sourceId: sourceRow.id,
+        incomingGeneratedAt: sourceRow.generated_at,
+        existingGeneratedAt: existingGeneratedAt.get(sourceRow.id),
+      });
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      stale: true,
+      error: error instanceof Error ? error.message : "Stale lead source",
+    };
+  }
+
   const { error: sourceError } = await supabase
     .from("admin_lead_sources")
     .upsert(sourceRows, {
@@ -39,6 +69,28 @@ export async function persistAdminLeadBundleToSupabase(payload) {
 
 async function persistSourceLeads(supabase, source) {
   const leads = parseLeads(source.markdown ?? "", source.id);
+  const existingLeadMeta = await readExistingLeadMeta(
+    supabase,
+    source.id,
+    leads.map((lead) => lead.lead_key),
+  );
+  const scanMode = source.status?.scanMode ?? null;
+  const scanBatch = scanBatchId(source);
+  const leadRows = leads.map((lead) => ({
+    ...lead,
+    first_seen_scan_mode:
+      existingLeadMeta.get(lead.lead_key)?.first_seen_scan_mode ?? scanMode,
+    last_seen_scan_mode: scanMode,
+    last_seen_scan_batch: scanBatch,
+  }));
+
+  if (leadRows.length > 0) {
+    const { error } = await supabase.from("admin_leads").upsert(leadRows, {
+      onConflict: "source_id,lead_key",
+    });
+    if (error) return { ok: false, error: error.message };
+  }
+
   if (shouldReplaceMissingLeads(source)) {
     const leadKeys = leads.map((lead) => lead.lead_key);
     const staleLeadQuery = supabase
@@ -56,27 +108,6 @@ async function persistSourceLeads(supabase, source) {
 
     if (deactivateError) return { ok: false, error: deactivateError.message };
   }
-  if (!leads.length) return { ok: true };
-
-  const existingLeadMeta = await readExistingLeadMeta(
-    supabase,
-    source.id,
-    leads.map((lead) => lead.lead_key),
-  );
-  const scanMode = source.status?.scanMode ?? null;
-  const scanBatch = scanBatchId(source);
-  const leadRows = leads.map((lead) => ({
-    ...lead,
-    first_seen_scan_mode:
-      existingLeadMeta.get(lead.lead_key)?.first_seen_scan_mode ?? scanMode,
-    last_seen_scan_mode: scanMode,
-    last_seen_scan_batch: scanBatch,
-  }));
-
-  const { error } = await supabase.from("admin_leads").upsert(leadRows, {
-    onConflict: "source_id,lead_key",
-  });
-  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
 
