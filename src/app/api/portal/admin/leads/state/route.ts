@@ -19,6 +19,23 @@ type LeadStateRequest = {
   }>;
 };
 
+const VALID_QUEUES = new Set<StoredLeadState["queue"]>([
+  "actionable",
+  "review",
+  "community_reply",
+  "commented",
+  "dm_sent",
+  "dismissed",
+]);
+const VALID_ACTIONS = new Set<StoredLeadState["action"]>([
+  "new",
+  "opened",
+  "commented",
+  "dm_sent",
+  "converted",
+  "dismissed",
+]);
+
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
   const token = cookieStore.get(PORTAL_COOKIE)?.value;
@@ -34,7 +51,9 @@ export async function POST(req: NextRequest) {
       update.sourceId &&
       update.leadKey &&
       update.queue &&
+      VALID_QUEUES.has(update.queue) &&
       update.action &&
+      VALID_ACTIONS.has(update.action) &&
       typeof update.notes === "string",
   );
 

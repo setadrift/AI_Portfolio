@@ -8,6 +8,7 @@ import type {
   RedditLead,
   StoredLeadState,
 } from "./leads";
+import { assertLeadSourceIsNotOlder } from "./lead-publish-policy";
 
 interface PublishedLeadSourceForDb {
   id: LeadSourceId;
@@ -39,6 +40,7 @@ type AdminLeadSourceRow = {
   markdown: string;
   status: LeadRunStatus | null;
   diagnostic: LeadSourceDiagnostic | null;
+  generated_at?: string | null;
 };
 
 type AdminLeadStateRow = {
@@ -146,7 +148,10 @@ export async function persistLeadSourcesToDatabase(
   sources: PublishedLeadSourceForDb[],
 ) {
   const supabase = adminClient();
-  if (!supabase || sources.length === 0) return;
+  if (sources.length === 0) return { ok: true, sources: 0 };
+  if (!supabase) {
+    throw new Error("Supabase admin lead storage is not configured.");
+  }
 
   const sourceRows = sources.map((source) => ({
     id: source.id,
@@ -159,6 +164,32 @@ export async function persistLeadSourcesToDatabase(
     generated_at: normalizeTimestamp(source.digest.generatedAt),
   }));
 
+  const { data: existingSources, error: existingSourceError } = await supabase
+    .from("admin_lead_sources")
+    .select("id,generated_at")
+    .in(
+      "id",
+      sources.map((source) => source.id),
+    );
+  if (existingSourceError) {
+    throw new Error(
+      `Failed to verify current Supabase lead sources: ${existingSourceError.message}`,
+    );
+  }
+  const existingGeneratedAt = new Map(
+    (existingSources ?? []).map((source) => [
+      source.id,
+      source.generated_at as string | null,
+    ]),
+  );
+  for (const source of sources) {
+    assertLeadSourceIsNotOlder({
+      sourceId: source.id,
+      incomingGeneratedAt: source.digest.generatedAt,
+      existingGeneratedAt: existingGeneratedAt.get(source.id),
+    });
+  }
+
   const { error: sourceError } = await supabase
     .from("admin_lead_sources")
     .upsert(sourceRows, {
@@ -166,46 +197,21 @@ export async function persistLeadSourcesToDatabase(
     });
 
   if (sourceError) {
-    console.warn("Failed to persist Supabase admin lead sources", {
-      error: sourceError.message,
-    });
-    return;
+    throw new Error(
+      `Failed to persist Supabase admin lead sources: ${sourceError.message}`,
+    );
   }
 
   for (const source of sources) {
     await persistLeadRows(supabase, source);
   }
+  return { ok: true, sources: sources.length };
 }
 
 async function persistLeadRows(
   supabase: SupabaseClient,
   source: PublishedLeadSourceForDb,
 ) {
-  if (shouldReplaceMissingLeads()) {
-    const leadKeys = source.digest.leads.map((lead) =>
-      leadKeyForDatabase(lead),
-    );
-    const staleLeadQuery = supabase
-      .from("admin_leads")
-      .update({ active: false })
-      .eq("source_id", source.id);
-    const { error: deactivateError } =
-      leadKeys.length > 0
-        ? await staleLeadQuery.not(
-            "lead_key",
-            "in",
-            `(${leadKeys.map(quotePostgrestValue).join(",")})`,
-          )
-        : await staleLeadQuery;
-
-    if (deactivateError) {
-      console.warn("Failed to deactivate stale Supabase admin leads", {
-        source: source.id,
-        error: deactivateError.message,
-      });
-    }
-  }
-
   const existingLeadMeta = await readExistingLeadMeta(
     supabase,
     source.id,
@@ -240,17 +246,40 @@ async function persistLeadRows(
     active: true,
   }));
 
-  if (leadRows.length === 0) return;
-
-  const { error } = await supabase.from("admin_leads").upsert(leadRows, {
-    onConflict: "source_id,lead_key",
-  });
-
-  if (error) {
-    console.warn("Failed to persist Supabase admin leads", {
-      source: source.id,
-      error: error.message,
+  if (leadRows.length > 0) {
+    const { error } = await supabase.from("admin_leads").upsert(leadRows, {
+      onConflict: "source_id,lead_key",
     });
+
+    if (error) {
+      throw new Error(
+        `Failed to persist Supabase ${source.id} leads: ${error.message}`,
+      );
+    }
+  }
+
+  if (shouldReplaceMissingLeads()) {
+    const leadKeys = source.digest.leads.map((lead) =>
+      leadKeyForDatabase(lead),
+    );
+    const staleLeadQuery = supabase
+      .from("admin_leads")
+      .update({ active: false })
+      .eq("source_id", source.id);
+    const { error: deactivateError } =
+      leadKeys.length > 0
+        ? await staleLeadQuery.not(
+            "lead_key",
+            "in",
+            `(${leadKeys.map(quotePostgrestValue).join(",")})`,
+          )
+        : await staleLeadQuery;
+
+    if (deactivateError) {
+      throw new Error(
+        `Failed to deactivate stale Supabase ${source.id} leads: ${deactivateError.message}`,
+      );
+    }
   }
 }
 

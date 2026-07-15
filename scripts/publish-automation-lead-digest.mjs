@@ -43,6 +43,13 @@ async function main() {
     status: aggregateStatus(status, markdown),
   };
 
+  const supabaseResult = await persistAdminLeadBundleToSupabase(payload);
+  if (!supabaseResult.ok) {
+    throw new Error(
+      `Supabase lead publish failed: ${supabaseResult.error || supabaseResult.reason || "unknown error"}`,
+    );
+  }
+
   await put(
     PUBLISHED_AUTOMATION_DIGEST_PATH,
     JSON.stringify(payload, null, 2),
@@ -53,8 +60,6 @@ async function main() {
       cacheControlMaxAge: 60,
     },
   );
-  const supabaseResult = await persistAdminLeadBundleToSupabase(payload);
-
   console.log(
     JSON.stringify({
       message: `Published ${fileName} to Vercel Blob at ${PUBLISHED_AUTOMATION_DIGEST_PATH}`,

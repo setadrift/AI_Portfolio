@@ -14,6 +14,7 @@
     "leads:publish": "node scripts/publish-lead-digest.mjs",
     "leads:publish:automation": "node scripts/publish-automation-lead-digest.mjs",
     "leads:automation:gates": "node scripts/publish-automation-lead-digest.mjs --test-gates",
+    "leads:integration:test": "tsx --test src/lib/portal/admin/lead-publish-policy.test.ts scripts/lib/lead-source-freshness.test.mjs && npm run leads:automation:gates && npm run leads:reddit:v2:fixtures",
     "consulting:seed": "tsx scripts/seed-consulting-acquisition.ts",
     "consulting:test": "tsx scripts/test-consulting-acquisition.ts",
     "consulting:verify": "tsx scripts/verify-consulting-acquisition.ts",

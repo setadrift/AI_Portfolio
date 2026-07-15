@@ -10,6 +10,7 @@ import type {
   RedditLead,
   StoredLeadState,
 } from "@/lib/portal/admin/leads";
+import { isLeadReadyToPursue } from "@/lib/portal/admin/lead-publish-policy";
 import {
   OPPORTUNITY_TYPES,
   type ConsultingOfferRecord,
@@ -80,7 +81,7 @@ export default function LeadsDashboard({
   );
   const [selectedSourceId, setSelectedSourceId] =
     useState<SourceFilter>("all");
-  const [selectedStage, setSelectedStage] = useState<BoardStage>("all");
+  const [selectedStage, setSelectedStage] = useState<BoardStage>("ready");
   const [selectedLeadUrl, setSelectedLeadUrl] = useState("");
   const [search, setSearch] = useState("");
   const [leadTypeFilter, setLeadTypeFilter] = useState("all");
@@ -236,6 +237,9 @@ export default function LeadsDashboard({
   const currentStage =
     STAGES.find((stage) => stage.value === selectedStage) ?? STAGES[0];
   const selectedStatus = selectedSource?.status ?? null;
+  const automationSource = initialData.sources.find(
+    (source) => source.id === "automation",
+  );
 
   async function runScan() {
     setIsRunning(true);
@@ -345,7 +349,7 @@ export default function LeadsDashboard({
         throw new Error(result.error || "Automation scan failed");
       }
 
-      setRunMessage(result.message || "Codex automation leads loaded.");
+      setRunMessage(result.message || "Published research refreshed.");
       router.refresh();
     } catch (error) {
       setRunMessage(
@@ -356,7 +360,11 @@ export default function LeadsDashboard({
     }
   }
 
-  function updateLead(lead: RedditLead, patch: Partial<LeadState>) {
+  function updateLead(
+    lead: RedditLead,
+    patch: Partial<LeadState>,
+    persist = true,
+  ) {
     const key = stateKey(lead);
     const currentState = leadState[key] ?? leadState[leadKey(lead)];
     const currentQueue = queueForLead(lead, currentState);
@@ -378,12 +386,14 @@ export default function LeadsDashboard({
       ...current,
       [key]: nextState,
     }));
-    void persistLeadStateUpdates([
-      {
-        lead,
-        state: nextState,
-      },
-    ]);
+    if (persist) {
+      void persistLeadStateUpdates([
+        {
+          lead,
+          state: nextState,
+        },
+      ]);
+    }
   }
 
   function setLeadStage(lead: RedditLead, stage: Exclude<BoardStage, "all">) {
@@ -477,6 +487,12 @@ export default function LeadsDashboard({
                 Work the best current leads first. Run scans only when the queue
                 needs refreshing.
               </p>
+              <p className="mt-2 text-xs text-white/40">
+                {counts.ready} ready to act on
+                {automationSource?.digest?.generatedAt
+                  ? ` · Research published ${formatPublishedAt(automationSource.digest.generatedAt)}`
+                  : " · No published automation research"}
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -519,9 +535,9 @@ export default function LeadsDashboard({
                   onClick={runAutomationScan}
                   disabled={isRunning}
                   className="h-9 rounded-md bg-[#f3f0e8] px-3 text-sm font-medium text-[#151515] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                  title="Publishes the latest Codex automation digest from the configured worktree output directory."
+                  title="Refreshes the latest research already published by the daily Codex automation."
                 >
-                  {isRunning ? "Working..." : "Load latest research"}
+                  {isRunning ? "Working..." : "Refresh published leads"}
                 </button>
             </div>
           </div>
@@ -531,7 +547,7 @@ export default function LeadsDashboard({
               type="button"
               onClick={() => {
                 setSelectedSourceId("all");
-                setSelectedStage("all");
+                setSelectedStage("ready");
                 setLeadTypeFilter("all");
                 setSelectedIds(new Set());
                 setSelectedLeadUrl("");
@@ -550,7 +566,7 @@ export default function LeadsDashboard({
                 type="button"
                 onClick={() => {
                   setSelectedSourceId(source.id);
-                  setSelectedStage("all");
+                  setSelectedStage("ready");
                   setLeadTypeFilter("all");
                   setSelectedIds(new Set());
                   setSelectedLeadUrl("");
@@ -1000,6 +1016,11 @@ export default function LeadsDashboard({
           <LeadDetail
             lead={selectedLead}
             updateLead={updateLead}
+            persistLead={(lead) => {
+              const state =
+                leadState[stateKey(lead)] ?? leadState[leadKey(lead)];
+              if (state) void persistLeadStateUpdates([{ lead, state }]);
+            }}
             offers={offers}
             promoted={
               selectedLead
@@ -1025,11 +1046,17 @@ function SummaryCount({ label, value }: { label: string; value: number }) {
 function LeadDetail({
   lead,
   updateLead,
+  persistLead,
   offers,
   promoted,
 }: {
   lead: EnrichedLead | null;
-  updateLead: (lead: RedditLead, patch: Partial<LeadState>) => void;
+  updateLead: (
+    lead: RedditLead,
+    patch: Partial<LeadState>,
+    persist?: boolean,
+  ) => void;
+  persistLead: (lead: RedditLead) => void;
   offers: ConsultingOfferRecord[];
   promoted: boolean;
 }) {
@@ -1329,7 +1356,10 @@ function LeadDetail({
         </span>
         <textarea
           value={lead.notes}
-          onChange={(event) => updateLead(lead, { notes: event.target.value })}
+          onChange={(event) =>
+            updateLead(lead, { notes: event.target.value }, false)
+          }
+          onBlur={() => persistLead(lead)}
           rows={4}
           className="mt-2 w-full rounded-md border border-white/10 bg-[#151515] p-3 text-sm leading-6 text-white outline-none focus:border-white/30"
           placeholder="Decision, follow-up angle, or why this was dismissed."
@@ -1585,6 +1615,12 @@ function formatElapsed(seconds: number) {
   return `${minutes}m ${remainder.toString().padStart(2, "0")}s`;
 }
 
+function formatPublishedAt(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "at an unknown time";
+  return `${parsed.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 function filterOptions(
   leads: RedditLead[],
   valueForLead: (lead: RedditLead) => string,
@@ -1637,20 +1673,14 @@ function queueForLead(lead: RedditLead, state?: LeadState): LeadQueue {
   const normalizedState = state ? normalizeStoredState(state) : undefined;
   if (normalizedState?.dismissed) return "dismissed";
   if (normalizedState?.queue) return normalizedState.queue;
-  if (lead.buyerQueue === "active_lead") return "actionable";
+  if (isLeadReadyToPursue(lead)) return "actionable";
   if (lead.buyerQueue === "warm_reply") return "community_reply";
   if (lead.buyerQueue === "company_signal") return "review";
   if (lead.buyerQueue === "market_intelligence") return "review";
   if (lead.buyerQueue === "reject") return "dismissed";
   if (lead.recommendedAction === "ignore") return "dismissed";
-  if (
-    lead.recommendedAction === "dm" ||
-    lead.recommendedAction === "dm_if_engaged"
-  )
-    return "actionable";
   if (lead.recommendedAction === "watch") return "review";
-  if (lead.recommendedAction === "comment") return "community_reply";
-  if ((Number.parseInt(lead.score, 10) || 0) >= 4) return "actionable";
+  if (lead.recommendedAction === "comment") return "review";
   return "review";
 }
 
@@ -1666,6 +1696,7 @@ function stageForLead(lead: EnrichedLead): Exclude<BoardStage, "all"> {
     return "pursued";
   }
   if (lead.queue === "review") return "review";
+  if (lead.queue === "community_reply") return "review";
   return "ready";
 }
 

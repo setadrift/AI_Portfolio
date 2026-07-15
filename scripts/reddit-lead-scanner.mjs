@@ -1016,6 +1016,7 @@ function assignQueue(candidate) {
   if (
     classification.intent === "hiring_or_paid_help" &&
     quoteVerification.askVerified &&
+    classification.reply_angle &&
     classification.consulting_fit === "yes" &&
     classification.confidence === "high"
   ) {
@@ -1026,6 +1027,8 @@ function assignQueue(candidate) {
   }
   if (
     REPLY_INTENTS.has(classification.intent) &&
+    quoteVerification.askVerified &&
+    classification.reply_angle &&
     classification.consulting_fit === "yes" &&
     ["high", "medium"].includes(classification.confidence)
   ) {
