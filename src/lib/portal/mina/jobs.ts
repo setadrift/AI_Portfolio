@@ -14,6 +14,14 @@ export const MINA_JOB_STATUSES = [
 ] as const;
 
 export type MinaJobStatus = (typeof MINA_JOB_STATUSES)[number];
+const RETAINED_MINA_JOB_STATUSES: MinaJobStatus[] = [
+  "saved",
+  "preparing",
+  "applied",
+  "recruiter_screen",
+  "interview",
+  "offer",
+];
 export type MinaWorkModel = "remote" | "hybrid" | "on_site" | "unknown";
 export type MinaFreshnessBucket = "hot" | "fresh" | "recent" | "aging" | "archive" | "unknown";
 export type MinaQualityTier = "priority" | "strong" | "watch" | "archive";
@@ -113,6 +121,11 @@ export interface ManualMinaJobInput {
   salaryMax?: number | null;
   workModel?: MinaWorkModel;
   notes?: string;
+}
+
+export function isMinaJobCurrent(job: MinaJob) {
+  return !["rejected", "expired"].includes(job.state.status) &&
+    (job.active || RETAINED_MINA_JOB_STATUSES.includes(job.state.status));
 }
 
 export type MinaMutationResult<T> =
