@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireMinaPortalSession } from "@/lib/portal/mina/auth";
-import { readMinaJobsData } from "@/lib/portal/mina/jobs";
+import { isMinaJobCurrent, readMinaJobsData } from "@/lib/portal/mina/jobs";
 import { runMinaJobScan } from "../../../../../../scripts/mina-job-scan.mjs";
 
 export const runtime = "nodejs";
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       ? Date.now() - Date.parse(latestBroadScan.lastRunAt)
       : Number.POSITIVE_INFINITY;
     if (latestScanAge < 5 * 60_000) {
-      const currentJobs = existingData.jobs.filter((job) => job.active).length;
+      const currentJobs = existingData.jobs.filter(isMinaJobCurrent).length;
       const limited = !latestBroadScan?.ok;
       return NextResponse.json(
         {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       throw new Error("No job sources completed successfully.");
     }
     const data = await readMinaJobsData();
-    const currentJobs = data.jobs.filter((job) => job.active).length;
+    const currentJobs = data.jobs.filter(isMinaJobCurrent).length;
     const limited = summary.partialCoverage;
     const coverage = `${summary.marketQueriesSucceeded.toLocaleString("en-CA")} market queries and ${summary.employerBoardsSucceeded.toLocaleString("en-CA")} employer boards`;
     const missingCoverage = [

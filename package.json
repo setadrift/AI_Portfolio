@@ -22,7 +22,7 @@
     "jobs:mina:stage": "node scripts/mina-job-scan.mjs --stage-only",
     "jobs:mina:publish-research": "node scripts/publish-mina-job-research.mjs",
     "jobs:mina:research-gates": "node scripts/publish-mina-job-research.mjs --test-gates",
-    "jobs:mina:test": "tsx --test scripts/mina-job-scan.test.mjs scripts/mina-jobs/discovery.test.mjs scripts/mina-jobs/profile.test.mjs scripts/mina-jobs/sources.test.mjs src/lib/portal/mina/text.test.ts && npm run jobs:mina:research-gates",
+    "jobs:mina:test": "tsx --test scripts/mina-job-scan.test.mjs scripts/mina-jobs/discovery.test.mjs scripts/mina-jobs/profile.test.mjs scripts/mina-jobs/sources.test.mjs src/lib/portal/mina/jobs.test.ts src/lib/portal/mina/text.test.ts && npm run jobs:mina:research-gates",
     "willowops:monday:setup": "node scripts/willowops_monday_setup.mjs",
     "willowops:smoke": "bash scripts/willowops_phase1_smoke.sh",
     "willowops:tunnel": "bash scripts/willowops_tunnel.sh",

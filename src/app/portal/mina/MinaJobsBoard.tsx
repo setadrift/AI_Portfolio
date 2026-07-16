@@ -2,13 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { addMinaJob, setMinaJobState } from "./actions";
-import type {
-  MinaJob,
-  MinaJobsData,
-  MinaJobState,
-  MinaJobStatus,
-  MinaRoleFamily,
-  MinaWorkModel,
+import {
+  isMinaJobCurrent,
+  type MinaJob,
+  type MinaJobsData,
+  type MinaJobState,
+  type MinaJobStatus,
+  type MinaRoleFamily,
+  type MinaWorkModel,
 } from "@/lib/portal/mina/jobs";
 import { plainDescription } from "@/lib/portal/mina/text";
 
@@ -47,6 +48,22 @@ const WORK_LABELS: Record<MinaWorkModel, string> = {
   unknown: "Work model unclear",
 };
 
+const FRESHNESS_LABELS: Record<MinaJob["freshnessBucket"], string> = {
+  hot: "Posted today",
+  fresh: "Fresh",
+  recent: "Recent",
+  aging: "Older",
+  archive: "Archived",
+  unknown: "Date unverified",
+};
+
+const TIER_LABELS: Record<MinaJob["qualityTier"], string> = {
+  priority: "Priority",
+  strong: "Strong match",
+  watch: "Worth a look",
+  archive: "Archived",
+};
+
 const ACTIVE_APPLICATION_STATUSES: MinaJobStatus[] = [
   "saved",
   "preparing",
@@ -68,7 +85,7 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
   const [isPending, startTransition] = useTransition();
 
   const currentJobs = useMemo(
-    () => jobs.filter((job) => job.active && !["rejected", "expired"].includes(job.state.status)),
+    () => jobs.filter(isMinaJobCurrent),
     [jobs],
   );
   const savedCount = useMemo(
@@ -153,14 +170,14 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 sm:py-12">
-      <section className="border-b border-[#d7d9d2] pb-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-12">
+      <section className="border-b border-[#d7d9d2] pb-6 sm:pb-8">
         <div className="flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
           <div className="max-w-2xl">
             <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-[#66756b] uppercase">
               Your search, without the noise
             </p>
-            <h1 className="font-display text-4xl leading-tight text-[#263a30] sm:text-5xl">
+            <h1 className="font-display text-3xl leading-tight text-[#263a30] sm:text-5xl">
               {currentJobs.length > 0
                 ? `${currentJobs.length} ${currentJobs.length === 1 ? "job" : "jobs"} worth reviewing`
                 : "No current jobs yet"}
@@ -170,26 +187,26 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
               location, and freshness. Every match shows what is known and what still needs checking.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="grid w-full grid-cols-1 gap-2.5 sm:w-auto sm:grid-cols-2 sm:gap-3">
             <button
               type="button"
               onClick={runScan}
               disabled={isScanning || !initialData.configured}
               aria-busy={isScanning}
-              className="rounded-md bg-[#315440] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#284735] disabled:cursor-not-allowed disabled:bg-[#8a978e]"
+              className="min-h-11 rounded-md bg-[#315440] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#284735] disabled:cursor-not-allowed disabled:bg-[#8a978e]"
             >
               {isScanning ? "Checking job sources…" : "Check for new jobs"}
             </button>
             <button
               type="button"
               onClick={() => setShowAddForm((current) => !current)}
-              className="rounded-md border border-[#aeb5ab] bg-white px-4 py-2.5 text-sm font-medium text-[#34463b] transition hover:border-[#7f8c82] hover:bg-[#f4f6f2]"
+              className="min-h-11 rounded-md border border-[#aeb5ab] bg-white px-4 py-2.5 text-sm font-medium text-[#34463b] transition hover:border-[#7f8c82] hover:bg-[#f4f6f2]"
             >
               Save a job you found
             </button>
           </div>
         </div>
-        <div className="mt-7 flex flex-wrap gap-2" aria-label="Search summary">
+        <div className="mt-6 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap" aria-label="Search summary">
           <SummaryPill label="Current jobs" value={currentJobs.length} />
           <SummaryPill label="Saved & applied" value={savedCount} />
           <SummaryPill
@@ -221,19 +238,19 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
       <section className="mt-8">
         <div className="flex flex-col gap-4 border-b border-[#d7d9d2] pb-5 xl:flex-row xl:items-center xl:justify-between">
           <h2 className="font-display text-2xl text-[#304538]">Current jobs</h2>
-          <div className="flex flex-wrap gap-2 xl:justify-end">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 xl:flex xl:justify-end">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search company or title"
               aria-label="Search jobs"
-              className="min-w-52 rounded-md border border-[#cfd3cc] bg-white px-3 py-2 text-sm outline-none placeholder:text-[#92978f] focus:border-[#637c6b] focus:ring-2 focus:ring-[#637c6b]/15"
+              className="min-w-0 rounded-md border border-[#cfd3cc] bg-white px-3 py-2.5 text-sm outline-none placeholder:text-[#92978f] focus:border-[#637c6b] focus:ring-2 focus:ring-[#637c6b]/15 xl:min-w-52"
             />
             <select
               value={sort}
               onChange={(event) => setSort(event.target.value as Sort)}
               aria-label="Sort jobs"
-              className="rounded-md border border-[#cfd3cc] bg-white px-3 py-2 text-sm text-[#50574f]"
+              className="min-w-0 rounded-md border border-[#cfd3cc] bg-white px-3 py-2.5 text-sm text-[#50574f]"
             >
               <option value="best">Best opportunity</option>
               <option value="newest">Newest</option>
@@ -252,26 +269,41 @@ export default function MinaJobsBoard({ initialData }: { initialData: MinaJobsDa
         ) : null}
 
         {topJobs.length > 0 ? (
-          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)]">
+          <div className="mt-5 grid gap-6 sm:mt-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(360px,1.08fr)]">
             <div className="divide-y divide-[#dfe1dc] border-y border-[#d6d9d2]">
               {topJobs.map((job) => (
-                <JobRow
-                  key={job.id}
-                  job={job}
-                  active={selectedJob?.id === job.id}
-                  targetSalaryCents={initialData.profile.targetSalaryCents}
-                  onSelect={() => setSelectedId(job.id)}
-                />
+                <div key={job.id}>
+                  <JobRow
+                    job={job}
+                    active={selectedJob?.id === job.id}
+                    targetSalaryCents={initialData.profile.targetSalaryCents}
+                    onSelect={() => setSelectedId(job.id)}
+                  />
+                  {selectedJob?.id === job.id ? (
+                    <div id={`mobile-job-${job.id}`} className="border-t border-[#dfe1dc] bg-white lg:hidden">
+                      <JobDetail
+                        job={job}
+                        targetSalaryCents={initialData.profile.targetSalaryCents}
+                        pending={isPending}
+                        variant="mobile"
+                        onUpdate={(patch, message) => updateState(job, patch, message)}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               ))}
             </div>
             {selectedJob ? (
-              <JobDetail
-                key={selectedJob.id}
-                job={selectedJob}
-                targetSalaryCents={initialData.profile.targetSalaryCents}
-                pending={isPending}
-                onUpdate={(patch, message) => updateState(selectedJob, patch, message)}
-              />
+              <div className="hidden lg:block">
+                <JobDetail
+                  key={selectedJob.id}
+                  job={selectedJob}
+                  targetSalaryCents={initialData.profile.targetSalaryCents}
+                  pending={isPending}
+                  variant="desktop"
+                  onUpdate={(patch, message) => updateState(selectedJob, patch, message)}
+                />
+              </div>
             ) : null}
           </div>
         ) : (
@@ -313,7 +345,9 @@ function JobRow({
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full px-4 py-5 text-left transition sm:px-5 ${
+      aria-expanded={active}
+      aria-controls={`mobile-job-${job.id}`}
+      className={`w-full px-3 py-4 text-left transition sm:px-5 sm:py-5 ${
         active ? "bg-[#eef2ec] shadow-[inset_3px_0_0_#476151]" : "hover:bg-white/70"
       }`}
     >
@@ -322,17 +356,30 @@ function JobRow({
           <p className="text-xs font-medium tracking-wide text-[#718075] uppercase">{job.company}</p>
           <h2 className="mt-1 text-lg font-semibold leading-snug text-[#28342c]">{job.title}</h2>
         </div>
-        <span className="shrink-0 rounded-full border border-[#c4cec5] bg-white px-2.5 py-1 text-xs font-semibold text-[#395744]">
+        <span className="shrink-0 rounded-full border border-[#c4cec5] bg-white px-2.5 py-1 text-xs font-semibold text-[#395744]" aria-label={`${job.matchScore} out of 100 opportunity score`}>
           {job.matchScore}
         </span>
       </div>
       <p className="mt-3 text-sm text-[#666c65]">{job.location} · {WORK_LABELS[job.workModel]}</p>
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
         <span className={clearsTarget ? "font-semibold text-[#326044]" : "text-[#4f554f]"}>{pay}</span>
         <span className="text-[#858a83]">{ageLabel(job.sourcePostedAt)}</span>
         {job.state.status !== "new" ? (
           <span className="font-medium text-[#6d6040]">{STATUS_LABELS[job.state.status]}</span>
         ) : null}
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          <JobTag tone={job.qualityTier === "priority" || job.qualityTier === "strong" ? "positive" : "neutral"}>
+            {TIER_LABELS[job.qualityTier]}
+          </JobTag>
+          <JobTag tone={job.freshnessBucket === "hot" || job.freshnessBucket === "fresh" ? "positive" : "neutral"}>
+            {FRESHNESS_LABELS[job.freshnessBucket]}
+          </JobTag>
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-[#506457] lg:hidden">
+          {active ? "Details open" : "View details"}
+        </span>
       </div>
     </button>
   );
@@ -342,11 +389,13 @@ function JobDetail({
   job,
   targetSalaryCents,
   pending,
+  variant,
   onUpdate,
 }: {
   job: MinaJob;
   targetSalaryCents: number;
   pending: boolean;
+  variant: "mobile" | "desktop";
   onUpdate: (patch: Partial<MinaJobState>, message: string) => void;
 }) {
   const [showReject, setShowReject] = useState(false);
@@ -357,17 +406,29 @@ function JobDetail({
     job.salaryMinCents >= targetSalaryCents;
 
   return (
-    <article className="self-start rounded-md border border-[#d5d9d2] bg-white p-5 shadow-[0_14px_40px_rgba(39,50,43,0.06)] sm:p-7 lg:sticky lg:top-5">
+    <article className={variant === "desktop"
+      ? "self-start rounded-md border border-[#d5d9d2] bg-white p-7 shadow-[0_14px_40px_rgba(39,50,43,0.06)] lg:sticky lg:top-5"
+      : "scroll-mt-20 bg-white px-3 py-5 sm:px-5"
+    }>
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div>
           <p className="text-sm font-semibold text-[#647267]">{job.company}</p>
-          <h2 className="mt-1 font-display text-3xl leading-tight text-[#263a30]">{job.title}</h2>
+          <h2 className={`mt-1 font-display leading-tight text-[#263a30] ${variant === "mobile" ? "text-2xl" : "text-3xl"}`}>{job.title}</h2>
           <p className="mt-2 text-sm text-[#697069]">{job.location} · {WORK_LABELS[job.workModel]}</p>
         </div>
         <div className="shrink-0 text-left sm:text-right">
           <p className="text-2xl font-semibold text-[#344c3c]">{job.matchScore}/100</p>
           <p className="text-xs text-[#848a82]">opportunity score</p>
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        <JobTag tone={job.qualityTier === "priority" || job.qualityTier === "strong" ? "positive" : "neutral"}>
+          {TIER_LABELS[job.qualityTier]}
+        </JobTag>
+        <JobTag tone={job.freshnessBucket === "hot" || job.freshnessBucket === "fresh" ? "positive" : "neutral"}>
+          {FRESHNESS_LABELS[job.freshnessBucket]}
+        </JobTag>
       </div>
 
       <div className="mt-6 grid gap-3 border-y border-[#e1e3de] py-5 sm:grid-cols-3">
@@ -408,12 +469,12 @@ function JobDetail({
         </details>
       ) : null}
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <a
           href={job.applyUrl || job.canonicalUrl}
           target="_blank"
           rel="noreferrer"
-          className="rounded-md bg-[#304d3a] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#263f2f]"
+          className="col-span-2 flex min-h-11 items-center justify-center rounded-md bg-[#304d3a] px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-[#263f2f] sm:col-auto"
         >
           Open job posting
         </a>
@@ -427,7 +488,7 @@ function JobDetail({
                 "Saved to your list.",
               )
             }
-            className="rounded-md border border-[#b8c0b9] px-4 py-2.5 text-sm font-medium text-[#35473b] transition hover:bg-[#f1f5f0] disabled:cursor-default disabled:bg-[#f1f5f0] disabled:opacity-70"
+            className="min-h-11 rounded-md border border-[#b8c0b9] px-4 py-2.5 text-sm font-medium text-[#35473b] transition hover:bg-[#f1f5f0] disabled:cursor-default disabled:bg-[#f1f5f0] disabled:opacity-70"
           >
             {job.state.status === "new" ? "Save" : "Saved"}
           </button>
@@ -442,7 +503,7 @@ function JobDetail({
                 "Marked applied. Nice work.",
               )
             }
-            className="rounded-md border border-[#b8c0b9] px-4 py-2.5 text-sm font-medium text-[#35473b] transition hover:bg-[#f1f5f0] disabled:opacity-50"
+            className="min-h-11 rounded-md border border-[#b8c0b9] px-4 py-2.5 text-sm font-medium text-[#35473b] transition hover:bg-[#f1f5f0] disabled:opacity-50"
           >
             Mark applied
           </button>
@@ -450,7 +511,7 @@ function JobDetail({
         <button
           type="button"
           onClick={() => setShowReject((current) => !current)}
-          className="px-2 py-2.5 text-sm text-[#777c76] underline decoration-[#c3c7c1] underline-offset-4 hover:text-[#4e554f]"
+          className="col-span-2 min-h-11 px-2 py-2.5 text-sm text-[#777c76] underline decoration-[#c3c7c1] underline-offset-4 hover:text-[#4e554f] sm:col-auto"
         >
           Not for me
         </button>
@@ -479,9 +540,9 @@ function JobDetail({
 
       {ACTIVE_APPLICATION_STATUSES.includes(job.state.status) ? (
         <div className="mt-6 border-t border-[#e1e3de] pt-5">
-          <label htmlFor={`notes-${job.id}`} className="text-sm font-semibold text-[#3d4740]">Private notes</label>
+          <label htmlFor={`notes-${variant}-${job.id}`} className="text-sm font-semibold text-[#3d4740]">Private notes</label>
           <textarea
-            id={`notes-${job.id}`}
+            id={`notes-${variant}-${job.id}`}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
             placeholder="Contact, referral, question to ask, or application detail"
@@ -613,9 +674,21 @@ function EmptyState({ hasJobs, onAdd }: { hasJobs: boolean; onAdd: () => void })
 
 function SummaryPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-full border border-[#d5d8d2] bg-[#fbfbf8] px-3.5 py-1.5 text-sm text-[#626a63]">
-      <span className="font-semibold text-[#32453a]">{value}</span> {label.toLowerCase()}
+    <div className="rounded-md border border-[#d5d8d2] bg-[#fbfbf8] px-2 py-2 text-center text-[11px] leading-tight text-[#626a63] sm:rounded-full sm:px-3.5 sm:py-1.5 sm:text-left sm:text-sm">
+      <span className="block font-semibold text-[#32453a] sm:inline">{value}</span> {label.toLowerCase()}
     </div>
+  );
+}
+
+function JobTag({ children, tone }: { children: React.ReactNode; tone: "positive" | "neutral" }) {
+  return (
+    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+      tone === "positive"
+        ? "border-[#bfd0c2] bg-[#f2f7f1] text-[#396048]"
+        : "border-[#d4d7d1] bg-[#f8f8f5] text-[#687068]"
+    }`}>
+      {children}
+    </span>
   );
 }
 
@@ -682,5 +755,6 @@ function sourceSummary(data: MinaJobsData) {
   const latest = data.sourceHealth.reduce((best, source) =>
     timestamp(source.lastRunAt) > timestamp(best.lastRunAt) ? source : best,
   );
-  return `Sources last checked ${ageLabel(latest.lastRunAt).toLowerCase()}. ${data.jobs.filter((job) => job.active).length} current jobs in the private list.`;
+  const current = data.jobs.filter(isMinaJobCurrent).length;
+  return `Sources last checked ${ageLabel(latest.lastRunAt).toLowerCase()}. ${current} current jobs in the private list.`;
 }
