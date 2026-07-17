@@ -17,7 +17,12 @@ function secret() {
 }
 
 export async function signSession(session: PortalSession): Promise<string> {
-  return await new SignJWT({ ...session })
+  const sub = typeof session.sub === "string" ? session.sub.trim() : "";
+  const client = typeof session.client === "string" ? session.client.trim() : "";
+  if (!sub || !client) {
+    throw new Error("Portal session identity claims must be non-empty strings");
+  }
+  return await new SignJWT({ sub, client })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_TTL_HOURS}h`)
@@ -32,7 +37,9 @@ export async function verifySession(token: string): Promise<PortalSession | null
     if (typeof payload.sub !== "string" || typeof payload.client !== "string") {
       return null;
     }
-    return { sub: payload.sub, client: payload.client };
+    const sub = payload.sub.trim();
+    const client = payload.client.trim();
+    return sub && client ? { sub, client } : null;
   } catch {
     return null;
   }

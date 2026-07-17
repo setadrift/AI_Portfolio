@@ -25,6 +25,11 @@ test("classifies employer posting ages without using discovery time", () => {
   assert.equal(freshnessFor("", NOW).bucket, "unknown");
 });
 
+test("rejects materially future-dated postings instead of promoting them as hot", () => {
+  const future = freshnessFor("2026-07-15T18:00:00Z", NOW);
+  assert.deepEqual(future, { bucket: "unknown", ageHours: null, queueEligible: false });
+});
+
 test("only verified recent jobs can become priority or strong", () => {
   assert.equal(qualityTier({ score: 84, freshnessBucket: "hot", canonicalStatus: "open" }), "priority");
   assert.equal(qualityTier({ score: 84, freshnessBucket: "recent", canonicalStatus: "open" }), "strong");
@@ -65,8 +70,44 @@ test("extracts JobPosting evidence from JSON-LD", () => {
 
 test("treats an expired employer validThrough date as closed evidence", () => {
   assert.equal(isPostingExpired("2026-07-12T23:59:59Z", NOW), true);
+  assert.equal(isPostingExpired("2026-07-13T18:00:00Z", NOW), true);
   assert.equal(isPostingExpired("2026-08-01T00:00:00Z", NOW), false);
   assert.equal(isPostingExpired("", NOW), false);
+});
+
+test("fails closed when an injected fetch ignores abort and exceeds the deadline", async () => {
+  const result = await Promise.race([
+    verifyCanonical("https://93.184.216.34/jobs/slow", {
+      timeoutMs: 20,
+      fetchImpl: async () => new Promise(() => {}),
+    }),
+    new Promise((resolve) => setTimeout(() => resolve("test_deadline_exceeded"), 250)),
+  ]);
+  assert.notEqual(result, "test_deadline_exceeded");
+  assert.equal(result.status, "error");
+  assert.match(result.error, /timed out/i);
+});
+
+test("rejects streamed bodies that exceed the byte limit without trusting content-length", async () => {
+  const result = await verifyCanonical("https://example.com/jobs/oversized", {
+    maxBytes: 8,
+    fetchImpl: async () => new Response("0123456789", { status: 200 }),
+  });
+  assert.equal(result.status, "error");
+  assert.match(result.error, /response-size limit/i);
+});
+
+test("revalidates every redirect target before following it", async () => {
+  let calls = 0;
+  const result = await verifyCanonical("https://example.com/jobs/redirect", {
+    fetchImpl: async () => {
+      calls += 1;
+      return new Response(null, { status: 302, headers: { location: "http://127.0.0.1/internal" } });
+    },
+  });
+  assert.equal(result.status, "error");
+  assert.equal(calls, 1);
+  assert.match(result.error, /blocked/i);
 });
 
 test("blocks private canonical hosts before making a request", async () => {
