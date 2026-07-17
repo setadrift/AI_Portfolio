@@ -25,8 +25,14 @@ export function assertLeadSourceIsNotOlder({
 }) {
   const incoming = timestampValue(incomingGeneratedAt);
   const existing = timestampValue(existingGeneratedAt);
-  if (!existing) return;
-  if (!incoming) {
+  if (incomingGeneratedAt && incoming === null) {
+    throw new Error(`Refusing to publish ${sourceId} leads with an invalid incoming timestamp.`);
+  }
+  if (existingGeneratedAt && existing === null) {
+    throw new Error(`Refusing to replace ${sourceId} leads because the existing source has an invalid existing timestamp.`);
+  }
+  if (existing === null) return;
+  if (incoming === null) {
     throw new Error(
       `Refusing to replace ${sourceId} leads generated at ${formatTimestamp(existing)} with an undated digest.`,
     );
@@ -43,8 +49,8 @@ export function freshestLeadSource<T extends FreshnessCarrier>(
 ) {
   return sources.filter((source): source is T => Boolean(source)).sort((a, b) => {
     return (
-      timestampValue(leadSourceGeneratedAt(b)) -
-      timestampValue(leadSourceGeneratedAt(a))
+      (timestampValue(leadSourceGeneratedAt(b)) ?? 0) -
+      (timestampValue(leadSourceGeneratedAt(a)) ?? 0)
     );
   })[0] ?? null;
 }
@@ -79,9 +85,9 @@ export function isLeadReadyToPursue(lead: {
 }
 
 function timestampValue(value: string | null | undefined) {
-  if (!value) return 0;
+  if (!value) return null;
   const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? 0 : parsed;
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 function formatTimestamp(value: number) {

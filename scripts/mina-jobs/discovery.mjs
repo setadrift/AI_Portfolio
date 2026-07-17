@@ -5,6 +5,7 @@ import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 
 const TRACKING_PARAMS = /^(utm_|gclid$|fbclid$|mc_|ref$|referrer$|source$|src$)/i;
+const FUTURE_CLOCK_SKEW_HOURS = 1;
 const CLOSED_PATTERN = /(?:position|role|job|posting).{0,50}(?:has been filled|is no longer available|is closed|has expired)|no longer accepting applications/i;
 const DISCOVERY_ONLY_DOMAINS = [
   "adzuna.ca",
@@ -31,7 +32,11 @@ const DISCOVERY_ONLY_DOMAINS = [
 export function freshnessFor(value, now = Date.now()) {
   const posted = Date.parse(value || "");
   if (Number.isNaN(posted)) return { bucket: "unknown", ageHours: null, queueEligible: false };
-  const ageHours = Math.max(0, (now - posted) / 3_600_000);
+  const rawAgeHours = (now - posted) / 3_600_000;
+  if (rawAgeHours < -FUTURE_CLOCK_SKEW_HOURS) {
+    return { bucket: "unknown", ageHours: null, queueEligible: false };
+  }
+  const ageHours = Math.max(0, rawAgeHours);
   if (ageHours <= 24) return { bucket: "hot", ageHours, queueEligible: true };
   if (ageHours <= 72) return { bucket: "fresh", ageHours, queueEligible: true };
   if (ageHours <= 168) return { bucket: "recent", ageHours, queueEligible: true };
@@ -280,7 +285,7 @@ function parseJson(value) {
 
 export function isPostingExpired(value, now = Date.now()) {
   const closesAt = Date.parse(value || "");
-  return !Number.isNaN(closesAt) && closesAt < now;
+  return !Number.isNaN(closesAt) && closesAt <= now;
 }
 
 async function safeFetch(initialUrl, { timeoutMs, maxBytes, fetchImpl }) {
@@ -321,19 +326,22 @@ async function fetchForTest(url, { timeoutMs, maxBytes, fetchImpl }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(url, {
-      redirect: "manual",
-      signal: controller.signal,
-      headers: { Accept: "text/html,application/xhtml+xml", "User-Agent": "MinaJobsResearch/2.0 (+public-job-verification)" },
-    });
-    return {
-      status: response.status,
-      url: response.url || url,
-      headers: response.headers,
-      body: await readLimitedBody(response, maxBytes),
-    };
+    return await withTimeout((async () => {
+      const response = await fetchImpl(url, {
+        redirect: "manual",
+        signal: controller.signal,
+        headers: { Accept: "text/html,application/xhtml+xml", "User-Agent": "MinaJobsResearch/2.0 (+public-job-verification)" },
+      });
+      return {
+        status: response.status,
+        url: response.url || url,
+        headers: response.headers,
+        body: await readLimitedBody(response, maxBytes),
+      };
+    })(), timeoutMs, "Canonical page timed out.");
   } finally {
     clearTimeout(timer);
+    controller.abort();
   }
 }
 

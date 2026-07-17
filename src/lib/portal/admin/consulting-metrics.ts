@@ -6,14 +6,64 @@ import type {
 } from "./acquisition";
 
 export function startOfTorontoWeek(now = new Date()) {
-  const local = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/Toronto" }),
-  );
-  const day = local.getDay();
+  const parts = torontoDateParts(now);
+  const day = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
   const distance = day === 0 ? 6 : day - 1;
-  local.setDate(local.getDate() - distance);
-  local.setHours(0, 0, 0, 0);
-  return local;
+  const monday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day - distance));
+  return torontoWallTimeToDate(
+    monday.getUTCFullYear(),
+    monday.getUTCMonth() + 1,
+    monday.getUTCDate(),
+  );
+}
+
+function torontoDateParts(value: Date) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  });
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(value)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  return { year: parts.year, month: parts.month, day: parts.day };
+}
+
+function torontoWallTimeToDate(year: number, month: number, day: number) {
+  const targetWallTime = Date.UTC(year, month - 1, day);
+  let candidate = targetWallTime;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Toronto",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  });
+  for (let pass = 0; pass < 3; pass += 1) {
+    const parts = Object.fromEntries(
+      formatter
+        .formatToParts(new Date(candidate))
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, Number(part.value)]),
+    );
+    const representedWallTime = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second,
+    );
+    candidate += targetWallTime - representedWallTime;
+  }
+  return new Date(candidate);
 }
 
 export function acquisitionMetrics(
@@ -32,7 +82,12 @@ export function acquisitionMetrics(
   const openCommitments = data.commitments.filter(
     (item) => !["done", "cancelled"].includes(item.status),
   );
-  const today = now.toISOString().slice(0, 10);
+  const todayParts = torontoDateParts(now);
+  const today = [
+    String(todayParts.year).padStart(4, "0"),
+    String(todayParts.month).padStart(2, "0"),
+    String(todayParts.day).padStart(2, "0"),
+  ].join("-");
   const pipelineByCurrency: Record<string, number> = {};
   for (const opportunity of data.opportunities.filter(
     (item) => !["won", "lost"].includes(item.stage),
