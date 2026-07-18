@@ -24,6 +24,14 @@ Date: 2026-07-18
 - Browser mobile 390px `/en` — no horizontal overflow; primary CTA navigated to `/en/ai-workflow-audit`; audit route had no error overlay.
 - Browser mobile 320px `/fr` — no horizontal overflow; localized content rendered; mobile navigation opened with Services, Work, Method, About, and the primary CTA.
 
+## Production release evidence
+
+- PR #86 merged as `30a1500`; Vercel deployed the revamp to production on 2026-07-18.
+- Production verification found and repaired two Google Ads CSP gaps in PRs #87 and #88. Final production commit: `77b8cab`.
+- Live `/en`, `/fr`, and `/en/ai-workflow-audit` rendered the intended localized headings without horizontal overflow or a runtime error overlay.
+- The Google Ads conversion script and follow-on measurement request loaded successfully after the CSP repairs.
+- The final live browser pass returned no console errors on the English homepage, French homepage, or workflow-audit route.
+
 ## Post-launch measurement
 
-The implementation creates the event contract and retains Vercel Analytics and Speed Insights. A truthful 14–30 day behavior review requires a deployed observation window. Do not claim conversion improvement until the production baseline and post-launch sample exist.
+The implementation creates the event contract and retains Vercel Analytics and Speed Insights. The fixed baseline, five-session protocol, measurement boundaries, and 14/30-day decision rules are recorded in `docs/consulting-site-post-launch-study.md`. Do not claim conversion improvement until the post-launch sample and qualitative sessions exist.
