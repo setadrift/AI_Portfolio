@@ -1,5 +1,6 @@
 {
   "nav": {
+    "services": "Services",
     "work": "Travail",
     "samples": "Exemples",
     "method": "Méthode",
@@ -7,17 +8,17 @@
     "projects": "Projets",
     "about": "À propos",
     "contact": "Contact",
-    "getInTouch": "Envoyer le workflow",
+    "getInTouch": "Discuter du workflow",
     "openMenu": "Ouvrir le menu",
     "closeMenu": "Fermer le menu"
   },
   "hero": {
     "subtitle": "Systèmes IA pratiques",
-    "heading": "Des systèmes pour le travail",
-    "headingLine2": "que votre équipe suit encore à la main.",
-    "description": "J'aide les entreprises dirigées par leur propriétaire à transformer courriels, feuilles de calcul, PDF, appels et suivis en systèmes internes réellement utilisés.",
-    "cta": "Envoyer le workflow",
-    "ctaSecondary": "Voir les preuves",
+    "heading": "Transformez le travail encore suivi à la main",
+    "headingLine2": "en système fiable pour votre équipe.",
+    "description": "J’aide les entreprises de services dirigées par leur propriétaire à remplacer les suivis fragiles, la révision de documents et l’administration des courriels par des workflows IA pratiques—sans automatiser le jugement qui doit rester humain.",
+    "cta": "Discuter de votre workflow",
+    "ctaSecondary": "Voir les résultats client",
     "cardInputs": ["Courriels", "Feuilles", "PDF"],
     "cardTitle": "Système opérationnel",
     "cardOutputs": ["Responsable", "Statut", "Prochaine étape"]
@@ -105,20 +106,24 @@
     "noPitch": "Meilleur fit : travail fréquent avec entrées claires, décisions répétables et validation humaine.",
     "nameLabel": "Nom",
     "emailLabel": "Courriel",
+    "companyLabel": "Entreprise",
     "messageLabel": "Message",
     "sending": "Envoi en cours...",
     "sendMessage": "Envoyer le message",
     "successHeading": "Message envoyé.",
-    "successMessage": "Merci de m'avoir écrit. Je vous reviens sous peu.",
+    "successMessage": "Merci de m'avoir écrit. Je révise chaque workflow personnellement et je réponds habituellement sous deux jours ouvrables.",
     "sendAnother": "Envoyer un autre message",
     "genericError": "Une erreur est survenue.",
-    "bookCall": "Réserver un appel découverte"
+    "bookCall": "Réserver un appel de 20 minutes",
+    "directEmail": "Vous préférez le courriel? Écrivez directement à",
+    "privacyNote": "Vos renseignements servent uniquement à évaluer cette demande et à y répondre. N’incluez aucun mot de passe, accès ou dossier client sensible."
   },
   "footer": {
-    "heading": "Envoyez un workflow désordonné.",
+    "heading": "Apportez un workflow qui mérite d’être corrigé.",
     "description": "Un système utile commence par un problème opérationnel précis, pas par un grand discours de transformation IA.",
-    "getInTouch": "Envoyer le workflow",
-    "tagline": "Systèmes IA pratiques."
+    "getInTouch": "Discuter du workflow",
+    "tagline": "Systèmes IA pratiques.",
+    "location": "Montréal, Canada."
   },
   "workflowForm": {
     "heading": "Quel workflow vous coûte du temps?",
@@ -128,6 +133,7 @@
     "workflowLabel": "Workflow",
     "workflowPlaceholder": "Exemple : chaque semaine, nous copions manuellement des données d'Airtable vers des feuilles de calcul, les résumons, puis envoyons des courriels de statut.",
     "helperText": "Quelques phrases simples suffisent. Les outils actuels, le volume ou l'urgence peuvent être ajoutés s'ils comptent.",
+    "privacyNote": "Utilisé uniquement pour évaluer cette demande et y répondre. N’incluez aucun accès ni dossier client sensible.",
     "submit": "Demander un audit",
     "sending": "Envoi en cours...",
     "successHeading": "Demande reçue.",
@@ -141,7 +147,7 @@
     "backHome": "Retour à l'accueil"
   },
   "metadata": {
-    "title": "Duncan Anderson — Systèmes IA pratiques pour workflows d'affaires",
-    "description": "Systèmes IA pratiques pour entreprises qui fonctionnent avec courriels, feuilles de calcul, PDF, appels et suivis."
+    "title": "Duncan Anderson — Consultant en workflows IA pour entreprises de services",
+    "description": "Systèmes IA centrés sur la révision pour les suivis, documents, courriels, feuilles de calcul et tâches administratives récurrentes."
   }
 }

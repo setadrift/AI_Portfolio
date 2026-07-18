@@ -120,7 +120,7 @@ export default function SelectedWorkPage({ locale }: { locale: "en" | "fr" }) {
             </p>
           </div>
           <Link className="bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800" href="/#contact">
-            {locale === "fr" ? "Envoyer le workflow" : "Send the workflow"}
+            {locale === "fr" ? "Discuter du workflow" : "Discuss your workflow"}
           </Link>
         </section>
       </div>

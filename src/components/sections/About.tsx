@@ -1,13 +1,16 @@
 import Image from "next/image";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import SectionWrapper from "@/components/ui/SectionWrapper";
 
 export default function About() {
   const t = useTranslations("about");
+  const context = useLocale() === "fr"
+    ? [["Basé à", "Montréal, Canada"], ["Travaille avec", "Équipes nord-américaines"], ["Responsabilité", "Directement avec Duncan"]]
+    : [["Based in", "Montreal, Canada"], ["Works with", "North American teams"], ["Accountability", "Directly with Duncan"]];
 
   return (
     <SectionWrapper id="about">
-      <div className="grid gap-16 md:grid-cols-5 md:items-center">
+      <div className="grid gap-12 md:grid-cols-5 md:items-center">
         <div className="flex justify-center md:col-span-2">
           <div className="relative">
             <Image
@@ -16,7 +19,7 @@ export default function About() {
               width={400}
               height={400}
               className="h-72 w-72 object-cover transition-all duration-500 hover:scale-[1.03] md:h-80 md:w-80"
-              priority
+              sizes="(max-width: 768px) 288px, 320px"
             />
             <div className="absolute -inset-3 -z-10 border border-accent/20" />
           </div>
@@ -34,6 +37,9 @@ export default function About() {
             <p>{t("p2")}</p>
             <p>{t("p3")}</p>
           </div>
+          <dl className="mt-8 grid gap-4 border-y border-border py-5 sm:grid-cols-3">
+            {context.map(([label, value]) => <div key={label}><dt className="text-xs uppercase tracking-[0.14em] text-cream-dim">{label}</dt><dd className="mt-1 text-sm font-semibold text-cream">{value}</dd></div>)}
+          </dl>
         </div>
       </div>
     </SectionWrapper>

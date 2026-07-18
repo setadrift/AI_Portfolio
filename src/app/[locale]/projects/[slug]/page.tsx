@@ -29,7 +29,7 @@ const pageCopy = {
     external: "Public proof",
     ctaTitle: "Have a similar operating problem?",
     ctaBody: "Send the current workflow and the point where it keeps breaking. I will tell you whether there is a practical paid first phase.",
-    cta: "Send the workflow",
+    cta: "Discuss your workflow",
   },
   fr: {
     back: "Retour aux travaux sélectionnés",
@@ -43,7 +43,7 @@ const pageCopy = {
     external: "Preuves publiques",
     ctaTitle: "Vous avez un problème opérationnel semblable?",
     ctaBody: "Envoyez le workflow actuel et le point où il se brise. Je vous dirai s'il existe une première phase payante et pratique.",
-    cta: "Envoyer le workflow",
+    cta: "Discuter du workflow",
   },
 };
 

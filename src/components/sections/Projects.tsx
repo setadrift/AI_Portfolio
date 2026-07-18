@@ -9,14 +9,14 @@ const sectionCopy = {
     label: "Selected work",
     heading: "Systems that shipped—and had to work.",
     description:
-      "Four examples with different evidence: a live product, a confidential enterprise system, and two client deliveries. No speculative builds dressed up as case studies.",
+      "Three concise examples: a live product, a confidential enterprise system, and a client delivery. The full proof dossier remains available when you want the details.",
     trust: "Status, role, scope, and proof are stated separately so you can see exactly what I owned.",
     caseStudy: "Review the case study",
     live: "Open live proof",
     index: "See the full proof dossier",
     ctaTitle: "Have a workflow that is still being held together by follow-up?",
     ctaBody: "Send the current process, the systems involved, and where it breaks. I will tell you whether there is a practical paid first phase.",
-    cta: "Send the workflow",
+    cta: "Discuss your workflow",
     proofLabel: "Evidence",
     outcomeLabel: "Operating result",
     trustLabel: "Control boundary",
@@ -25,14 +25,14 @@ const sectionCopy = {
     label: "Travaux sélectionnés",
     heading: "Des systèmes livrés—et obligés de fonctionner.",
     description:
-      "Quatre exemples avec des preuves différentes : un produit en ligne, un système d'entreprise confidentiel et deux livraisons client. Aucun prototype spéculatif présenté comme étude de cas.",
+      "Trois exemples concis : un produit en ligne, un système d'entreprise confidentiel et une livraison client. Le dossier complet reste disponible pour les détails.",
     trust: "Statut, rôle, portée et preuves sont séparés pour montrer exactement ce que j'ai pris en charge.",
     caseStudy: "Voir l'étude de cas",
     live: "Ouvrir la preuve publique",
     index: "Voir le dossier complet",
     ctaTitle: "Un workflow dépend encore trop du suivi manuel?",
     ctaBody: "Envoyez le processus actuel, les systèmes concernés et le point de rupture. Je vous dirai s'il existe une première phase payante et pratique.",
-    cta: "Envoyer le workflow",
+    cta: "Discuter du workflow",
     proofLabel: "Preuves",
     outcomeLabel: "Résultat opérationnel",
     trustLabel: "Limite de contrôle",
@@ -42,7 +42,8 @@ const sectionCopy = {
 export default function Projects() {
   const locale = useLocale() === "fr" ? "fr" : "en";
   const copy = sectionCopy[locale];
-  const [featured, ...supporting] = FEATURED_PORTFOLIO;
+  const featured = FEATURED_PORTFOLIO[0];
+  const supporting = FEATURED_PORTFOLIO.slice(1, 3);
 
   return (
     <SectionWrapper id="projects" alternate>
@@ -141,7 +142,7 @@ export default function Projects() {
           <Link className="border border-border px-4 py-3 text-sm font-semibold text-cream transition hover:border-accent/50" href="/work-samples">
             {copy.index}
           </Link>
-          <Link className="bg-accent px-4 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover" href="/#contact">
+          <Link className="bg-accent px-4 py-3 text-sm font-semibold text-white transition hover:bg-accent-hover" href="/ai-workflow-audit">
             {copy.cta}
           </Link>
         </div>

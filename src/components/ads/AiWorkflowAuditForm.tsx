@@ -171,6 +171,10 @@ export default function AiWorkflowAuditForm({
         send_to:
           process.env.NEXT_PUBLIC_GOOGLE_ADS_LEAD_CONVERSION_SEND_TO || "",
       });
+      window.gtag?.("event", "workflow_audit_submit", {
+        event_category: "lead",
+        event_label: contextLabel,
+      });
 
       setStatus("success");
       setForm({
@@ -294,9 +298,12 @@ export default function AiWorkflowAuditForm({
       <p className="mt-5 text-sm text-cream-muted">
         {t("helperText")}
       </p>
+      <p className="mt-3 text-xs leading-5 text-cream-dim">
+        {t("privacyNote")}
+      </p>
 
       {status === "error" && (
-        <p className="mt-5 text-sm text-red-500">{errorMsg}</p>
+        <p className="mt-5 text-sm text-red-700" role="alert">{errorMsg}</p>
       )}
 
       <div className="mt-6">

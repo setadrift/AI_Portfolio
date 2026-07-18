@@ -25,7 +25,7 @@ export default function Footer() {
 
         <div className="flex flex-col items-center gap-4 border-t border-white/10 pt-10 sm:flex-row sm:justify-between">
           <p className="text-sm text-footer-text">
-            &copy; {new Date().getFullYear()} {SITE.name}. {t("tagline")}
+            &copy; {new Date().getFullYear()} {SITE.name}. {t("tagline")} {t("location")}
           </p>
           <div className="flex items-center gap-6">
             <a
@@ -34,6 +34,7 @@ export default function Footer() {
             >
               duncan@duncananderson.ca
             </a>
+            <a href="tel:+15145960678" className="text-sm text-footer-text transition-colors hover:text-white">514-596-0678</a>
             <a
               href="https://www.linkedin.com/in/duncan-kg-anderson/"
               target="_blank"

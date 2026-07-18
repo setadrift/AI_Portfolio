@@ -162,7 +162,7 @@ export async function POST(request: Request) {
           ]
             .filter(Boolean)
             .join("\n")
-        : `Name: ${name}\nEmail: ${email}\n\n${message}\n\nAttribution:\n${
+        : `Name: ${name}\nEmail: ${email}\n${formatLine("Business", businessName)}\n${message}\n\nAttribution:\n${
             sourceLines || "No attribution captured."
           }`;
 
