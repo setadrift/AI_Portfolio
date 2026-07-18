@@ -13,8 +13,9 @@ export default function Contact() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    businessName: "",
     message: "",
-    company: "",
+    companyTrap: "",
   });
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -38,7 +39,11 @@ export default function Contact() {
       }
 
       setStatus("success");
-      setForm({ name: "", email: "", message: "", company: "" });
+      window.gtag?.("event", "workflow_inquiry_submit", {
+        event_category: "lead",
+        event_label: "homepage_contact",
+      });
+      setForm({ name: "", email: "", businessName: "", message: "", companyTrap: "" });
     } catch (err) {
       setStatus("error");
       setErrorMsg(
@@ -63,7 +68,7 @@ export default function Contact() {
           <p className="mb-6 leading-relaxed text-cream-muted">
             {t("description")}
           </p>
-          <p className="text-sm text-cream-dim">
+          <p className="text-sm leading-6 text-cream-dim">
             {t("noPitch")}
           </p>
           <BookingConversionLink
@@ -74,6 +79,9 @@ export default function Contact() {
           >
             {t("bookCall")}
           </BookingConversionLink>
+          <p className="mt-5 text-sm leading-6 text-cream-muted">
+            {t("directEmail")} <a className="font-semibold text-accent underline underline-offset-4" href="mailto:duncan@duncananderson.ca">duncan@duncananderson.ca</a>
+          </p>
         </div>
 
         {status === "success" ? (
@@ -95,15 +103,19 @@ export default function Contact() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Honeypot field */}
             <div className="absolute -left-[9999px]" aria-hidden="true">
-              <label htmlFor="company">Company</label>
+              <label htmlFor="companyTrap">Company website</label>
               <input
-                id="company"
+                id="companyTrap"
                 type="text"
                 tabIndex={-1}
                 autoComplete="off"
-                value={form.company}
-                onChange={(e) => setForm({ ...form, company: e.target.value })}
+                value={form.companyTrap}
+                onChange={(e) => setForm({ ...form, companyTrap: e.target.value })}
               />
+            </div>
+            <div>
+              <label htmlFor="businessName" className="mb-1.5 block font-mono text-xs uppercase tracking-wider text-cream-dim">{t("companyLabel")}</label>
+              <input id="businessName" type="text" autoComplete="organization" value={form.businessName} onChange={(e) => setForm({ ...form, businessName: e.target.value })} className={inputStyles} />
             </div>
             <div>
               <label
@@ -154,11 +166,12 @@ export default function Contact() {
               />
             </div>
             {status === "error" && (
-              <p className="text-sm text-red-400">{errorMsg}</p>
+              <p className="text-sm text-red-700" role="alert">{errorMsg}</p>
             )}
             <Button type="submit" disabled={status === "loading"}>
               {status === "loading" ? t("sending") : t("sendMessage")}
             </Button>
+            <p className="text-xs leading-5 text-cream-dim">{t("privacyNote")}</p>
           </form>
         )}
       </div>

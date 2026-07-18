@@ -14,8 +14,8 @@ export default function SectionWrapper({
       id={id}
       className={`relative px-6 py-20 md:py-28 ${alternate ? "bg-surface" : "bg-background"}`}
     >
-      <div className="mx-auto max-w-5xl">{children}</div>
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border-light to-transparent" />
+      <div className="mx-auto max-w-6xl">{children}</div>
+      <div className="absolute bottom-0 left-6 right-6 h-px bg-border" />
     </section>
   );
 }
