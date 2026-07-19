@@ -116,8 +116,9 @@ function toScannerJob(candidate) {
     salaryMax: candidate.salaryMax ? Math.round(candidate.salaryMax * 100) : null,
     salaryCurrency: candidate.salaryCurrency,
     compensationText: "",
-    canonicalTrustedOpen: false,
-    freshnessConfidence: "low",
+    // Research candidates have already passed the canonical employer/ATS checks.
+    canonicalTrustedOpen: true,
+    freshnessConfidence: "high",
     evidence: {
       provider: "Codex public-web research",
       discoverySourceFamily: candidate.sourceFamily,
@@ -137,6 +138,10 @@ function runGateTests() {
   };
   const checked = validatePayload(good, now);
   if (checked.candidates[0].canonicalUrl.includes("utm_source")) throw new Error("Tracking parameter gate failed.");
+  const scannerJob = toScannerJob(checked.candidates[0]);
+  if (!scannerJob.canonicalTrustedOpen || scannerJob.freshnessConfidence !== "high") {
+    throw new Error("Canonical-research trust gate failed.");
+  }
   assertThrows(() => validatePayload({ ...good, run: { ...good.run, sourceFamiliesChecked: ["whole_web"] } }, now), "six checked");
   assertThrows(() => validatePayload({ ...good, candidates: [{ ...good.candidates[0], sourcePostedAt: new Date(now - 31 * 86_400_000).toISOString() }] }, now), "within 30 days");
   console.log("Codex Mina research publisher gates passed.");

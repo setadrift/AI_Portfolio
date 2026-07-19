@@ -465,9 +465,9 @@ function emptyState(): MinaJobState {
 }
 
 function classifyRole(title: string): MinaRoleFamily {
-  if (/recruit(ing|ment)(?:\s*(?:&|and)\s*(?:hr|human resources))? (?:manager|lead)|talent acquisition (?:manager|lead)|(?:manager|lead),?\s*(?:global\s+)?(?:talent acquisition|recruiting|recruitment)|(?:gestionnaire|responsable|chef)(?:\s+de\s+l['’])?,?\s+acquisition\s+de\s+talents|responsable\s+(?:du\s+)?recrutement/i.test(title))
+  if (/\bta manager\b|recruit(ing|ment)(?:\s*(?:&|and)\s*(?:hr|human resources))? (?:manager|lead)|talent acquisition (?:manager|lead)|(?:manager|lead),?\s*(?:global\s+)?(?:talent acquisition|recruiting|recruitment)|(?:gestionnaire|responsable|chef)(?:\s+de\s+l['’])?,?\s+acquisition\s+de\s+talents|responsable\s+(?:du\s+)?recrutement/i.test(title))
     return "recruiting_manager";
-  if (/hr business partner|human resources business partner|people partner|partenaire\s+d['’]affaires,?\s+(?:ressources humaines|rh)/i.test(title))
+  if (/hr business partner|human resources business partner|people partner|(?:senior\s+)?business partner,?\s+(?:hr|human resources)|partenaire\s+d['’]affaires,?\s+(?:ressources humaines|rh)/i.test(title))
     return "hr_business_partner";
   if (/people operations|people & culture|people and culture|head of people/i.test(title))
     return "people_operations";

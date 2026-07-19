@@ -9,6 +9,7 @@ import {
 test("matches Mina's English and French leadership title variants", () => {
   const expected = new Map([
     ["Senior HR Business Partner", "hr_business_partner"],
+    ["Senior Business Partner, Human Resources", "hr_business_partner"],
     ["Senior HRBP", "hr_business_partner"],
     ["Senior Director, People Business Partner", "hr_business_partner"],
     ["Senior Manager, People Operations", "people_operations"],
@@ -21,6 +22,7 @@ test("matches Mina's English and French leadership title variants", () => {
     ["Global Talent Acquisition Manager", "recruiting_manager"],
     ["International Recruitment & HR Manager", "recruiting_manager"],
     ["Talent Acquisition Partner", "recruiting_manager"],
+    ["TA Manager - Manufacturing Specialty", "recruiting_manager"],
     ["Senior Talent Acquisition Advisor", "recruiting_manager"],
     ["Principal Recruiter", "recruiting_manager"],
     ["Senior Recruiter", "recruiting_manager"],
