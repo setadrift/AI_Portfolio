@@ -1,3 +1,5 @@
+"use client";
+
 import { type ButtonHTMLAttributes } from "react";
 import { Link } from "@/i18n/navigation";
 
@@ -36,10 +38,17 @@ export default function Button({
   const cls = `${base} ${styles[variant]}`;
 
   if ("href" in props && props.href) {
+    const { onClick, href } = props;
     return (
       <Link
-        href={props.href}
-        onClick={props.onClick}
+        href={href}
+        onClick={() => {
+          window.gtag?.("event", "consulting_cta_click", {
+            event_category: "engagement",
+            event_label: href,
+          });
+          onClick?.();
+        }}
         className={cls}
       >
         {children}

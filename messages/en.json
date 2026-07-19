@@ -1,5 +1,6 @@
 {
   "nav": {
+    "services": "Services",
     "work": "Work",
     "samples": "Samples",
     "method": "Method",
@@ -7,17 +8,17 @@
     "projects": "Projects",
     "about": "About",
     "contact": "Contact",
-    "getInTouch": "Send the workflow",
+    "getInTouch": "Discuss your workflow",
     "openMenu": "Open menu",
     "closeMenu": "Close menu"
   },
   "hero": {
     "subtitle": "Practical AI systems",
-    "heading": "Systems for the work",
-    "headingLine2": "your team still tracks by hand.",
-    "description": "I help owner-led businesses turn inboxes, spreadsheets, PDFs, calls, and follow-up into internal systems people actually use.",
-    "cta": "Send the workflow",
-    "ctaSecondary": "See proof",
+    "heading": "Turn the work your team tracks by hand",
+    "headingLine2": "into a system they can trust.",
+    "description": "I help owner-led service businesses replace fragile follow-up, document review, and inbox admin with practical AI workflows—without automating the judgment that should stay human.",
+    "cta": "Discuss your workflow",
+    "ctaSecondary": "See client results",
     "cardInputs": ["Inbox", "Sheets", "PDFs"],
     "cardTitle": "Operating system",
     "cardOutputs": ["Owner", "Status", "Next step"]
@@ -105,20 +106,24 @@
     "noPitch": "Best fit: frequent work with clear inputs, repeatable decisions, and a review point.",
     "nameLabel": "Name",
     "emailLabel": "Email",
+    "companyLabel": "Company",
     "messageLabel": "Message",
     "sending": "Sending...",
     "sendMessage": "Send Message",
     "successHeading": "Message sent.",
-    "successMessage": "Thanks for reaching out. I'll get back to you soon.",
+    "successMessage": "Thanks for reaching out. I review every workflow personally and usually reply within two business days.",
     "sendAnother": "Send another message",
     "genericError": "Something went wrong.",
-    "bookCall": "Book a discovery call"
+    "bookCall": "Book a 20-minute fit call",
+    "directEmail": "Prefer email? Write directly to",
+    "privacyNote": "Your details are used only to assess and reply to this inquiry. Please do not include passwords, credentials, or sensitive client records."
   },
   "footer": {
-    "heading": "Send one messy workflow.",
+    "heading": "Bring one workflow worth fixing.",
     "description": "A useful system starts with a specific operating problem, not a broad AI transformation pitch.",
-    "getInTouch": "Send the workflow",
-    "tagline": "Practical AI systems."
+    "getInTouch": "Discuss your workflow",
+    "tagline": "Practical AI systems.",
+    "location": "Montreal, Canada."
   },
   "workflowForm": {
     "heading": "What workflow is costing time?",
@@ -128,6 +133,7 @@
     "workflowLabel": "Workflow",
     "workflowPlaceholder": "Example: every week we manually copy data from Airtable into spreadsheets, summarize it, and send status emails.",
     "helperText": "A few plain sentences is enough. Current tools, volume, or urgency can go here if they matter.",
+    "privacyNote": "Used only to assess and reply to this request. Do not include credentials or sensitive client records.",
     "submit": "Request an audit",
     "sending": "Sending...",
     "successHeading": "Request received.",
@@ -141,7 +147,7 @@
     "backHome": "Back to Home"
   },
   "metadata": {
-    "title": "Duncan Anderson — Practical AI Systems for Messy Business Workflows",
-    "description": "Practical AI systems for businesses that run on inboxes, spreadsheets, PDFs, calls, and follow-up."
+    "title": "Duncan Anderson — AI Workflow Consultant for Service Businesses",
+    "description": "Review-first AI workflow systems for service businesses managing follow-up, documents, inboxes, spreadsheets, and recurring admin."
   }
 }

@@ -7,11 +7,11 @@ import { FEATURED_PORTFOLIO, localize, portfolioStatusClass } from "@/lib/portfo
 
 const copy = {
   en: {
-    heroTitle: "Practical AI systems for messy business workflows",
+    heroTitle: "Map one costly workflow before anyone builds",
     heroBody:
       "I help owner-led businesses turn inboxes, spreadsheets, PDFs, calls, and follow-up into systems people actually use.",
-    primaryCta: "Send the workflow",
-    secondaryCta: "See proof",
+    primaryCta: "Request the workflow audit",
+    secondaryCta: "See delivery proof",
     workflowAreas: [
       {
         title: "Intake",
@@ -56,18 +56,18 @@ const copy = {
     formTitle: "Send one messy workflow",
     formBody:
       "A good starting point is something that repeats every week, moves through too many tools, and still depends on someone remembering the next step.",
-    mapInputs: ["Inbox", "PDFs", "Sheets", "Calls"],
-    mapOutputs: ["Owner", "Status", "Next step"],
-    mapLabel: "Operating lane",
+    mapInputs: ["Current steps", "Tools", "Exceptions", "Volume"],
+    mapOutputs: ["Workflow map", "Risk boundary", "Build plan"],
+    mapLabel: "Audit output",
     mapBody:
       "The goal is not more AI. It is a cleaner path from messy input to useful action.",
   },
   fr: {
-    heroTitle: "Systèmes IA pratiques pour workflows d'affaires désordonnés",
+    heroTitle: "Cartographier un workflow coûteux avant de construire",
     heroBody:
       "J'aide les entreprises dirigées par leur propriétaire à transformer courriels, feuilles de calcul, PDF, appels et suivis en systèmes que les équipes utilisent vraiment.",
-    primaryCta: "Envoyer le workflow",
-    secondaryCta: "Voir les preuves",
+    primaryCta: "Demander l’audit du workflow",
+    secondaryCta: "Voir les preuves de livraison",
     workflowAreas: [
       {
         title: "Entrée",
@@ -112,9 +112,9 @@ const copy = {
     formTitle: "Envoyez un workflow désordonné",
     formBody:
       "Un bon point de départ est un travail qui revient chaque semaine, passe par trop d'outils et dépend encore d'une personne qui se souvient de la prochaine étape.",
-    mapInputs: ["Courriels", "PDF", "Feuilles", "Appels"],
-    mapOutputs: ["Responsable", "Statut", "Prochaine étape"],
-    mapLabel: "Voie opérationnelle",
+    mapInputs: ["Étapes actuelles", "Outils", "Exceptions", "Volume"],
+    mapOutputs: ["Carte du workflow", "Limite de risque", "Plan de construction"],
+    mapLabel: "Résultat de l’audit",
     mapBody:
       "Le but n'est pas d'ajouter plus d'IA. C'est de créer un chemin plus clair entre une entrée désordonnée et une action utile.",
   },

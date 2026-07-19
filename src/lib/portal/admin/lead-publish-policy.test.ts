@@ -39,6 +39,24 @@ test("older and undated lead sources cannot replace current research", () => {
       existingGeneratedAt: "2026-07-15T13:20:23Z",
     }),
   );
+  assert.throws(
+    () =>
+      assertLeadSourceIsNotOlder({
+        sourceId: "automation",
+        incomingGeneratedAt: "2026-07-16T13:20:23Z",
+        existingGeneratedAt: "corrupt-timestamp",
+      }),
+    /invalid existing timestamp/,
+  );
+  assert.throws(
+    () =>
+      assertLeadSourceIsNotOlder({
+        sourceId: "automation",
+        incomingGeneratedAt: "1970-01-01T00:00:00.000Z",
+        existingGeneratedAt: "1970-01-02T00:00:00.000Z",
+      }),
+    /older research/,
+  );
 });
 
 test("the portal selects the freshest durable source", () => {
@@ -47,6 +65,7 @@ test("the portal selects the freshest durable source", () => {
     { id: "blob", status: { generatedAt: "2026-07-15T13:20:23Z" } },
   ]);
   assert.equal(source?.id, "blob");
+  assert.equal(freshestLeadSource([null, undefined]), null);
 });
 
 test("Reddit discussions require verified paid-help intent before Ready", () => {

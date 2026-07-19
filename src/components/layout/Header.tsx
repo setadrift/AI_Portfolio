@@ -7,10 +7,10 @@ import { SITE } from "@/lib/constants";
 import Button from "@/components/ui/Button";
 
 const NAV_KEYS = [
+  { key: "services", href: "/#services" },
   { key: "work", href: "/#projects" },
-  { key: "samples", href: "/work-samples" },
-  { key: "method", href: "/ai-workflow-audit#method" },
-  { key: "contact", href: "/ai-workflow-audit#audit-form" },
+  { key: "method", href: "/#method" },
+  { key: "about", href: "/#about" },
 ] as const;
 
 export default function Header() {
@@ -35,7 +35,7 @@ export default function Header() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-border bg-white/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-6">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
         <Link href="/" className="font-display text-lg text-cream">
           {SITE.name}
         </Link>
@@ -109,7 +109,7 @@ export default function Header() {
 
       {/* Mobile menu drawer */}
       {menuOpen && (
-        <nav className="border-t border-border bg-white px-6 pb-6 pt-4 md:hidden">
+        <nav className="border-t border-border bg-white px-6 pb-6 pt-4 shadow-lg md:hidden" aria-label="Mobile">
           <div className="flex flex-col gap-4">
             {NAV_KEYS.map((link) => (
               <Link
