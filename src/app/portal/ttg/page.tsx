@@ -2,36 +2,19 @@ import Link from "next/link";
 
 export default function TtgHome() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="font-display text-4xl mb-3">Welcome.</h1>
-      <p className="text-cream-muted text-lg mb-10">
-        This is your private workspace for the blog automation tool. Everything you publish here
-        lands as a draft in your WordPress dashboard for review before it goes live.
-      </p>
-
-      <div className="grid sm:grid-cols-1 gap-4">
-        <Link
-          href="/portal/ttg/publish"
-          className="group block p-6 border border-border rounded-2xl bg-surface hover:border-accent hover:shadow-md transition-all"
-        >
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-display text-2xl">Publish a blog post</h2>
-            <span className="text-accent group-hover:translate-x-1 transition-transform">→</span>
-          </div>
-          <p className="text-cream-muted text-sm">
-            Paste a Google Doc link and the tool will clean up formatting, generate a featured
-            image, and create a WordPress draft for you to review.
-          </p>
+    <div className="max-w-5xl mx-auto px-6 py-16 lg:py-24">
+      <p className="text-xs uppercase tracking-[0.2em] text-cream-muted mb-4">Private client portal</p>
+      <h1 className="font-display text-5xl md:text-6xl mb-5 max-w-2xl">A clearer view of the practice.</h1>
+      <p className="text-cream-muted text-lg mb-12 max-w-2xl">Review the latest financial and capacity picture, or turn a finished Google Doc into a WordPress draft.</p>
+      <div className="grid md:grid-cols-2 gap-5">
+        <Link href="/portal/ttg/dashboard" className="group block p-7 md:p-9 border border-[#d8ded9] rounded-[10px] bg-white hover:border-[#2f6f6d] hover:shadow-[0_12px_32px_rgba(32,48,47,0.08)] transition-all">
+          <div className="text-xs uppercase tracking-[0.18em] text-[#2f6f6d] mb-12">Practice operations</div>
+          <div className="flex items-end justify-between gap-6"><div><h2 className="font-display text-3xl mb-2">CEO dashboard</h2><p className="text-cream-muted text-sm max-w-sm">Revenue, margin, cash flow, therapist capacity, and monthly-close controls.</p></div><span className="text-2xl text-[#2f6f6d] group-hover:translate-x-1 transition-transform">→</span></div>
         </Link>
-      </div>
-
-      <div className="mt-12 p-5 bg-surface-elevated border border-border rounded-xl">
-        <h3 className="font-medium mb-2">Before you start</h3>
-        <ul className="text-sm text-cream-muted space-y-1 list-disc list-inside">
-          <li>Make sure your Google Doc is shared as &quot;Anyone with the link can view.&quot;</li>
-          <li>Drafts always land in WordPress as drafts — nothing publishes automatically.</li>
-          <li>You can re-run image generation if the first one isn&apos;t a fit.</li>
-        </ul>
+        <Link href="/portal/ttg/publish" className="group block p-7 md:p-9 border border-[#d8ded9] rounded-[10px] bg-white hover:border-[#2f6f6d] hover:shadow-[0_12px_32px_rgba(32,48,47,0.08)] transition-all">
+          <div className="text-xs uppercase tracking-[0.18em] text-[#2f6f6d] mb-12">Content workflow</div>
+          <div className="flex items-end justify-between gap-6"><div><h2 className="font-display text-3xl mb-2">Blog publisher</h2><p className="text-cream-muted text-sm max-w-sm">Clean up a Google Doc, create a featured image, and send a draft to WordPress.</p></div><span className="text-2xl text-[#2f6f6d] group-hover:translate-x-1 transition-transform">→</span></div>
+        </Link>
       </div>
     </div>
   );

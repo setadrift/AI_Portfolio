@@ -3,19 +3,17 @@ import LogoutButton from "@/components/portal/LogoutButton";
 
 export default function TtgLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border bg-surface">
-        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/portal/ttg" className="font-display text-lg">
-            The Trauma Therapy Group
+    <div className="min-h-screen flex flex-col ttg-portal">
+      <header className="ttg-portal-header">
+        <div className="ttg-portal-header-inner">
+          <Link href="/portal/ttg" className="ttg-portal-brand">
+            <span>TTG</span>
+            <span>The Trauma Therapy Group<small>Private workspace</small></span>
           </Link>
-          <nav className="flex items-center gap-5 text-sm text-cream-muted">
-            <Link href="/portal/ttg" className="hover:text-foreground transition-colors">
-              Home
-            </Link>
-            <Link href="/portal/ttg/publish" className="hover:text-foreground transition-colors">
-              Publish a post
-            </Link>
+          <nav className="ttg-portal-links" aria-label="TTG portal">
+            <Link href="/portal/ttg/dashboard">CEO dashboard</Link>
+            <Link href="/portal/ttg/publish">Blog publisher</Link>
+            <span className="ttg-portal-divider" />
             <LogoutButton />
           </nav>
         </div>
