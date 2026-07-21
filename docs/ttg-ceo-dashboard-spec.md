@@ -101,6 +101,8 @@ The dashboard must render the precomputed values from the reporting workbook rat
 
 The Google workbook is private. Production access uses the Google Sheets API with a dedicated read-only service account. The workbook is shared to that service-account email as Viewer; no user's Google password or browser session is used. Vercel authenticates through Google Workload Identity Federation, using short-lived deployment credentials rather than a downloadable service-account key.
 
+The canonical live workbook is `TTG CEO Dashboard — Canonical Reporting Workbook`, owned by `duncan@duncananderson.ca`. The earlier personal-account-owned prototype is not a production source.
+
 Expected source tabs (the adapter accepts the current workbook names and documented aliases):
 
 - `Monthly Metrics`
