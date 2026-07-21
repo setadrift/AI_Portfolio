@@ -18,7 +18,7 @@ This is an operating dashboard, not a general analytics explorer. It should emph
 
 - A new authenticated route at `/portal/ttg/dashboard`.
 - A redesigned TTG portal navigation with Dashboard and Blog tools.
-- Three dashboard views: Practice, Capacity, and Controls.
+- Four dashboard views: Practice, Capacity, Controls, and Data index.
 - June 2026 as the latest aligned complete month, with May comparisons.
 - Clear treatment of July as partial through July 18 wherever it appears.
 - Server-side Google Sheets integration designed around the existing workbook.
@@ -67,6 +67,23 @@ Shows whether the monthly close is trustworthy:
 - Uncategorized expenses
 - Expense mix
 - Data limitations and refresh status
+
+### Data index
+
+Shows the reporting contract without exposing raw rows or credentials:
+
+- The source tab, fields, and calculation behind every visualization.
+- Coverage of all 53 metrics in Gabby's original July 19 email.
+- A clear distinction between metrics shown now, available in the workbook, partially supported, and blocked on another source.
+- The current limitation that date-range selection is not yet implemented.
+
+## Dynamic copy contract
+
+- Titles that identify a section or chart may remain fixed.
+- Narrative headlines, comparisons, warning counts, periods, dates, and values must be derived from the active reporting data.
+- Narrative rules must have a neutral fallback and must not claim improvement when the underlying comparison declines.
+- Partial-period notes must use the source `Data Through` field.
+- Charts must not inject historical values that are absent from the reporting tables.
 
 ## Visual direction
 

@@ -37,7 +37,6 @@ export type ExpenseMetric = { category: string; amount: number; share: number };
 export type TtgDashboardData = {
   source: { mode: "live" | "fixture"; label: string; refreshedAt: string; spreadsheetId?: string };
   reportingPeriod: string;
-  headline: string;
   months: MonthlyMetric[];
   therapists: TherapistMetric[];
   expenses: ExpenseMetric[];
