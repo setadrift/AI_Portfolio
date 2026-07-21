@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import { SITE } from "@/lib/constants";
+import { BOOKING_URL, SITE } from "@/lib/constants";
 import Button from "@/components/ui/Button";
+import BookingConversionLink from "@/components/ads/BookingConversionLink";
 
 const NAV_KEYS = [
   { key: "services", href: "/#services" },
@@ -19,6 +20,8 @@ export default function Header() {
   const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
+  const isHome = pathname === "/";
+  const bookingLabel = locale === "fr" ? "Réserver un appel" : "Book a discovery call";
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -41,7 +44,7 @@ export default function Header() {
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
-          {NAV_KEYS.map((link) => (
+          {NAV_KEYS.filter((link) => !isHome || link.key !== "about").map((link) => (
             <Link
               key={link.key}
               href={link.href}
@@ -57,7 +60,18 @@ export default function Header() {
           >
             {locale === "en" ? "FR" : "EN"}
           </button>
-          <Button href="/ai-workflow-audit">{t("getInTouch")}</Button>
+          {isHome ? (
+            <BookingConversionLink
+              href={BOOKING_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center justify-center bg-accent px-5 py-3 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2"
+            >
+              {bookingLabel}
+            </BookingConversionLink>
+          ) : (
+            <Button href="/ai-workflow-audit">{t("getInTouch")}</Button>
+          )}
         </nav>
 
         {/* Mobile menu button */}
@@ -111,7 +125,7 @@ export default function Header() {
       {menuOpen && (
         <nav className="border-t border-border bg-white px-6 pb-6 pt-4 shadow-lg md:hidden" aria-label="Mobile">
           <div className="flex flex-col gap-4">
-            {NAV_KEYS.map((link) => (
+            {NAV_KEYS.filter((link) => !isHome || link.key !== "about").map((link) => (
               <Link
                 key={link.key}
                 href={link.href}
@@ -121,9 +135,21 @@ export default function Header() {
                 {t(link.key)}
               </Link>
             ))}
-            <Button href="/ai-workflow-audit" onClick={() => setMenuOpen(false)}>
-              {t("getInTouch")}
-            </Button>
+            {isHome ? (
+              <BookingConversionLink
+                href={BOOKING_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuOpen(false)}
+                className="inline-flex min-h-12 items-center justify-center bg-accent px-6 py-3.5 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2"
+              >
+                {bookingLabel}
+              </BookingConversionLink>
+            ) : (
+              <Button href="/ai-workflow-audit" onClick={() => setMenuOpen(false)}>
+                {t("getInTouch")}
+              </Button>
+            )}
           </div>
         </nav>
       )}
