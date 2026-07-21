@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import BookingConversionLink from "@/components/ads/BookingConversionLink";
@@ -48,6 +49,7 @@ const copy = {
       ],
       more: "See detailed work samples",
       aboutLabel: "Founder-led, personally delivered",
+      imageAlt: "Duncan Anderson, AI workflow consultant",
       about: "I’m Duncan Anderson, a data scientist, product builder, and operator. I spent years building data and automation systems inside a travel business and now build and run The Lineup, a live paid analytics product. I lead every consulting engagement myself.",
     },
     final: {
@@ -102,6 +104,7 @@ const copy = {
       ],
       more: "Voir les exemples détaillés",
       aboutLabel: "Dirigé et livré personnellement",
+      imageAlt: "Duncan Anderson, consultant en workflows IA",
       about: "Je suis Duncan Anderson, scientifique des données, créateur de produits et opérateur. J’ai passé des années à construire des systèmes de données et d’automatisation dans une entreprise de voyage, et je construis et exploite maintenant The Lineup, un produit analytique payant en ligne. Je dirige moi-même chaque mandat de conseil.",
     },
     final: {
@@ -191,9 +194,21 @@ export default function LandingSections() {
           </div>
           <Link href="/work-samples" className="mt-6 inline-flex min-h-11 items-center text-sm font-semibold text-accent underline decoration-border underline-offset-4 hover:text-accent-hover">{t.proof.more}</Link>
 
-          <div id="about" className="scroll-mt-20 mt-10 grid gap-3 border-t border-border pt-8 md:grid-cols-[15rem_1fr] md:gap-10">
-            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-cream-dim">{t.proof.aboutLabel}</p>
-            <p className="max-w-3xl text-base leading-7 text-cream-muted">{t.proof.about}</p>
+          <div id="about" className="scroll-mt-20 mt-10 border-t border-border pt-8">
+            <div className="grid items-center gap-7 md:grid-cols-[13rem_1fr] md:gap-10">
+              <Image
+                src="/duncs.png"
+                alt={t.proof.imageAlt}
+                width={352}
+                height={467}
+                sizes="(max-width: 767px) 224px, 208px"
+                className="aspect-[3/4] w-48 justify-self-center object-cover object-top md:w-52 md:justify-self-start"
+              />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.15em] text-cream-dim">{t.proof.aboutLabel}</p>
+                <p className="mt-4 max-w-3xl text-base leading-7 text-cream-muted">{t.proof.about}</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
