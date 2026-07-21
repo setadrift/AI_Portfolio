@@ -1,69 +1,61 @@
-import { useLocale, useTranslations } from "next-intl";
-import Button from "@/components/ui/Button";
+import { useLocale } from "next-intl";
+import BookingConversionLink from "@/components/ads/BookingConversionLink";
+import { BOOKING_URL } from "@/lib/constants";
+
+const copy = {
+  en: {
+    eyebrow: "AI workflow consulting for founder-led businesses",
+    heading: "Find the manual work worth fixing—and leave with a practical AI plan.",
+    body: "I help founders and operators map repetitive work, identify useful AI or automation opportunities, and decide what to implement first.",
+    cta: "Book a discovery call",
+    note: "Fixed-scope diagnostic first. Implementation is scoped separately.",
+    points: ["Your real workflow, mapped", "Time and cost impact, estimated", "A prioritized implementation plan"],
+  },
+  fr: {
+    eyebrow: "Conseil en workflows IA pour entreprises dirigées par leur fondateur",
+    heading: "Trouvez le travail manuel qui mérite d’être corrigé et repartez avec un plan IA pratique.",
+    body: "J’aide les fondateurs et les responsables des opérations à cartographier le travail répétitif, repérer les bonnes occasions d’IA ou d’automatisation et décider quoi mettre en œuvre en premier.",
+    cta: "Réserver un appel découverte",
+    note: "Diagnostic à portée fixe d’abord. L’implémentation est définie séparément.",
+    points: ["Votre vrai workflow, cartographié", "Impact sur le temps et les coûts, estimé", "Un plan d’implémentation priorisé"],
+  },
+};
 
 export default function Hero() {
-  const t = useTranslations("hero");
-  const locale = useLocale() === "fr" ? "fr" : "en";
-  const proof = locale === "fr"
-    ? {
-        label: "Preuves de production",
-        title: "Des systèmes qui restent utiles après la démo.",
-        items: [
-          ["Produit en ligne", "The Lineup · données, modèles, paiements et résultats"],
-          ["Système d’entreprise", "Automatisation de litiges à haut volume"],
-          ["Livraisons client", "Opérations immobilières et publication en santé"],
-        ],
-        boundary: "L’automatisation prépare et organise. Une personne garde les décisions sensibles.",
-      }
-    : {
-        label: "Production proof",
-        title: "Systems that stay useful after the demo.",
-        items: [
-          ["Live product", "The Lineup · data, models, billing, and results"],
-          ["Enterprise system", "High-volume dispute automation"],
-          ["Client deliveries", "Property operations and healthcare publishing"],
-        ],
-        boundary: "Automation prepares and organizes. A person keeps the consequential decisions.",
-      };
+  const t = copy[useLocale() === "fr" ? "fr" : "en"];
 
   return (
-    <section className="relative overflow-hidden border-b border-border px-6 pb-20 pt-32 md:pb-28 md:pt-40">
-      <div className="relative z-10 mx-auto grid max-w-6xl gap-14 lg:grid-cols-[1.08fr_0.72fr] lg:items-end">
-        <div>
-          <p className="animate-fade-in-up font-mono text-xs font-semibold uppercase tracking-[0.28em] text-accent">
-            {t("subtitle")}
-          </p>
-          <h1 className="animate-fade-in-up delay-1 mt-5 max-w-4xl font-display text-5xl leading-[0.98] tracking-[-0.035em] text-cream md:text-7xl">
-            {t("heading")}
-            <span className="block text-accent">{t("headingLine2")}</span>
-          </h1>
-          <p className="animate-fade-in-up delay-2 mt-7 max-w-2xl text-lg leading-8 text-cream-muted">
-            {t("description")}
-          </p>
-          <div className="animate-fade-in-up delay-3 mt-9 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <Button href="/ai-workflow-audit">{t("cta")}</Button>
-            <a
-              href="#projects"
-              className="text-sm font-medium uppercase tracking-wide text-accent underline decoration-border underline-offset-4 transition-colors hover:text-accent-hover"
-            >
-              {t("ctaSecondary")}
-            </a>
-          </div>
+    <section className="border-b border-border bg-background px-5 pb-14 pt-28 sm:px-6 md:pb-20 md:pt-36" aria-labelledby="hero-heading">
+      <div className="mx-auto max-w-6xl">
+        <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-accent sm:text-xs">
+          {t.eyebrow}
+        </p>
+        <h1 id="hero-heading" className="mt-5 max-w-4xl font-display text-[2.65rem] leading-[1.02] tracking-[-0.03em] text-cream sm:text-5xl md:text-6xl lg:text-[4.5rem]">
+          {t.heading}
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-8 text-cream-muted">
+          {t.body}
+        </p>
+        <div className="mt-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+          <BookingConversionLink
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-12 w-full items-center justify-center bg-accent px-7 py-3.5 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 sm:w-auto"
+          >
+            {t.cta}
+          </BookingConversionLink>
+          <p className="text-sm leading-6 text-cream-dim">{t.note}</p>
         </div>
 
-        <aside className="animate-fade-in-up delay-4 border-t-4 border-cream bg-white p-6 shadow-[0_18px_50px_rgba(26,26,46,0.06)] sm:p-8" aria-label={proof.label}>
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">{proof.label}</p>
-          <h2 className="mt-4 font-display text-3xl leading-tight text-cream">{proof.title}</h2>
-          <dl className="mt-7 divide-y divide-border border-y border-border">
-            {proof.items.map(([term, detail]) => (
-              <div className="py-4" key={term}>
-                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-cream-dim">{term}</dt>
-                <dd className="mt-1.5 text-sm leading-6 text-cream-muted">{detail}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-5 border-l-2 border-amber-400 pl-4 text-sm leading-6 text-cream-muted">{proof.boundary}</p>
-        </aside>
+        <ul className="mt-12 grid border-y border-border sm:grid-cols-3 sm:divide-x sm:divide-border">
+          {t.points.map((point, index) => (
+            <li className="flex items-center gap-3 border-b border-border py-4 text-sm font-medium text-cream last:border-b-0 sm:border-b-0 sm:px-5 sm:first:pl-0" key={point}>
+              <span className="font-mono text-xs text-accent">0{index + 1}</span>
+              {point}
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

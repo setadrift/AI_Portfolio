@@ -1,14 +1,17 @@
+"use client";
+
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import { SITE } from "@/lib/constants";
 
 export default function Footer() {
   const t = useTranslations("footer");
+  const isHome = usePathname() === "/";
 
   return (
-    <footer className="border-t border-border bg-footer-bg px-6 py-20">
+    <footer className={`border-t border-border bg-footer-bg px-6 ${isHome ? "py-8" : "py-20"}`}>
       <div className="mx-auto max-w-5xl">
-        <div className="mb-12 text-center">
+        {!isHome ? <div className="mb-12 text-center">
           <h2 className="mb-4 font-display text-2xl text-white md:text-3xl">
             {t("heading")}
           </h2>
@@ -21,9 +24,9 @@ export default function Footer() {
           >
             {t("getInTouch")}
           </Link>
-        </div>
+        </div> : null}
 
-        <div className="flex flex-col items-center gap-4 border-t border-white/10 pt-10 sm:flex-row sm:justify-between">
+        <div className={`flex flex-col items-center gap-4 sm:flex-row sm:justify-between ${isHome ? "" : "border-t border-white/10 pt-10"}`}>
           <p className="text-sm text-footer-text">
             &copy; {new Date().getFullYear()} {SITE.name}. {t("tagline")} {t("location")}
           </p>
