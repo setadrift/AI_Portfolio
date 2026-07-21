@@ -199,9 +199,9 @@ export default function LandingSections() {
               <Image
                 src="/duncs.png"
                 alt={t.proof.imageAlt}
-                width={352}
-                height={467}
-                sizes="(max-width: 767px) 224px, 208px"
+                width={880}
+                height={1168}
+                unoptimized
                 className="aspect-[3/4] w-48 justify-self-center object-cover object-top md:w-52 md:justify-self-start"
               />
               <div>
