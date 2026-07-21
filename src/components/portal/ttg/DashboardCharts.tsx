@@ -1,4 +1,5 @@
 import type { ExpenseMetric, MonthlyMetric, TherapistMetric } from "@/lib/portal/ttg/dashboard";
+import { periodLabel } from "@/lib/portal/ttg/dashboard-copy";
 
 const currency = (value: number, compact = true) =>
   new Intl.NumberFormat("en-CA", {
@@ -24,7 +25,7 @@ export function RevenueProfitChart({ months }: { months: MonthlyMetric[] }) {
               <div className="ttg-column ttg-column-revenue" style={{ height: `${(month.grossRevenue / max) * 164}px` }} />
               <div className="ttg-column ttg-column-profit" style={{ height: `${Math.max((month.operatingProfit / max) * 164, 8)}px` }} />
             </div>
-            <div className="ttg-column-label">{month.period.replace(" 2026", "")}</div>
+            <div className="ttg-column-label">{periodLabel(month.period)}</div>
           </div>
         ))}
       </div>
@@ -33,10 +34,10 @@ export function RevenueProfitChart({ months }: { months: MonthlyMetric[] }) {
 }
 
 export function CashFlowChart({ months }: { months: MonthlyMetric[] }) {
-  const cash = [{ period: "April", value: 11938.49, status: "Complete" as const }, ...months.map((month) => ({ period: month.period.replace(" 2026", "").replace(" MTD", ""), value: month.netCashFlow, status: month.status }))];
-  const max = Math.max(...cash.map((month) => Math.abs(month.value)));
+  const cash = months.map((month) => ({ period: periodLabel(month.period).replace(" MTD", ""), value: month.netCashFlow, status: month.status }));
+  const max = Math.max(...cash.map((month) => Math.abs(month.value)), 1);
   return (
-    <div className="ttg-cash-chart" role="img" aria-label={cash.map((m) => `${m.period}: ${currency(m.value, false)} net cash flow${m.status === "Partial" ? ", partial" : ""}`).join(". ")}>
+    <div className="ttg-cash-chart" style={{ gridTemplateColumns: `repeat(${Math.max(cash.length, 1)}, 1fr)` }} role="img" aria-label={cash.map((m) => `${m.period}: ${currency(m.value, false)} net cash flow${m.status === "Partial" ? ", partial" : ""}`).join(". ")}>
       <div className="ttg-cash-zero" />
       {cash.map((month) => {
         const height = Math.max((Math.abs(month.value) / max) * 82, 8);

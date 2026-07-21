@@ -205,6 +205,33 @@ section {
 .ttg-caveat { margin-bottom: 24px; padding: 18px 21px; display: grid; grid-template-columns: 220px 1fr; gap: 30px; border-left: 3px solid var(--ttg-coral); background: #f5ebe4; }
 .ttg-caveat strong { font-size: 13px; }
 .ttg-caveat p { color: #775d51; font-size: 11px; line-height: 1.55; }
+.ttg-index-summary { display: grid; grid-template-columns: repeat(3, 1fr); margin-bottom: 24px; overflow: hidden; border: 1px solid var(--ttg-line); border-radius: 9px; background: white; }
+.ttg-index-summary > div { padding: 18px 20px; display: grid; gap: 4px; }
+.ttg-index-summary > div + div { border-left: 1px solid var(--ttg-line); }
+.ttg-index-summary span { color: var(--ttg-muted); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+.ttg-index-summary strong { font-size: 17px; font-weight: 600; }
+.ttg-index-summary small { color: var(--ttg-muted); font-size: 10px; }
+.ttg-lineage-list { display: grid; border-top: 1px solid var(--ttg-line); }
+.ttg-lineage-row { display: grid; grid-template-columns: 1.05fr .8fr 1.35fr 1.8fr; gap: 20px; padding: 13px 0; border-bottom: 1px solid #edf0ed; align-items: start; }
+.ttg-lineage-row strong { font-size: 11px; }
+.ttg-lineage-row span { color: var(--ttg-teal); font-size: 10px; font-weight: 600; }
+.ttg-lineage-row p { color: var(--ttg-muted); font-size: 10px; line-height: 1.45; }
+.ttg-coverage-section { margin-bottom: 24px; padding: 24px; border: 1px solid var(--ttg-line); border-radius: 9px; background: white; }
+.ttg-coverage-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 24px; }
+.ttg-coverage-heading h2 { margin-top: 6px; font-size: 25px; letter-spacing: -.03em; }
+.ttg-status-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.ttg-status-legend span, .ttg-coverage-row > span { width: fit-content; padding: 4px 7px; border-radius: 3px; font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.ttg-status-legend .is-shown, .ttg-coverage-row > span.is-shown { color: #315d46; background: #e7f0ea; }
+.ttg-status-legend .is-available, .ttg-coverage-row > span.is-available { color: #2f5f66; background: #e4eff0; }
+.ttg-status-legend .is-partial, .ttg-coverage-row > span.is-partial { color: #766125; background: #f5efd9; }
+.ttg-status-legend .is-not-available, .ttg-coverage-row > span.is-not-available { color: #865039; background: #f8e9df; }
+.ttg-coverage-group + .ttg-coverage-group { margin-top: 28px; }
+.ttg-coverage-group h3 { margin-bottom: 8px; color: var(--ttg-muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.ttg-coverage-table { border-top: 1px solid var(--ttg-line); }
+.ttg-coverage-row { display: grid; grid-template-columns: 1.2fr 86px 1.45fr 1.7fr; gap: 16px; align-items: center; padding: 10px 0; border-bottom: 1px solid #edf0ed; }
+.ttg-coverage-row strong { font-size: 10px; }
+.ttg-coverage-row p { color: var(--ttg-muted); font-size: 9px; line-height: 1.4; }
+.ttg-coverage-section > .ttg-caveat { margin: 22px 0 0; }
 .ttg-dashboard-footer { padding-top: 3px; display: flex; justify-content: space-between; gap: 20px; color: #89928f; font-size: 9px; }
 
 @media (max-width: 1080px) {
@@ -214,6 +241,8 @@ section {
   .ttg-panel-heading { display: block; }
   .ttg-panel-heading p { margin-top: 6px; text-align: left; }
   .ttg-dashboard-grid-capacity { grid-template-columns: 1fr; }
+  .ttg-lineage-row { grid-template-columns: 1fr 1fr; gap: 7px 18px; }
+  .ttg-coverage-row { grid-template-columns: 1fr 86px; gap: 7px 14px; }
 }
 
 @media (max-width: 760px) {
@@ -242,5 +271,12 @@ section {
   .ttg-owner-strip { grid-template-columns: 1fr; gap: 12px; }
   .ttg-owner-strip > div:first-child { text-align: left; }
   .ttg-caveat { grid-template-columns: 1fr; gap: 8px; }
+  .ttg-index-summary { grid-template-columns: 1fr; }
+  .ttg-index-summary > div + div { border-left: 0; border-top: 1px solid var(--ttg-line); }
+  .ttg-lineage-row { grid-template-columns: 1fr; }
+  .ttg-coverage-section { padding: 20px 17px; }
+  .ttg-coverage-heading { display: block; }
+  .ttg-status-legend { margin-top: 12px; }
+  .ttg-coverage-row { grid-template-columns: 1fr; }
   .ttg-dashboard-footer { display: grid; gap: 5px; }
 }
