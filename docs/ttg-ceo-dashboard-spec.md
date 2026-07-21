@@ -99,24 +99,24 @@ The dashboard must render the precomputed values from the reporting workbook rat
 
 ## Source contract
 
-The Google workbook is private. Production access uses the Google Sheets API with a dedicated read-only service account. The workbook is shared to that service-account email as Viewer; no user's Google password or browser session is used.
+The Google workbook is private. Production access uses the Google Sheets API with a dedicated read-only service account. The workbook is shared to that service-account email as Viewer; no user's Google password or browser session is used. Vercel authenticates through Google Workload Identity Federation, using short-lived deployment credentials rather than a downloadable service-account key.
 
-Expected tabs:
+Expected source tabs (the adapter accepts the current workbook names and documented aliases):
 
-- `Executive Snapshot`
 - `Monthly Metrics`
 - `Therapist Monthly`
 - `Expense Categories`
-- `Reconciliation`
-- `Cash Flow`
-- `Metric Coverage`
-- `Data Quality`
+- `Checks` (`Data Quality` alias supported)
+
+The workbook may retain supporting tabs such as `Dashboard`, `Config`, `Category Map`, `Bank Clean`, `Jane Payouts`, `Reconciliation`, `Refresh Log`, `Sources`, and `Chart Data`; the portal reads only the four normalized reporting tables above.
 
 Environment configuration:
 
 - `TTG_DASHBOARD_SPREADSHEET_ID`
 - `TTG_GOOGLE_SERVICE_ACCOUNT_EMAIL`
-- `TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+- `TTG_GCP_PROJECT_NUMBER`
+- `TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_ID`
+- `TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_PROVIDER_ID`
 
 The server requests only the required ranges. Responses are normalized into a typed dashboard model, validated, and cached for a short interval. Credentials and raw source rows never reach the browser.
 
@@ -142,8 +142,8 @@ The server requests only the required ranges. Responses are normalized into a ty
 
 To turn the approved prototype live:
 
-1. Create a Google Cloud service account with Sheets API access.
+1. Create a Google Cloud service account and a Vercel OIDC workload-identity provider.
 2. Share the TTG reporting workbook with the service-account email as Viewer.
-3. Add the three TTG dashboard environment variables to the portal deployment.
+3. Add the five non-secret TTG dashboard identity values to the portal deployment.
 4. Deploy, confirm the source badge changes from prototype to live, and reconcile the displayed June metrics against the workbook.
 5. Document the monthly Jane/bank export and workbook refresh process for Gabby or her admin.

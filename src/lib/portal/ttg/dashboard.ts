@@ -1,4 +1,5 @@
 import { createSign } from "node:crypto";
+import { getVercelOidcToken } from "@vercel/oidc";
 import { ttgDashboardFixture } from "./dashboard-fixture";
 
 export type MonthlyMetric = {
@@ -68,19 +69,35 @@ export type TtgDashboardData = {
 
 type SheetRow = Record<string, string>;
 
+const SHEET_HEADERS = new Set([
+  "Period", "Period Status", "Data Through", "Therapist", "Category",
+  "Expense Amount", "Check", "Actual", "Expected", "Status",
+]);
+
 const required = (value: string | undefined, field: string) => {
   if (value === undefined || value === "") throw new Error(`Missing required field: ${field}`);
   return value;
 };
 
 const numeric = (value: string | undefined, field: string) => {
-  const parsed = Number(required(value, field));
+  const parsed = Number(required(value, field).replace(/[$,%()\s]/g, (character) => character === "(" ? "-" : "").replace(/,/g, ""));
   if (!Number.isFinite(parsed)) throw new Error(`Invalid number for ${field}`);
   return parsed;
 };
 
-function rowsFromValues(values: string[][]): SheetRow[] {
-  const [headers = [], ...rows] = values;
+const optionalNumeric = (value: string | undefined) => {
+  if (!value || value === "-") return 0;
+  const normalized = value.replace(/[$,%()\s]/g, (character) => character === "(" ? "-" : "").replace(/,/g, "");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+function rowsFromValues(values: unknown[][]): SheetRow[] {
+  const stringValues = values.map((row) => row.map((value) => String(value ?? "").trim()));
+  const headerIndex = stringValues.findIndex((row) => row.filter((cell) => SHEET_HEADERS.has(cell)).length >= 2);
+  if (headerIndex < 0) throw new Error("Could not find a reporting table header row");
+  const headers = stringValues[headerIndex];
+  const rows = stringValues.slice(headerIndex + 1);
   return rows
     .filter((row) => row.some(Boolean))
     .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
@@ -90,6 +107,14 @@ function pickTitle(titles: string[], aliases: readonly string[], source: string)
   const title = aliases.find((alias) => titles.includes(alias));
   if (!title) throw new Error(`Missing required ${source} tab (${aliases.join(" or ")})`);
   return title;
+}
+
+function periodKey(value: string) {
+  const iso = value.match(/(20\d{2})-(0[1-9]|1[0-2])/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+  const parsed = new Date(value.replace(/\bMTD\b/i, "").trim());
+  if (Number.isNaN(parsed.getTime())) throw new Error(`Invalid reporting period: ${value}`);
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function base64Url(value: string | Buffer) {
@@ -125,11 +150,47 @@ async function getGoogleAccessToken(email: string, privateKey: string) {
   return required(body.access_token, "Google access token");
 }
 
+async function getKeylessGoogleAccessToken(email: string) {
+  const projectNumber = required(process.env.TTG_GCP_PROJECT_NUMBER, "GCP project number");
+  const poolId = required(process.env.TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_ID, "workload identity pool ID");
+  const providerId = required(process.env.TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_PROVIDER_ID, "workload identity provider ID");
+  const audience = `//iam.googleapis.com/projects/${projectNumber}/locations/global/workloadIdentityPools/${poolId}/providers/${providerId}`;
+  const subjectToken = await getVercelOidcToken();
+  const exchangeResponse = await fetch("https://sts.googleapis.com/v1/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+      audience,
+      scope: "https://www.googleapis.com/auth/cloud-platform",
+      requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      subject_token: subjectToken,
+      subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+    }),
+    cache: "no-store",
+  });
+  if (!exchangeResponse.ok) throw new Error(`Google identity exchange failed (${exchangeResponse.status})`);
+  const exchange = (await exchangeResponse.json()) as { access_token?: string };
+  const federatedToken = required(exchange.access_token, "Google federated access token");
+  const impersonationResponse = await fetch(
+    `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(email)}:generateAccessToken`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${federatedToken}`, "content-type": "application/json" },
+      body: JSON.stringify({ scope: ["https://www.googleapis.com/auth/spreadsheets.readonly"], lifetime: "3600s" }),
+      cache: "no-store",
+    },
+  );
+  if (!impersonationResponse.ok) throw new Error(`Google service account impersonation failed (${impersonationResponse.status})`);
+  const impersonation = (await impersonationResponse.json()) as { accessToken?: string };
+  return required(impersonation.accessToken, "Google service account access token");
+}
+
 async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   const spreadsheetId = required(process.env.TTG_DASHBOARD_SPREADSHEET_ID, "spreadsheet ID");
   const email = required(process.env.TTG_GOOGLE_SERVICE_ACCOUNT_EMAIL, "service account email");
-  const privateKey = required(process.env.TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY, "private key").replace(/\\n/g, "\n");
-  const token = await getGoogleAccessToken(email, privateKey);
+  const privateKey = process.env.TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const token = privateKey ? await getGoogleAccessToken(email, privateKey) : await getKeylessGoogleAccessToken(email);
   const headers = { authorization: `Bearer ${token}` };
 
   const metadataResponse = await fetch(
@@ -143,75 +204,98 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
     pickTitle(titles, ["Monthly Metrics", "Monthly Finance"], "monthly metrics"),
     pickTitle(titles, ["Therapist Monthly", "Therapist Performance"], "therapist metrics"),
     pickTitle(titles, ["Expense Categories", "Expense Mix"], "expense metrics"),
-    pickTitle(titles, ["Data Quality"], "data quality"),
+    pickTitle(titles, ["Data Quality", "Checks"], "data quality"),
   ];
-  const params = new URLSearchParams({ majorDimension: "ROWS" });
+  const params = new URLSearchParams({
+    majorDimension: "ROWS",
+    valueRenderOption: "UNFORMATTED_VALUE",
+    dateTimeRenderOption: "FORMATTED_STRING",
+  });
   selected.forEach((title) => params.append("ranges", `'${title}'!A:AC`));
   const valuesResponse = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params}`,
     { headers, next: { revalidate: 900 } },
   );
   if (!valuesResponse.ok) throw new Error(`Google Sheets values failed (${valuesResponse.status})`);
-  const body = (await valuesResponse.json()) as { valueRanges?: Array<{ values?: string[][] }> };
+  const body = (await valuesResponse.json()) as { valueRanges?: Array<{ values?: unknown[][] }> };
   const ranges = (body.valueRanges ?? []).map((range) => rowsFromValues(range.values ?? []));
   const [monthRows, therapistRows, expenseRows, qualityRows] = ranges;
   if (!monthRows || !therapistRows || !expenseRows || !qualityRows) throw new Error("Google Sheets returned incomplete dashboard ranges");
 
-  const months: MonthlyMetric[] = monthRows.map((row) => ({
-    period: required(row.Period, "Period"),
-    status: row["Period Status"].toLowerCase().includes("partial") ? "Partial" : "Complete",
-    dataThrough: required(row["Data Through"], "Data Through"),
-    grossRevenue: numeric(row["Gross Revenue"], "Gross Revenue"),
-    collectedRevenue: numeric(row["Collected Revenue"], "Collected Revenue"),
-    collectionRate: numeric(row["Collection Rate"], "Collection Rate"),
-    outstandingBalance: numeric(row["Outstanding Balance"], "Outstanding Balance"),
-    operatingExpenses: numeric(row["Operating Expenses"], "Operating Expenses"),
-    operatingProfit: numeric(row["Estimated Operating Profit"], "Estimated Operating Profit"),
-    profitMargin: numeric(row["Estimated Profit Margin"], "Estimated Profit Margin"),
-    netCashFlow: numeric(row["Net Cash Flow"], "Net Cash Flow"),
-    marketingSpend: numeric(row["Marketing Spend"], "Marketing Spend"),
-    marketingRatio: numeric(row["Marketing Spend % Revenue"], "Marketing Spend % Revenue"),
-    uncategorizedExpenses: numeric(row["Uncategorized Expenses"], "Uncategorized Expenses"),
-  }));
+  const expenseAmount = (key: string, category: string) => expenseRows
+    .filter((row) => row.Period === key && row.Category.toLowerCase().includes(category))
+    .reduce((sum, row) => sum + numeric(row["Expense Amount"], `${row.Category} expense`), 0);
+  const months: MonthlyMetric[] = monthRows.map((row) => {
+    const period = required(row.Period, "Period");
+    const key = periodKey(period);
+    const grossRevenue = numeric(row["Gross Revenue"], "Gross Revenue");
+    const collectedRevenue = numeric(row["Collected Revenue"], "Collected Revenue");
+    const marketingSpend = row["Marketing Spend"]
+      ? numeric(row["Marketing Spend"], "Marketing Spend")
+      : expenseAmount(key, "advertising & marketing");
+    return {
+      period,
+      status: row["Period Status"].toLowerCase().includes("partial") ? "Partial" : "Complete",
+      dataThrough: required(row["Data Through"], "Data Through"),
+      grossRevenue,
+      collectedRevenue,
+      collectionRate: row["Collection Rate"] ? numeric(row["Collection Rate"], "Collection Rate") : collectedRevenue / grossRevenue,
+      outstandingBalance: row["Outstanding Balance"] ? numeric(row["Outstanding Balance"], "Outstanding Balance") : grossRevenue - collectedRevenue,
+      operatingExpenses: numeric(row["Operating Expenses"], "Operating Expenses"),
+      operatingProfit: numeric(row["Estimated Operating Profit"], "Estimated Operating Profit"),
+      profitMargin: numeric(row["Estimated Profit Margin"], "Estimated Profit Margin"),
+      netCashFlow: numeric(row["Net Cash Flow"], "Net Cash Flow"),
+      marketingSpend,
+      marketingRatio: row["Marketing Spend % Revenue"] ? numeric(row["Marketing Spend % Revenue"], "Marketing Spend % Revenue") : marketingSpend / grossRevenue,
+      uncategorizedExpenses: numeric(row["Uncategorized Expenses"], "Uncategorized Expenses"),
+    };
+  });
   const primary = months.filter((month) => month.status === "Complete").at(-1);
   if (!primary) throw new Error("No complete reporting period is available");
-  const primaryDate = new Date(`${primary.period} 1`);
-  const primaryExpenseKey = `${primaryDate.getFullYear()}-${String(primaryDate.getMonth() + 1).padStart(2, "0")}`;
-  const therapists: TherapistMetric[] = therapistRows.map((row) => ({
+  const primaryExpenseKey = periodKey(primary.period);
+  const primaryTherapistRows = therapistRows.filter((row) => periodKey(row["Period Start"]) === primaryExpenseKey);
+  const therapists: TherapistMetric[] = primaryTherapistRows.map((row) => ({
     name: required(row.Therapist, "Therapist"),
-    owner: ["true", "1", "yes"].includes(row["Owner Flag"].toLowerCase()),
-    revenue: numeric(row["Gross Revenue"], "Therapist Gross Revenue"),
-    collectedRevenue: numeric(row["Collected Revenue"], "Therapist Collected Revenue"),
+    owner: ["true", "1", "yes", "✔"].includes(row["Owner Flag"].toLowerCase()),
+    revenue: numeric(row["Gross Revenue"] || row["Total Invoiced"], "Therapist Gross Revenue"),
+    collectedRevenue: numeric(row["Collected Revenue"] || row["Collected In Period"], "Therapist Collected Revenue"),
     scheduledHours: numeric(row["Scheduled Hours"], "Scheduled Hours"),
     bookedHours: numeric(row["Booked Hours"], "Booked Hours"),
-    availableHours: numeric(row["Available Hours"], "Available Hours"),
+    availableHours: numeric(row["Available Hours"] || row["Scheduled Hours"], "Available Hours"),
     utilization: numeric(row.Utilization, "Utilization"),
-    appointments: numeric(row["Booked Appointments"], "Booked Appointments"),
-    appointmentsPerWeek: numeric(row["Appointments / Week"], "Appointments / Week"),
+    appointments: numeric(row["Booked Appointments"] || row["Total Bookings"], "Booked Appointments"),
+    appointmentsPerWeek: row["Appointments / Week"]
+      ? numeric(row["Appointments / Week"], "Appointments / Week")
+      : numeric(row["Total Bookings"], "Total Bookings") / (30 / 7),
   }));
   const expenses = expenseRows.filter((row) => row.Period.includes(primaryExpenseKey)).map((row) => ({
     category: required(row.Category, "Expense Category"),
     amount: numeric(row["Expense Amount"], "Expense Amount"),
-    share: numeric(row["Expense Share"], "Expense Share"),
+    share: row["Expense Share"] ? numeric(row["Expense Share"], "Expense Share") : numeric(row["Expense Amount"], "Expense Amount") / primary.operatingExpenses,
   }));
   const qualityChecks = qualityRows.map((row) => ({
     check: required(row.Check, "Data Quality Check"),
     status: (row.Status === "PASS" ? "PASS" : "WARNING") as "PASS" | "WARNING",
-    actual: numeric(row.Actual, "Quality Actual"),
-    expected: numeric(row.Expected, "Quality Expected"),
-    difference: numeric(row.Difference, "Quality Difference"),
-    notes: row.Notes ?? "",
+    actual: optionalNumeric(row.Actual),
+    expected: optionalNumeric(row.Expected),
+    difference: optionalNumeric(row.Difference),
+    notes: row.Notes || row["Where to Fix / Notes"] || "",
   }));
   const bookedHours = therapists.reduce((sum, item) => sum + item.bookedHours, 0);
   const scheduledHours = therapists.reduce((sum, item) => sum + item.scheduledHours, 0);
   const bookedAppointments = therapists.reduce((sum, item) => sum + item.appointments, 0);
   const ownerRevenue = therapists.filter((item) => item.owner).reduce((sum, item) => sum + item.revenue, 0);
-  const payoutCheck = qualityChecks.find((check) => check.check.toLowerCase().includes("payouts matched"));
+  const payoutCheck = qualityChecks.find((check) => check.check.toLowerCase().includes("payout count"))
+    ?? qualityChecks.find((check) => check.check.toLowerCase().includes("payouts matched"));
   const payoutCount = payoutCheck?.actual ?? 0;
-  const payoutValue = qualityChecks.find((check) => check.check === "Payout value matched")?.actual ?? 0;
-  const contractorCommissions = therapistRows.reduce((sum, row) => {
-    const value = Number(row["Contractor Commission"] || 0);
-    return sum + (Number.isFinite(value) ? value : 0);
+  const payoutValue = qualityChecks.find((check) => check.check.toLowerCase().includes("payout value"))?.actual ?? 0;
+  const contractorCommissions = primaryTherapistRows.reduce((sum, row) => {
+    return sum + optionalNumeric(row["Contractor Commission"] || row.Compensation);
+  }, 0);
+  const outstandingBalance = primaryTherapistRows.reduce((sum, row) => {
+    const invoiced = numeric(row["Gross Revenue"] || row["Total Invoiced"], "Therapist Gross Revenue");
+    const collected = numeric(row["Collected As Of Today"] || row["Collected Revenue"], "Therapist collected as of today");
+    return sum + Math.max(0, invoiced - collected);
   }, 0);
 
   return validateDashboardData({
@@ -236,7 +320,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       payoutReconciliation: payoutCheck?.expected ? payoutCount / payoutCheck.expected : 0,
       payoutsMatched: payoutCount,
       payoutValue,
-      outstandingBalance: primary.outstandingBalance,
+      outstandingBalance,
     },
   });
 }
@@ -253,7 +337,17 @@ export function validateDashboardData(data: TtgDashboardData) {
 }
 
 export async function getTtgDashboardData(): Promise<TtgDashboardData> {
-  const hasLiveConfig = Boolean(process.env.TTG_DASHBOARD_SPREADSHEET_ID && process.env.TTG_GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
+  const hasStaticKeyConfig = Boolean(process.env.TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
+  const hasKeylessConfig = Boolean(
+    process.env.TTG_GCP_PROJECT_NUMBER
+      && process.env.TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_ID
+      && process.env.TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_PROVIDER_ID,
+  );
+  const hasLiveConfig = Boolean(
+    process.env.TTG_DASHBOARD_SPREADSHEET_ID
+      && process.env.TTG_GOOGLE_SERVICE_ACCOUNT_EMAIL
+      && (hasStaticKeyConfig || hasKeylessConfig),
+  );
   if (hasLiveConfig) return fetchLiveDashboard();
   if (process.env.NODE_ENV === "production") throw new Error("TTG dashboard Google Sheets access is not configured");
   return validateDashboardData(ttgDashboardFixture);
