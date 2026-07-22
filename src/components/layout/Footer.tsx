@@ -6,34 +6,34 @@ import { SITE } from "@/lib/constants";
 
 export default function Footer() {
   const t = useTranslations("footer");
-  const isHome = usePathname() === "/";
+  const pathname = usePathname();
+  const isCompact = pathname === "/" || pathname.startsWith("/projects/");
 
   return (
-    <footer className={`border-t border-border bg-footer-bg px-6 ${isHome ? "py-8" : "py-20"}`}>
-      <div className="mx-auto max-w-5xl">
-        {!isHome ? <div className="mb-12 text-center">
-          <h2 className="mb-4 font-display text-2xl text-white md:text-3xl">
+    <footer className={`editorial-footer ${isCompact ? "editorial-footer-home" : ""}`}>
+      <div className="editorial-footer-inner">
+        {!isCompact ? <div className="mb-12 text-center">
+          <h2 className="editorial-footer-heading">
             {t("heading")}
           </h2>
-          <p className="mb-8 text-footer-text">
+          <p className="editorial-footer-description">
             {t("description")}
           </p>
           <Link
             href="/ai-workflow-audit"
-            className="inline-flex items-center justify-center bg-accent px-7 py-3.5 text-sm font-medium uppercase tracking-wide text-white transition-colors hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent/40 focus:ring-offset-2 focus:ring-offset-footer-bg"
+            className="editorial-footer-cta"
           >
             {t("getInTouch")}
           </Link>
         </div> : null}
 
-        <div className={`flex flex-col items-center gap-4 sm:flex-row sm:justify-between ${isHome ? "" : "border-t border-white/10 pt-10"}`}>
-          <p className="text-sm text-footer-text">
+        <div className="editorial-footer-meta">
+          <p>
             &copy; {new Date().getFullYear()} {SITE.name}. {t("tagline")} {t("location")}
           </p>
-          <div className="flex items-center gap-6">
+          <div>
             <a
               href="mailto:duncan@duncananderson.ca"
-              className="text-sm text-footer-text transition-colors hover:text-white"
             >
               duncan@duncananderson.ca
             </a>
@@ -41,7 +41,6 @@ export default function Footer() {
               href="https://www.linkedin.com/in/duncan-kg-anderson/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-footer-text transition-colors hover:text-white"
               aria-label="LinkedIn"
             >
               <svg

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { BOOKING_URL, SITE } from "@/lib/constants";
-import Button from "@/components/ui/Button";
 import BookingConversionLink from "@/components/ads/BookingConversionLink";
 
 const NAV_KEYS = [
@@ -69,7 +68,7 @@ export default function Header() {
               {bookingLabel}
             </BookingConversionLink>
           ) : (
-            <Button href="/ai-workflow-audit">{t("getInTouch")}</Button>
+            <Link className="editorial-header-cta" href="/ai-workflow-audit">{t("getInTouch")}</Link>
           )}
         </nav>
 
@@ -145,9 +144,9 @@ export default function Header() {
                 {bookingLabel}
               </BookingConversionLink>
             ) : (
-              <Button href="/ai-workflow-audit" onClick={() => setMenuOpen(false)}>
+              <Link className="editorial-header-cta mt-2 min-h-12 justify-center" href="/ai-workflow-audit" onClick={() => setMenuOpen(false)}>
                 {t("getInTouch")}
-              </Button>
+              </Link>
             )}
           </div>
         </nav>

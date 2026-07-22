@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import PortfolioProofVisual from "@/components/portfolio/PortfolioProofVisual";
-import { PROJECTS, SITE } from "@/lib/constants";
-import { FEATURED_PORTFOLIO, getPortfolioProject, localize, portfolioStatusClass } from "@/lib/portfolio";
+import BookingConversionLink from "@/components/ads/BookingConversionLink";
+import { BOOKING_URL, PROJECTS, SITE } from "@/lib/constants";
+import { FEATURED_PORTFOLIO, getPortfolioProject, localize } from "@/lib/portfolio";
 import { routing } from "@/i18n/routing";
 
 const SLUG_TO_KEY: Record<string, string> = {
@@ -124,96 +124,91 @@ function ProofLedProject({
     url: `${SITE.url}${locale === "fr" ? "/fr" : ""}/projects/${project.slug}`,
   };
 
+  const before = project.before.map((item) => localize(item, locale));
+  const after = project.after.map((item) => localize(item, locale));
+
   return (
-    <main className="bg-[#f7f5f1] text-slate-950">
+    <main className={`editorial-case-page editorial-case-${project.visual}`}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <section className="px-5 pb-12 pt-32 md:pb-16 md:pt-40">
-        <div className="mx-auto max-w-6xl">
-          <Link className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-blue-700" href="/work-samples">
+      <section className="editorial-case-hero">
+        <div className="editorial-shell">
+          <Link className="editorial-case-back" href="/#projects">
             <span aria-hidden="true">←</span> {copy.back}
           </Link>
 
-          <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_0.62fr] lg:items-end">
+          <div className="editorial-case-hero-grid">
             <div>
-              <div className="flex flex-wrap items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.16em]">
-                <span className={`px-2.5 py-1.5 ${portfolioStatusClass(project)}`}>{localize(project.status, locale)}</span>
-                <span className="text-slate-500">{localize(project.role, locale)}</span>
-              </div>
-              <p className="mt-7 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-blue-700">
-                {localize(project.clientType, locale)}
-              </p>
-              <h1 className="mt-3 max-w-4xl font-display text-5xl leading-[1.04] md:text-7xl">{localize(project.title, locale)}</h1>
-              <p className="mt-6 max-w-3xl text-xl leading-8 text-slate-700 md:text-2xl md:leading-9">{localize(project.headline, locale)}</p>
+              <p className="section-index">{localize(project.clientType, locale)} · {localize(project.status, locale)}</p>
+              <h1>{localize(project.title, locale)}</h1>
+              <p className="editorial-case-headline">{localize(project.headline, locale)}</p>
             </div>
-            <p className="border-l-2 border-blue-600 pl-5 text-base leading-7 text-slate-700">{localize(project.result, locale)}</p>
+            <div className="editorial-case-result">
+              <span>{locale === "fr" ? "Résultat" : "The result"}</span>
+              <p>{localize(project.result, locale)}</p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="px-5 pb-16">
-        <div className="mx-auto max-w-6xl">
-          <PortfolioProofVisual locale={locale} visual={project.visual} />
-          <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{localize(project.visualNote, locale)}</p>
+      <section className="editorial-case-proof">
+        <div className="editorial-shell">
+          <div className="editorial-case-proof-head">
+            <span>{locale === "fr" ? "Preuve opérationnelle" : "Operational proof"}</span>
+            <span>{localize(project.role, locale)}</span>
+          </div>
+          <div className="editorial-case-proof-grid">
+            <p>{localize(project.whatChanged, locale)}</p>
+            <ol>
+              {project.proof.map((item, index) => (
+                <li key={localize(item, locale)}><span>0{index + 1}</span>{localize(item, locale)}</li>
+              ))}
+            </ol>
+          </div>
+          <p className="editorial-case-proof-note">{localize(project.visualNote, locale)}</p>
         </div>
       </section>
 
-      <section className="border-y border-slate-300 bg-white px-5 py-14 md:py-20">
-        <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.55fr_1fr]">
-          <h2 className="font-display text-3xl md:text-4xl">{copy.changed}</h2>
-          <p className="max-w-3xl text-lg leading-8 text-slate-700">{localize(project.whatChanged, locale)}</p>
-        </div>
-      </section>
-
-      <section className="px-5 py-14 md:py-20">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid gap-px overflow-hidden border border-slate-300 bg-slate-300 lg:grid-cols-2">
-            <WorkflowColumn label={copy.before} items={project.before.map((item) => localize(item, locale))} tone="before" />
-            <WorkflowColumn label={copy.after} items={project.after.map((item) => localize(item, locale))} tone="after" />
+      <section className="editorial-case-change">
+        <div className="editorial-shell">
+          <p className="section-index">{copy.changed}</p>
+          <div className="editorial-case-change-grid">
+            <WorkflowColumn label={copy.before} items={before} tone="before" />
+            <div className="editorial-case-arrow" aria-hidden="true">→</div>
+            <WorkflowColumn label={copy.after} items={after} tone="after" />
           </div>
         </div>
       </section>
 
-      <section className="border-y border-slate-300 bg-slate-950 px-5 py-14 text-white md:py-20">
-        <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-[1fr_0.9fr]">
+      <section className="editorial-case-trust">
+        <div className="editorial-shell editorial-case-trust-grid">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">{copy.owned}</p>
-            <h2 className="mt-3 max-w-xl font-display text-3xl md:text-4xl">{localize(project.summary, locale)}</h2>
-            <ul className="mt-8 divide-y divide-white/10 border-y border-white/10">
+            <p className="section-index section-index-light">{copy.owned}</p>
+            <h2>{localize(project.summary, locale)}</h2>
+            <ul className="editorial-case-owned-list">
               {project.responsibilities.map((item, index) => (
-                <li className="grid grid-cols-[2rem_1fr] gap-4 py-4 text-sm leading-6 text-slate-300" key={localize(item, locale)}>
-                  <span className="font-mono text-[10px] text-slate-600">0{index + 1}</span>
+                <li key={localize(item, locale)}>
+                  <span>0{index + 1}</span>
                   {localize(item, locale)}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="border border-white/10 bg-white/[0.04] p-6 md:p-8">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-400">{copy.trust}</p>
-            <p className="mt-5 text-lg leading-8 text-slate-200">{localize(project.trust, locale)}</p>
-            <div className="mt-8 border-t border-white/10 pt-6">
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">{copy.evidence}</p>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-                {project.proof.map((item) => (
-                  <li className="flex gap-3" key={localize(item, locale)}>
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                    {localize(item, locale)}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <div className="editorial-case-trust-statement">
+            <p className="section-index">{copy.trust}</p>
+            <p>{localize(project.trust, locale)}</p>
           </div>
         </div>
       </section>
 
-      <section className="px-5 py-14 md:py-20">
-        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[1fr_0.9fr]">
+      <section className="editorial-case-detail">
+        <div className="editorial-shell editorial-case-detail-grid">
           {project.external?.length ? (
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">{copy.external}</p>
-              <div className="mt-4 divide-y divide-slate-300 border-y border-slate-300">
+              <p className="section-index">{copy.external}</p>
+              <div className="editorial-case-links">
                 {project.external.map((link) => (
-                  <a className="flex items-center justify-between py-4 text-sm font-semibold transition hover:text-blue-700" href={link.href} key={link.href} rel="noreferrer" target="_blank">
+                  <a href={link.href} key={link.href} rel="noreferrer" target="_blank">
                     {localize(link.label, locale)} <span aria-hidden="true">↗</span>
                   </a>
                 ))}
@@ -222,27 +217,26 @@ function ProofLedProject({
           ) : null}
 
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">{copy.detail}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <p className="section-index">{copy.detail}</p>
+            <div className="editorial-case-tech">
               {project.tech.map((tech) => (
-                <span className="border border-slate-300 bg-white px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-700" key={tech}>
-                  {tech}
-                </span>
+                <span key={tech}>{tech}</span>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="border-t border-slate-300 bg-white px-5 py-14 md:py-20">
-        <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+      <section className="editorial-case-cta">
+        <div className="editorial-shell editorial-case-cta-grid">
           <div>
-            <h2 className="font-display text-3xl">{copy.ctaTitle}</h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{copy.ctaBody}</p>
+            <h2>{copy.ctaTitle}</h2>
+            <p>{copy.ctaBody}</p>
           </div>
-          <Link className="bg-blue-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-800" href="/#contact">
+          <BookingConversionLink className="editorial-button" href={BOOKING_URL} target="_blank" rel="noopener noreferrer">
             {copy.cta}
-          </Link>
+            <span aria-hidden="true">↗</span>
+          </BookingConversionLink>
         </div>
       </section>
     </main>
@@ -251,14 +245,12 @@ function ProofLedProject({
 
 function WorkflowColumn({ label, items, tone }: { label: string; items: string[]; tone: "before" | "after" }) {
   return (
-    <div className="bg-white p-6 md:p-8">
-      <p className={`font-mono text-[10px] font-semibold uppercase tracking-[0.2em] ${tone === "after" ? "text-emerald-700" : "text-slate-500"}`}>
-        {label}
-      </p>
-      <ol className="mt-6 space-y-5">
+    <div className={`editorial-workflow-column editorial-workflow-${tone}`}>
+      <p>{label}</p>
+      <ol>
         {items.map((item, index) => (
-          <li className="grid grid-cols-[2rem_1fr] gap-4 text-sm leading-6 text-slate-700" key={item}>
-            <span className={`font-mono text-[10px] ${tone === "after" ? "text-emerald-700" : "text-slate-400"}`}>0{index + 1}</span>
+          <li key={item}>
+            <span>0{index + 1}</span>
             {item}
           </li>
         ))}
