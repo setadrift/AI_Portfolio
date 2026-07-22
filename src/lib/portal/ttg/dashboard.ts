@@ -303,8 +303,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       uncategorizedExpenses: numeric(row["Uncategorized Expenses"], "Uncategorized Expenses"),
     };
   }).sort((a, b) => periodKey(a.period).localeCompare(periodKey(b.period)));
-  const primary = months.at(-1);
-  if (!primary) throw new Error("No reporting period is available");
+  const primary = selectReportingMonth(months);
   const primaryExpenseKey = periodKey(primary.period);
   const primaryTherapistRows = therapistRows.filter((row) => periodKey(row["Period Start"]) === primaryExpenseKey);
   const therapists: TherapistMetric[] = primaryTherapistRows.map((row) => ({
@@ -408,6 +407,12 @@ export function validateDashboardData(data: TtgDashboardData) {
   const expenseTotal = data.expenses.reduce((sum, expense) => sum + expense.amount, 0);
   if (Math.abs(expenseTotal - primary.operatingExpenses) > 0.02) throw new Error("Expense categories do not reconcile to operating expenses");
   return data;
+}
+
+export function selectReportingMonth(months: MonthlyMetric[]) {
+  const primary = months.filter((month) => month.status === "Complete").at(-1);
+  if (!primary) throw new Error("No complete reporting period is available");
+  return primary;
 }
 
 export async function getTtgDashboardData(): Promise<TtgDashboardData> {

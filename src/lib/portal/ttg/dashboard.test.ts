@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ttgDashboardFixture } from "./dashboard-fixture";
-import { validateDashboardData } from "./dashboard";
+import { selectReportingMonth, validateDashboardData } from "./dashboard";
 import { dashboardVisualIndex, gabbyMetricCoverage, getDashboardCopy, getOwnerActions, getSourceHealth, periodLabel } from "./dashboard-copy";
 
 test("TTG fixture reconciles its source totals", () => {
@@ -12,6 +12,10 @@ test("TTG validation rejects therapist revenue mismatches", () => {
   const invalid = structuredClone(ttgDashboardFixture);
   invalid.therapists[0].revenue += 1;
   assert.throws(() => validateDashboardData(invalid), /does not reconcile/);
+});
+
+test("TTG reporting period ignores a newer partial month", () => {
+  assert.equal(selectReportingMonth(ttgDashboardFixture.months).period, "June 2026");
 });
 
 test("TTG dashboard narrative is derived from the active data", () => {
