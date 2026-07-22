@@ -37,6 +37,7 @@ export const ttgDashboardFixture: TtgDashboardData = {
     bankRows: 589,
   },
   reportingPeriod: "June 2026",
+  clinicalPeriod: "June 2026",
   months: [
     { period: "May 2026", status: "Complete", dataThrough: "2026-05-31", grossRevenue: 85345.9, collectedRevenue: 74652.16, collectionRate: 0.874701, outstandingBalance: 213.85, operatingExpenses: 72602.36, operatingProfit: 2049.8, profitMargin: 0.027458, netCashFlow: -7681.81, marketingSpend: 4224.89, marketingRatio: 0.049503, uncategorizedExpenses: 2838.93 },
     { period: "June 2026", status: "Complete", dataThrough: "2026-06-30", grossRevenue: 86931.4, collectedRevenue: 83210.39, collectionRate: 0.957196, outstandingBalance: 350, operatingExpenses: 72027.62, operatingProfit: 11182.77, profitMargin: 0.134392, netCashFlow: 13222.19, marketingSpend: 4562.8, marketingRatio: 0.052487, uncategorizedExpenses: 753.8 },

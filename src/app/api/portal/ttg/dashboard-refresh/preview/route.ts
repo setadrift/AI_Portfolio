@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const files = form.getAll("files").filter((value): value is File => value instanceof File);
-    if (!files.length) return NextResponse.json({ error: "Choose the Jane and bank CSV files first." }, { status: 400 });
+    if (!files.length) return NextResponse.json({ error: "Choose the six Jane CSV files first. Bank files are optional." }, { status: 400 });
     if (files.length > 20) return NextResponse.json({ error: "Upload one reporting package at a time (20 files maximum)." }, { status: 400 });
     if (files.some((file) => !file.name.toLowerCase().endsWith(".csv"))) return NextResponse.json({ error: "Use CSV exports. Excel files are not accepted for this refresh." }, { status: 400 });
     if (files.some((file) => file.size > MAX_FILE_BYTES) || files.reduce((sum, file) => sum + file.size, 0) > MAX_BATCH_BYTES) return NextResponse.json({ error: "The upload is too large. Keep each CSV under 5 MB and the batch under 20 MB." }, { status: 413 });

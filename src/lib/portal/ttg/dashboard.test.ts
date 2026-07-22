@@ -18,6 +18,16 @@ test("TTG reporting period ignores a newer partial month", () => {
   assert.equal(selectReportingMonth(ttgDashboardFixture.months).period, "June 2026");
 });
 
+test("TTG clinical metrics can advance while the financial close stays on the latest complete month", () => {
+  const splitCutoff = structuredClone(ttgDashboardFixture);
+  splitCutoff.clinicalPeriod = "July 2026 MTD";
+  const july = splitCutoff.months.find((month) => month.period === splitCutoff.clinicalPeriod)!;
+  july.grossRevenue = splitCutoff.therapists.reduce((sum, therapist) => sum + therapist.revenue, 0);
+  assert.equal(validateDashboardData(splitCutoff), splitCutoff);
+  assert.equal(splitCutoff.reportingPeriod, "June 2026");
+  assert.equal(splitCutoff.clinicalPeriod, "July 2026 MTD");
+});
+
 test("TTG dashboard narrative is derived from the active data", () => {
   const copy = getDashboardCopy(ttgDashboardFixture);
   assert.match(copy.practice.title, /June/);
