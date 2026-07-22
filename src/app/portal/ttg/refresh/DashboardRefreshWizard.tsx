@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { RefreshPayload } from "@/lib/portal/ttg/dashboard-refresh";
+import { buildRefreshGuidance, type RefreshGuidance } from "@/lib/portal/ttg/refresh-guidance";
 
 type Preview = { payload: RefreshPayload; token: string };
 type Receipt = { refreshId: string; status: string; period: string; publishedAt: string };
 type HistoryItem = { refreshId: string; publishedAt: string; refreshedBy: string; period: string; status: string; active: boolean };
 const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
+const displayDate = (value?: string) => value ? new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`)) : "Not recorded";
 
 const JANE_STEPS = [
   { report: "Appointments", role: "Core", href: "https://traumatherapygroup.janeapp.com/admin#reports/appointments", path: "Appointments report", setting: "All locations, all staff and all states" },
@@ -26,6 +28,9 @@ export default function DashboardRefreshWizard() {
   const [error, setError] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [guidance, setGuidance] = useState<RefreshGuidance>(() => buildRefreshGuidance());
+  const [packStatus, setPackStatus] = useState("");
+  const [dragging, setDragging] = useState(false);
   const [restoring, setRestoring] = useState("");
   const blocking = useMemo(() => preview?.payload.issues.some((issue) => issue.status === "FAIL") || preview?.payload.checks.some((check) => check.status === "FAIL"), [preview]);
   const warnings = preview?.payload.issues.some((issue) => issue.status === "WARNING") ?? false;
@@ -33,20 +38,39 @@ export default function DashboardRefreshWizard() {
   useEffect(() => {
     fetch("/api/portal/ttg/dashboard-refresh/history", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : { history: [] })
-      .then((body) => setHistory(body.history ?? []))
+      .then((body) => { setHistory(body.history ?? []); if (body.guidance) setGuidance(body.guidance); })
       .catch(() => setHistory([]));
   }, [receipt]);
 
-  async function inspect() {
+  useEffect(() => {
+    if (preview) document.getElementById("ttg-refresh-review")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [preview]);
+
+  async function inspect(selectedFiles = files) {
     setBusy("preview"); setError(""); setPreview(null); setReceipt(null); setAcknowledged(false);
     try {
-      const form = new FormData(); files.forEach((file) => form.append("files", file));
+      const form = new FormData(); selectedFiles.forEach((file) => form.append("files", file));
       const response = await fetch("/api/portal/ttg/dashboard-refresh/preview", { method: "POST", body: form });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Could not inspect these files.");
       setPreview(body);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not inspect these files."); }
     finally { setBusy(null); }
+  }
+
+  function chooseFiles(selectedFiles: File[]) {
+    setFiles(selectedFiles); setPreview(null); setReceipt(null); setError("");
+    if (selectedFiles.length) void inspect(selectedFiles);
+  }
+
+  function openJanePack() {
+    let blocked = 0;
+    for (const step of JANE_STEPS) {
+      const opened = window.open(step.href, `ttg-${step.report.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+      if (opened) opened.opener = null;
+      else blocked += 1;
+    }
+    setPackStatus(blocked ? "Chrome blocked some report tabs. Allow pop-ups for this portal, then use the individual links below." : "All six Jane report tabs opened. Use the date range shown here for every export.");
   }
 
   async function publish() {
@@ -76,28 +100,36 @@ export default function DashboardRefreshWizard() {
   return (
     <div className="ttg-refresh-page">
       <header className="ttg-refresh-hero">
-        <div><div className="ttg-eyebrow">Dashboard refresh</div><h1>Drop in the reports.<br />Review the close. Publish.</h1></div>
-        <p>Built for Jess’s weekly routine, but safe to run any day. Open each pre-linked report, use one date range, and upload everything together. Patient identifiers are reduced to practice totals and discarded.</p>
+        <div><div className="ttg-eyebrow">Jess’s dashboard refresh</div><h1>Refresh the dashboard<br />in two guided steps.</h1></div>
+        <p>The portal chooses the reporting dates and checks every file. Jess only opens the export pack, downloads the reports, and selects the completed package once.</p>
       </header>
 
       <section className="ttg-refresh-workflow" aria-label="Refresh workflow">
-        <span className={!preview ? "is-active" : "is-done"}>1 <b>Upload</b></span><i /><span className={preview && !receipt ? "is-active" : receipt ? "is-done" : ""}>2 <b>Review</b></span><i /><span className={receipt ? "is-done" : ""}>3 <b>Publish</b></span>
+        <span className={!files.length ? "is-active" : "is-done"}>1 <b>Download</b></span><i /><span className={files.length && !preview ? "is-active" : preview ? "is-done" : ""}>2 <b>Select files</b></span><i /><span className={preview && !receipt ? "is-active" : receipt ? "is-done" : ""}>3 <b>Review & publish</b></span>
       </section>
 
       <div className="ttg-refresh-layout">
         <main>
           {!receipt && <section className="ttg-refresh-card ttg-upload-card">
-            <div className="ttg-card-heading"><div><span>Refresh package</span><h2>Upload 6 Jane reports + 5 bank files</h2></div><strong>{files.length} files selected</strong></div>
-            <label className="ttg-file-drop">
-              <input type="file" accept=".csv,text/csv" multiple onChange={(event) => { setFiles(Array.from(event.target.files ?? [])); setPreview(null); setError(""); }} />
-              <span className="ttg-upload-mark">↑</span><strong>Drop the complete refresh package</strong><small>The four AdminFlow reports are the core. Two clearly labelled supplements preserve utilization and payout reconciliation.</small>
+            <div className="ttg-refresh-window">
+              <div><span>Use this exact date range</span><strong>{displayDate(guidance.recommendedStart)} – {displayDate(guidance.recommendedEnd)}</strong><p>Export the full month-to-date range every time. This catches corrections entered against earlier dates.</p></div>
+              <dl><div><dt>Jane currently through</dt><dd>{displayDate(guidance?.janeThrough)}</dd><small>{guidance?.janeGapStart ? `Needs ${displayDate(guidance.janeGapStart)} onward` : "No gap detected"}</small></div><div><dt>Bank currently through</dt><dd>{displayDate(guidance?.bankThrough)}</dd><small>{guidance?.bankGapStart ? `Needs ${displayDate(guidance.bankGapStart)} onward` : "No gap detected"}</small></div></dl>
+            </div>
+            <div className="ttg-guided-action">
+              <span>1</span><div><small>Download</small><h2>Open the six Jane reports</h2><p>The report screens open together. Apply the exact date range above, export each CSV, then export the same month from all five bank accounts.</p><button className="ttg-primary-action" type="button" onClick={openJanePack}>Open all Jane reports ↗</button>{packStatus && <em role="status">{packStatus}</em>}</div>
+            </div>
+            <div className="ttg-guided-action ttg-guided-upload">
+              <span>2</span><div><small>Upload</small><h2>Select the complete package once</h2><p>Choose all six Jane CSVs and five bank CSVs together. Checking starts automatically.</p></div>
+            </div>
+            <label className={`ttg-file-drop ${dragging ? "is-dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFiles(Array.from(event.dataTransfer.files)); }}>
+              <input type="file" accept=".csv,text/csv" multiple onChange={(event) => chooseFiles(Array.from(event.target.files ?? []))} />
+              <span className="ttg-upload-mark">↑</span><strong>{busy === "preview" ? "Checking the package…" : "Choose all CSVs or drop them here"}</strong><small>{files.length ? `${files.length} files selected. The portal is checking names, structures and date coverage.` : "6 Jane reports + 5 bank exports. Keep the original filenames."}</small>
             </label>
             {files.length > 0 && <div className="ttg-selected-files">{files.map((file) => <span key={`${file.name}-${file.size}`}>{file.name}<small>{Math.ceil(file.size / 1024)} KB</small></span>)}</div>}
             <div className="ttg-privacy-note"><strong>Privacy boundary</strong><p>Sales and Compensation exports can contain patient details. They are aggregated on the server and never stored, logged, returned to this screen, or written to Google Sheets.</p></div>
-            <button className="ttg-primary-action" disabled={!files.length || busy !== null} onClick={inspect}>{busy === "preview" ? "Checking files…" : preview ? "Review files again" : "Check files"}</button>
           </section>}
 
-          {preview && !receipt && <section className="ttg-refresh-card ttg-review-card">
+          {preview && !receipt && <section className="ttg-refresh-card ttg-review-card" id="ttg-refresh-review">
             <div className="ttg-card-heading"><div><span>{preview.payload.periodStatus} reporting period</span><h2>{preview.payload.periodLabel}</h2></div><strong>Through {preview.payload.periodEnd}</strong></div>
             <div className="ttg-refresh-metrics"><div><span>Gross revenue</span><strong>{cad.format(preview.payload.monthly.grossRevenue)}</strong></div><div><span>Collected</span><strong>{cad.format(preview.payload.monthly.collectedRevenue)}</strong></div><div><span>Operating profit</span><strong>{cad.format(preview.payload.monthly.operatingProfit)}</strong></div><div><span>Bank rows</span><strong>{preview.payload.bankRows}</strong></div></div>
             <div className="ttg-file-audit">{preview.payload.fileSummaries.map((file) => <div key={file.name}><span className={`is-${file.status}`}>{file.status === "ready" ? "Ready" : file.status === "warning" ? "Review" : "Blocked"}</span><strong>{file.label}</strong><p>{file.name}</p><small>{file.rows} rows</small></div>)}</div>
@@ -119,9 +151,9 @@ export default function DashboardRefreshWizard() {
         </main>
 
         <aside className="ttg-download-guide">
-          <div className="ttg-eyebrow">Jess’s Jane checklist</div><h2>One date range. Six direct report links.</h2><p>Use the first day of the month through the most recent date covered by the bank exports. Each button opens the right Jane screen.</p>
+          <div className="ttg-eyebrow">Export checklist</div><h2>Nothing to remember.</h2><p>Use <strong>{displayDate(guidance.recommendedStart)} – {displayDate(guidance.recommendedEnd)}</strong> for every report. These links are fallbacks if Chrome blocks the one-click report pack.</p>
           <ol>{JANE_STEPS.map((step, index) => <li key={step.report}><span>{index + 1}</span><div><div className="ttg-report-line"><strong>{step.report}</strong><em>{step.role}</em></div><a href={step.href} target="_blank" rel="noreferrer">Open in Jane ↗</a><small>{step.setting}</small></div></li>)}</ol>
-          <div className="ttg-guide-rule"><strong>For every report</strong><p>Set the identical start and end date. Open the ••• menu and choose <b>Export to CSV</b>. Keep Jane’s original filename.</p></div>
+          <div className="ttg-guide-rule"><strong>For every report</strong><p>Set the range shown above. Open the ••• menu and choose <b>Export to CSV</b>. Keep Jane’s original filename.</p></div>
           <div className="ttg-guide-rule"><strong>Bank package</strong><p>Export the same month for Main Chequing, Contractor Pay, Mastercard, Peace of Mind, and Profit. Upload all five, even if one has only a few rows.</p></div>
           <p className="ttg-guide-footnote">The first four match AdminFlow. Hours and Payouts are retained only because Gabby’s dashboard includes utilization and payout-to-bank reconciliation.</p>
         </aside>
