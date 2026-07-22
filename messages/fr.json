@@ -1,6 +1,6 @@
 {
   "nav": {
-    "services": "Services",
+    "services": "Sprint",
     "work": "Travail",
     "samples": "Exemples",
     "method": "Méthode",
@@ -122,7 +122,7 @@
     "heading": "Apportez un workflow qui mérite d’être corrigé.",
     "description": "Un système utile commence par un problème opérationnel précis, pas par un grand discours de transformation IA.",
     "getInTouch": "Discuter du workflow",
-    "tagline": "Systèmes IA pratiques.",
+    "tagline": "Pratique indépendante de systèmes.",
     "location": "Montréal, Canada."
   },
   "workflowForm": {

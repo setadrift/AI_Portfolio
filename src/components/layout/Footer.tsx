@@ -37,7 +37,6 @@ export default function Footer() {
             >
               duncan@duncananderson.ca
             </a>
-            <a href="tel:+15145960678" className="text-sm text-footer-text transition-colors hover:text-white">514-596-0678</a>
             <a
               href="https://www.linkedin.com/in/duncan-kg-anderson/"
               target="_blank"
