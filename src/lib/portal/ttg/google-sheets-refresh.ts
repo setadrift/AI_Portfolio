@@ -1,0 +1,183 @@
+import { createHash, createSign, randomUUID } from "node:crypto";
+import { getVercelOidcToken } from "@vercel/oidc";
+import type { RefreshPayload } from "./dashboard-refresh";
+
+const required = (value: string | undefined, field: string) => {
+  if (!value) throw new Error(`Missing required field: ${field}`);
+  return value;
+};
+const base64Url = (value: string | Buffer) => Buffer.from(value).toString("base64url");
+
+async function staticToken(email: string, privateKey: string) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const body = base64Url(JSON.stringify({ iss: email, scope: "https://www.googleapis.com/auth/spreadsheets", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 }));
+  const unsigned = `${header}.${body}`;
+  const signer = createSign("RSA-SHA256"); signer.update(unsigned); signer.end();
+  const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${unsigned}.${base64Url(signer.sign(privateKey))}` }), cache: "no-store" });
+  if (!response.ok) throw new Error(`Google authentication failed (${response.status})`);
+  return required(((await response.json()) as { access_token?: string }).access_token, "Google access token");
+}
+
+async function keylessToken(email: string) {
+  const project = required(process.env.TTG_GCP_PROJECT_NUMBER, "GCP project number");
+  const pool = required(process.env.TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_ID, "workload identity pool ID");
+  const provider = required(process.env.TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_PROVIDER_ID, "workload identity provider ID");
+  const exchange = await fetch("https://sts.googleapis.com/v1/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:token-exchange", audience: `//iam.googleapis.com/projects/${project}/locations/global/workloadIdentityPools/${pool}/providers/${provider}`, scope: "https://www.googleapis.com/auth/cloud-platform", requested_token_type: "urn:ietf:params:oauth:token-type:access_token", subject_token: await getVercelOidcToken(), subject_token_type: "urn:ietf:params:oauth:token-type:jwt" }), cache: "no-store" });
+  if (!exchange.ok) throw new Error(`Google identity exchange failed (${exchange.status})`);
+  const federated = required(((await exchange.json()) as { access_token?: string }).access_token, "Google federated token");
+  const impersonation = await fetch(`https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(email)}:generateAccessToken`, { method: "POST", headers: { authorization: `Bearer ${federated}`, "content-type": "application/json" }, body: JSON.stringify({ scope: ["https://www.googleapis.com/auth/spreadsheets"], lifetime: "3600s" }), cache: "no-store" });
+  if (!impersonation.ok) throw new Error(`Google service account impersonation failed (${impersonation.status})`);
+  return required(((await impersonation.json()) as { accessToken?: string }).accessToken, "Google service account token");
+}
+
+async function context() {
+  const spreadsheetId = required(process.env.TTG_DASHBOARD_SPREADSHEET_ID, "spreadsheet ID");
+  const email = required(process.env.TTG_GOOGLE_SERVICE_ACCOUNT_EMAIL, "service account email");
+  const privateKey = process.env.TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const token = privateKey ? await staticToken(email, privateKey) : await keylessToken(email);
+  return { spreadsheetId, headers: { authorization: `Bearer ${token}` } };
+}
+
+const TABS = ["Monthly Metrics", "Therapist Monthly", "Expense Categories", "Jane Payouts", "Reconciliation", "Checks", "Refresh Log", "Sources"];
+const OPERATIONAL_TABS = {
+  "Source Coverage": ["Report", "Role", "Coverage Start", "Coverage End", "Status", "Last Refresh ID", "Notes"],
+  "Import History": ["Refresh ID", "Published At", "Refreshed By", "Period", "Status", "Active", "Payload JSON", "Superseded By"],
+} as const;
+
+async function readTables(includeOperational = false) {
+  const { spreadsheetId, headers } = await context();
+  const requestedTabs = includeOperational ? [...TABS, ...Object.keys(OPERATIONAL_TABS)] : TABS;
+  const params = new URLSearchParams({ majorDimension: "ROWS", valueRenderOption: "UNFORMATTED_VALUE", dateTimeRenderOption: "FORMATTED_STRING" });
+  requestedTabs.forEach((tab) => params.append("ranges", `'${tab}'!A:AC`));
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params}`, { headers, cache: "no-store" });
+  if (!response.ok) throw new Error(`Google Sheets read failed (${response.status})`);
+  const body = (await response.json()) as { valueRanges?: Array<{ values?: unknown[][] }> };
+  return { spreadsheetId, headers, tables: new Map(requestedTabs.map((tab, index) => [tab, (body.valueRanges?.[index]?.values ?? []) as unknown[][]])) };
+}
+
+async function ensureOperationalTabs(spreadsheetId: string, headers: { authorization: string }) {
+  const metadata = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, { headers, cache: "no-store" });
+  if (!metadata.ok) throw new Error(`Google Sheets metadata read failed (${metadata.status})`);
+  const titles = new Set(((await metadata.json()) as { sheets?: Array<{ properties?: { title?: string } }> }).sheets?.map((sheet) => sheet.properties?.title).filter(Boolean) as string[] ?? []);
+  const missing = Object.keys(OPERATIONAL_TABS).filter((title) => !titles.has(title));
+  if (!missing.length) return;
+  const created = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ requests: missing.map((title) => ({ addSheet: { properties: { title, hidden: true } } })) }), cache: "no-store" });
+  if (!created.ok) throw new Error(`Google Sheets operational tab setup failed (${created.status})`);
+  const seeded = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ valueInputOption: "RAW", data: missing.map((title) => ({ range: `'${title}'!A1`, values: [[...OPERATIONAL_TABS[title as keyof typeof OPERATIONAL_TABS]]] })) }), cache: "no-store" });
+  if (!seeded.ok) throw new Error(`Google Sheets operational tab headers failed (${seeded.status})`);
+}
+
+async function hasOperationalTabs(spreadsheetId: string, headers: { authorization: string }) {
+  const metadata = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, { headers, cache: "no-store" });
+  if (!metadata.ok) throw new Error(`Google Sheets metadata read failed (${metadata.status})`);
+  const titles = new Set(((await metadata.json()) as { sheets?: Array<{ properties?: { title?: string } }> }).sheets?.map((sheet) => sheet.properties?.title).filter(Boolean) as string[] ?? []);
+  return Object.keys(OPERATIONAL_TABS).every((title) => titles.has(title));
+}
+
+export async function getWorkbookFingerprint() {
+  const { tables } = await readTables();
+  return createHash("sha256").update(JSON.stringify([...tables])).digest("hex");
+}
+
+const sheetDate = (value: string) => value;
+const pad = (rows: unknown[][], length: number, width: number) => [...rows, ...Array.from({ length: Math.max(0, length - rows.length) }, () => Array(width).fill(""))];
+
+function replacePeriod(table: unknown[][], headerName: string, periodKey: string, rows: unknown[][]) {
+  const headerIndex = table.findIndex((row) => row.map(String).includes(headerName));
+  if (headerIndex < 0) throw new Error(`Workbook tab is missing ${headerName}`);
+  const header = table[headerIndex].map(String);
+  const periodColumn = header.includes("Period") ? header.indexOf("Period") : header.indexOf("Period Start");
+  const rowPeriod = (value: unknown) => {
+    if (typeof value === "number" && value > 30_000) return new Date(Date.UTC(1899, 11, 30) + value * 86_400_000).toISOString().slice(0, 7);
+    const text = String(value ?? "").trim();
+    const iso = text.match(/(20\d{2})-(0[1-9]|1[0-2])/);
+    if (iso) return `${iso[1]}-${iso[2]}`;
+    const parsed = new Date(text.replace(/\bMTD\b/i, "").trim());
+    return Number.isNaN(parsed.getTime()) ? "" : `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
+  };
+  const existing = table.slice(headerIndex + 1).filter((row) => rowPeriod(row[periodColumn]) !== periodKey);
+  const next = [header, ...existing, ...rows];
+  return { startRow: headerIndex + 1, values: pad(next, table.length - headerIndex, header.length), width: header.length };
+}
+
+function replaceAll(table: unknown[][], headerName: string, rows: unknown[][]) {
+  const headerIndex = table.findIndex((row) => row.map(String).includes(headerName));
+  if (headerIndex < 0) throw new Error(`Workbook tab is missing ${headerName}`);
+  const header = table[headerIndex].map(String);
+  return { startRow: headerIndex + 1, values: pad([header, ...rows], table.length - headerIndex, header.length), width: header.length };
+}
+
+function appendRow(table: unknown[][], headerName: string, row: unknown[]) {
+  const headerIndex = table.findIndex((candidate) => candidate.map(String).includes(headerName));
+  if (headerIndex < 0) throw new Error(`Workbook tab is missing ${headerName}`);
+  const header = table[headerIndex].map(String);
+  const existing = table.slice(headerIndex + 1).filter((candidate) => candidate.some((cell) => String(cell ?? "").trim()));
+  return { startRow: headerIndex + 1, values: [header, ...existing, row], width: header.length };
+}
+
+const column = (index: number) => String.fromCharCode(64 + index);
+
+export async function publishRefresh(payload: RefreshPayload, refreshedBy: string, expectedFingerprint: string) {
+  const initial = await readTables();
+  const initialFingerprint = createHash("sha256").update(JSON.stringify([...initial.tables])).digest("hex");
+  if (initialFingerprint !== expectedFingerprint) throw new Error("The workbook changed after preview. Review the files again before publishing.");
+  await ensureOperationalTabs(initial.spreadsheetId, initial.headers);
+  const current = await readTables(true);
+  const actualFingerprint = createHash("sha256").update(JSON.stringify(TABS.map((tab) => [tab, current.tables.get(tab) ?? []]))).digest("hex");
+  if (actualFingerprint !== expectedFingerprint) throw new Error("The workbook changed after preview. Review the files again before publishing.");
+  const m = payload.monthly;
+  const monthly = replacePeriod(current.tables.get("Monthly Metrics")!, "Period Start", payload.periodKey, [[sheetDate(payload.periodStart), payload.periodLabel, payload.periodStatus, sheetDate(payload.periodEnd), m.grossRevenue, "", m.collectedRevenue, m.operatingExpenses, m.operatingProfit, m.collectedRevenue ? m.operatingProfit / m.collectedRevenue : 0, m.cashInflows, m.cashOutflows, m.netCashFlow, m.uncategorizedExpenses, m.payoutReconciliation, `Portal refresh ${payload.refreshId}`]]);
+  const therapistRows = payload.therapists.map((row) => [payload.periodStart, payload.periodStatus, row.name, row.invoices, row.invoiced, row.collected, row.collected, row.scheduledHours, row.bookedHours, row.scheduledHours ? row.bookedHours / row.scheduledHours : 0, row.bookings, row.compensation, row.owner, row.bookedHours ? row.invoiced / row.bookedHours : 0, "Aggregated in portal; no patient identifiers retained."]);
+  const therapists = replacePeriod(current.tables.get("Therapist Monthly")!, "Period Start", payload.periodKey, therapistRows);
+  const expenses = replacePeriod(current.tables.get("Expense Categories")!, "Period Start", payload.periodKey, payload.expenses.map((row) => [payload.periodStart, payload.periodKey, row.category, row.amount]));
+  const payouts = replaceAll(current.tables.get("Jane Payouts")!, "Date Created", payload.payouts.map((row) => [row.created, row.deposited, row.amount, row.status]));
+  const reconciliation = replaceAll(current.tables.get("Reconciliation")!, "Payout ID", payload.reconciliation.map((row) => [row.payoutId, row.janeDepositDate, row.janeAmount, "", row.bankDate, row.bankAmount, row.difference, row.status, row.notes]));
+  const checks = replaceAll(current.tables.get("Checks")!, "Check", payload.checks.map((row) => [row.check, row.actual, row.expected, row.difference, row.tolerance, row.status, row.notes]));
+  const overallStatus = payload.checks.some((row) => row.status === "FAIL") ? "FAIL" : payload.issues.some((issue) => issue.status === "WARNING") ? "WARNING" : "PASS";
+  const refreshLog = appendRow(current.tables.get("Refresh Log")!, "Refresh Timestamp", [new Date().toISOString(), refreshedBy, payload.periodLabel, payload.bankCoverage, payload.bankRows, overallStatus, payload.issues.map((issue) => issue.title).join("; ") || "All import checks passed."]);
+  const coverage = replaceAll(current.tables.get("Source Coverage")!, "Report", payload.sourceCoverage.map((source) => [source.label, source.role, source.start, source.end, source.status, payload.refreshId, source.note]));
+  const payloadJson = JSON.stringify(payload);
+  if (payloadJson.length > 45_000) throw new Error("This aggregate refresh snapshot is too large for safe rollback. Reduce the reporting period and preview again.");
+  const historyTable = current.tables.get("Import History")!;
+  const historyHeader = historyTable[0]?.map(String) ?? [...OPERATIONAL_TABS["Import History"]];
+  const historyRows = historyTable.slice(1).filter((row) => row.some((cell) => String(cell ?? "").trim())).map((row) => {
+    const next = [...row];
+    if (String(next[3]) === payload.periodKey && String(next[5]).toLowerCase() === "true") { next[5] = false; next[7] = payload.refreshId; }
+    return next;
+  });
+  const history = { startRow: 1, values: [historyHeader, ...historyRows, [payload.refreshId, new Date().toISOString(), refreshedBy, payload.periodKey, overallStatus, true, payloadJson, ""]], width: historyHeader.length };
+  const updates = [
+    ["Monthly Metrics", monthly], ["Therapist Monthly", therapists], ["Expense Categories", expenses], ["Jane Payouts", payouts], ["Reconciliation", reconciliation], ["Checks", checks], ["Refresh Log", refreshLog], ["Source Coverage", coverage], ["Import History", history],
+  ] as const;
+  const data = updates.map(([title, update]) => ({ range: `'${title}'!A${update.startRow}:${column(update.width)}${update.startRow + update.values.length - 1}`, majorDimension: "ROWS", values: update.values }));
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${current.spreadsheetId}/values:batchUpdate`, { method: "POST", headers: { ...current.headers, "content-type": "application/json" }, body: JSON.stringify({ valueInputOption: "RAW", includeValuesInResponse: false, data }), cache: "no-store" });
+  if (!response.ok) {
+    const detail = await response.text();
+    if (response.status === 403) throw new Error("The dashboard service account needs Editor access to the TTG workbook before publishing can work.");
+    throw new Error(`Google Sheets publish failed (${response.status}): ${detail.slice(0, 180)}`);
+  }
+  return { refreshId: payload.refreshId, status: overallStatus, period: payload.periodLabel, publishedAt: new Date().toISOString() };
+}
+
+export type RefreshHistoryItem = { refreshId: string; publishedAt: string; refreshedBy: string; period: string; status: string; active: boolean };
+
+export async function getRefreshHistory(): Promise<RefreshHistoryItem[]> {
+  const base = await readTables();
+  if (!await hasOperationalTabs(base.spreadsheetId, base.headers)) return [];
+  const { tables } = await readTables(true);
+  return (tables.get("Import History") ?? []).slice(1).filter((row) => row[0]).map((row) => ({ refreshId: String(row[0]), publishedAt: String(row[1]), refreshedBy: String(row[2]), period: String(row[3]), status: String(row[4]), active: String(row[5]).toLowerCase() === "true" })).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 12);
+}
+
+export async function rollbackRefresh(refreshId: string, refreshedBy: string) {
+  const base = await readTables();
+  await ensureOperationalTabs(base.spreadsheetId, base.headers);
+  const current = await readTables(true);
+  const row = (current.tables.get("Import History") ?? []).slice(1).find((candidate) => String(candidate[0]) === refreshId);
+  if (!row) throw new Error("That refresh snapshot is no longer available.");
+  const original = JSON.parse(String(row[6] ?? "")) as RefreshPayload;
+  if (!original.periodKey) throw new Error("That refresh snapshot is invalid.");
+  const restored: RefreshPayload = { ...original, refreshId: randomUUID(), issues: [...original.issues, { status: "WARNING", title: "Previous refresh restored", detail: `Restored aggregate snapshot ${refreshId}.` }] };
+  const fingerprint = createHash("sha256").update(JSON.stringify([...TABS.map((tab) => [tab, current.tables.get(tab) ?? []])])).digest("hex");
+  return publishRefresh(restored, `${refreshedBy} (rollback)`, fingerprint);
+}
