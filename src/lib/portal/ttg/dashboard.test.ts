@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ttgDashboardFixture } from "./dashboard-fixture";
 import { validateDashboardData } from "./dashboard";
-import { dashboardVisualIndex, gabbyMetricCoverage, getDashboardCopy, periodLabel } from "./dashboard-copy";
+import { dashboardVisualIndex, gabbyMetricCoverage, getDashboardCopy, getOwnerActions, getSourceHealth, periodLabel } from "./dashboard-copy";
 
 test("TTG fixture reconciles its source totals", () => {
   assert.equal(validateDashboardData(ttgDashboardFixture), ttgDashboardFixture);
@@ -35,13 +35,46 @@ test("TTG narrative changes when the underlying result changes", () => {
   assert.match(copy.practice.intro, /-\$2K/);
 });
 
+test("partial periods are labelled as directional instead of compared with a full month", () => {
+  const copy = getDashboardCopy(ttgDashboardFixture, "July 2026 MTD");
+  assert.equal(copy.current.status, "Partial");
+  assert.equal(copy.hasComparablePrior, false);
+  assert.match(copy.practice.title, /through Jul 17, 2026/);
+  assert.match(copy.practice.intro, /directional/i);
+});
+
+test("failed controls block reliance on the close", () => {
+  const failed = structuredClone(ttgDashboardFixture);
+  failed.qualityChecks[0].status = "FAIL";
+  const copy = getDashboardCopy(failed);
+  assert.equal(copy.failures.length, 1);
+  assert.match(copy.controls.title, /Do not rely/);
+  assert.equal(copy.passes, 5);
+});
+
+test("source health uses workbook cutoffs rather than page-fetch time", () => {
+  const health = getSourceHealth(ttgDashboardFixture, new Date("2026-07-22T12:00:00Z"));
+  assert.equal(health.gapDays, 3);
+  assert.equal(health.ageDays, 5);
+  assert.equal(health.tone, "attention");
+});
+
+test("owner review prioritizes source alignment, classification, and open capacity", () => {
+  const actions = getOwnerActions(ttgDashboardFixture, new Date("2026-07-22T12:00:00Z"));
+  assert.ok(actions.some((action) => /Align Jane and bank cutoffs/.test(action.title)));
+  assert.ok(actions.some((action) => /Classify/.test(action.title)));
+  assert.ok(actions.some((action) => /open capacity/.test(action.title)));
+});
+
 test("TTG source index covers Gabby's complete request", () => {
   const metrics = gabbyMetricCoverage.flatMap((group) => group.items);
   assert.equal(metrics.length, 53);
   assert.equal(new Set(metrics.map((item) => item.metric)).size, 53);
-  assert.equal(dashboardVisualIndex.length, 8);
+  assert.equal(dashboardVisualIndex.length, 10);
   assert.equal(metrics.find((item) => item.metric === "Current Cash Position")?.status, "not-available");
   assert.equal(metrics.find((item) => item.metric === "Gross Revenue")?.status, "shown");
+  assert.equal(metrics.find((item) => item.metric === "Contractor Commissions / Therapist Payouts")?.status, "shown");
+  assert.equal(metrics.find((item) => item.metric === "Total Appointments")?.status, "shown");
 });
 
 test("period labels do not depend on a fixed reporting year", () => {

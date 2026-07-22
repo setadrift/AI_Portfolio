@@ -34,15 +34,32 @@ export type TherapistMetric = {
 
 export type ExpenseMetric = { category: string; amount: number; share: number };
 
+export type QualityStatus = "PASS" | "WARNING" | "FAIL";
+
+export type DashboardSource = {
+  mode: "live" | "fixture";
+  label: string;
+  refreshedAt: string;
+  fetchedAt?: string;
+  refreshedBy?: string;
+  refreshStatus: QualityStatus | "UNKNOWN";
+  refreshNotes?: string;
+  janeDataThrough: string;
+  bankDataThrough: string;
+  bankCoverage?: string;
+  bankRows?: number;
+  spreadsheetId?: string;
+};
+
 export type TtgDashboardData = {
-  source: { mode: "live" | "fixture"; label: string; refreshedAt: string; spreadsheetId?: string };
+  source: DashboardSource;
   reportingPeriod: string;
   months: MonthlyMetric[];
   therapists: TherapistMetric[];
   expenses: ExpenseMetric[];
   qualityChecks: Array<{
     check: string;
-    status: "PASS" | "WARNING";
+    status: QualityStatus;
     actual: number;
     expected: number;
     difference: number;
@@ -61,6 +78,7 @@ export type TtgDashboardData = {
     appointmentsPerTherapistWeek: number;
     payoutReconciliation: number;
     payoutsMatched: number;
+    payoutsExpected: number;
     payoutValue: number;
     outstandingBalance: number;
   };
@@ -71,6 +89,8 @@ type SheetRow = Record<string, string>;
 const SHEET_HEADERS = new Set([
   "Period", "Period Status", "Data Through", "Therapist", "Category",
   "Expense Amount", "Check", "Actual", "Expected", "Status",
+  "Refresh Timestamp", "Refreshed By", "Jane Periods", "Bank Coverage",
+  "Item", "Value", "Source Type", "Source Name", "Period / As-of",
 ]);
 
 const required = (value: string | undefined, field: string) => {
@@ -106,6 +126,29 @@ function pickTitle(titles: string[], aliases: readonly string[], source: string)
   const title = aliases.find((alias) => titles.includes(alias));
   if (!title) throw new Error(`Missing required ${source} tab (${aliases.join(" or ")})`);
   return title;
+}
+
+function findTitle(titles: string[], aliases: readonly string[]) {
+  return aliases.find((alias) => titles.includes(alias));
+}
+
+function qualityStatus(value: string | undefined): QualityStatus {
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === "PASS" || normalized === "FAIL") return normalized;
+  return "WARNING";
+}
+
+function dateValue(value: string | undefined) {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  const serial = Number(trimmed);
+  if (Number.isFinite(serial) && serial > 30_000 && serial < 100_000) {
+    const date = new Date(Date.UTC(1899, 11, 30) + serial * 86_400_000);
+    return date.toISOString().slice(0, 10);
+  }
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString().slice(0, 10);
 }
 
 function periodKey(value: string) {
@@ -199,12 +242,13 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   if (!metadataResponse.ok) throw new Error(`Google Sheets metadata failed (${metadataResponse.status})`);
   const metadata = (await metadataResponse.json()) as { sheets?: Array<{ properties?: { title?: string } }> };
   const titles = (metadata.sheets ?? []).flatMap((sheet) => sheet.properties?.title ? [sheet.properties.title] : []);
-  const selected = [
-    pickTitle(titles, ["Monthly Metrics", "Monthly Finance"], "monthly metrics"),
-    pickTitle(titles, ["Therapist Monthly", "Therapist Performance"], "therapist metrics"),
-    pickTitle(titles, ["Expense Categories", "Expense Mix"], "expense metrics"),
-    pickTitle(titles, ["Data Quality", "Checks"], "data quality"),
-  ];
+  const monthlyTitle = pickTitle(titles, ["Monthly Metrics", "Monthly Finance"], "monthly metrics");
+  const therapistTitle = pickTitle(titles, ["Therapist Monthly", "Therapist Performance"], "therapist metrics");
+  const expenseTitle = pickTitle(titles, ["Expense Categories", "Expense Mix"], "expense metrics");
+  const qualityTitle = pickTitle(titles, ["Data Quality", "Checks"], "data quality");
+  const refreshTitle = findTitle(titles, ["Refresh Log"]);
+  const sourcesTitle = findTitle(titles, ["Sources"]);
+  const selected = [monthlyTitle, therapistTitle, expenseTitle, qualityTitle, refreshTitle, sourcesTitle].filter((title): title is string => Boolean(title));
   const params = new URLSearchParams({
     majorDimension: "ROWS",
     valueRenderOption: "UNFORMATTED_VALUE",
@@ -218,7 +262,13 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   if (!valuesResponse.ok) throw new Error(`Google Sheets values failed (${valuesResponse.status})`);
   const body = (await valuesResponse.json()) as { valueRanges?: Array<{ values?: unknown[][] }> };
   const ranges = (body.valueRanges ?? []).map((range) => rowsFromValues(range.values ?? []));
-  const [monthRows, therapistRows, expenseRows, qualityRows] = ranges;
+  const rowsByTitle = new Map(selected.map((title, index) => [title, ranges[index]]));
+  const monthRows = rowsByTitle.get(monthlyTitle);
+  const therapistRows = rowsByTitle.get(therapistTitle);
+  const expenseRows = rowsByTitle.get(expenseTitle);
+  const qualityRows = rowsByTitle.get(qualityTitle);
+  const refreshRows = refreshTitle ? rowsByTitle.get(refreshTitle) ?? [] : [];
+  const sourceRows = sourcesTitle ? rowsByTitle.get(sourcesTitle) ?? [] : [];
   if (!monthRows || !therapistRows || !expenseRows || !qualityRows) throw new Error("Google Sheets returned incomplete dashboard ranges");
 
   const expenseAmount = (key: string, category: string) => expenseRows
@@ -234,7 +284,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       : expenseAmount(key, "advertising & marketing");
     return {
       period,
-      status: row["Period Status"].toLowerCase().includes("partial") ? "Partial" : "Complete",
+      status: (row["Period Status"].toLowerCase().includes("partial") ? "Partial" : "Complete") as MonthlyMetric["status"],
       dataThrough: required(row["Data Through"], "Data Through"),
       grossRevenue,
       collectedRevenue,
@@ -248,7 +298,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       marketingRatio: row["Marketing Spend % Revenue"] ? numeric(row["Marketing Spend % Revenue"], "Marketing Spend % Revenue") : marketingSpend / grossRevenue,
       uncategorizedExpenses: numeric(row["Uncategorized Expenses"], "Uncategorized Expenses"),
     };
-  });
+  }).sort((a, b) => periodKey(a.period).localeCompare(periodKey(b.period)));
   const primary = months.filter((month) => month.status === "Complete").at(-1);
   if (!primary) throw new Error("No complete reporting period is available");
   const primaryExpenseKey = periodKey(primary.period);
@@ -267,14 +317,14 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       ? numeric(row["Appointments / Week"], "Appointments / Week")
       : numeric(row["Total Bookings"], "Total Bookings") / (30 / 7),
   }));
-  const expenses = expenseRows.filter((row) => row.Period.includes(primaryExpenseKey)).map((row) => ({
+  const expenses = expenseRows.filter((row) => periodKey(row.Period) === primaryExpenseKey).map((row) => ({
     category: required(row.Category, "Expense Category"),
     amount: numeric(row["Expense Amount"], "Expense Amount"),
     share: row["Expense Share"] ? numeric(row["Expense Share"], "Expense Share") : numeric(row["Expense Amount"], "Expense Amount") / primary.operatingExpenses,
   }));
   const qualityChecks = qualityRows.map((row) => ({
     check: required(row.Check, "Data Quality Check"),
-    status: (row.Status === "PASS" ? "PASS" : "WARNING") as "PASS" | "WARNING",
+    status: qualityStatus(row.Status),
     actual: optionalNumeric(row.Actual),
     expected: optionalNumeric(row.Expected),
     difference: optionalNumeric(row.Difference),
@@ -287,6 +337,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   const payoutCheck = qualityChecks.find((check) => check.check.toLowerCase().includes("payout count"))
     ?? qualityChecks.find((check) => check.check.toLowerCase().includes("payouts matched"));
   const payoutCount = payoutCheck?.actual ?? 0;
+  const payoutExpected = payoutCheck?.expected ?? 0;
   const payoutValue = qualityChecks.find((check) => check.check.toLowerCase().includes("payout value"))?.actual ?? 0;
   const contractorCommissions = primaryTherapistRows.reduce((sum, row) => {
     return sum + optionalNumeric(row["Contractor Commission"] || row.Compensation);
@@ -296,10 +347,30 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
     const collected = numeric(row["Collected As Of Today"] || row["Collected Revenue"], "Therapist collected as of today");
     return sum + Math.max(0, invoiced - collected);
   }, 0);
+  const latestMonth = months.at(-1)!;
+  const alignmentRow = qualityRows.find((row) => row.Check.toLowerCase().includes("source date alignment"));
+  const latestRefresh = refreshRows.at(-1);
+  const bankSource = sourceRows.find((row) => (row.Item || "").toLowerCase().includes("bank transaction"));
+  const janeDataThrough = dateValue(alignmentRow?.Expected) ?? latestMonth.dataThrough;
+  const bankDataThrough = dateValue(alignmentRow?.Actual) ?? latestMonth.dataThrough;
+  const refreshedAt = dateValue(latestRefresh?.["Refresh Timestamp"]) ?? latestMonth.dataThrough;
 
   return validateDashboardData({
     ...ttgDashboardFixture,
-    source: { mode: "live", label: "Live Google Sheet", refreshedAt: new Date().toISOString(), spreadsheetId },
+    source: {
+      mode: "live",
+      label: "Connected reporting workbook",
+      refreshedAt,
+      fetchedAt: new Date().toISOString(),
+      refreshedBy: latestRefresh?.["Refreshed By"],
+      refreshStatus: latestRefresh?.Status ? qualityStatus(latestRefresh.Status) : "UNKNOWN",
+      refreshNotes: latestRefresh?.Notes,
+      janeDataThrough,
+      bankDataThrough,
+      bankCoverage: latestRefresh?.["Bank Coverage"] || bankSource?.["Period / As-of"],
+      bankRows: optionalNumeric(latestRefresh?.["Bank Rows"] || bankSource?.Value),
+      spreadsheetId,
+    },
     reportingPeriod: primary.period,
     months,
     therapists,
@@ -316,8 +387,9 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       contractorCommissions,
       bookedAppointments,
       appointmentsPerTherapistWeek: therapists.length ? bookedAppointments / therapists.length / (30 / 7) : 0,
-      payoutReconciliation: payoutCheck?.expected ? payoutCount / payoutCheck.expected : 0,
+      payoutReconciliation: payoutExpected ? payoutCount / payoutExpected : 0,
       payoutsMatched: payoutCount,
+      payoutsExpected: payoutExpected,
       payoutValue,
       outstandingBalance,
     },
