@@ -152,6 +152,10 @@ function dateValue(value: string | undefined) {
 }
 
 function periodKey(value: string) {
+  const serial = Number(value);
+  if (Number.isFinite(serial) && serial > 30_000 && serial < 100_000) {
+    return new Date(Date.UTC(1899, 11, 30) + serial * 86_400_000).toISOString().slice(0, 7);
+  }
   const iso = value.match(/(20\d{2})-(0[1-9]|1[0-2])/);
   if (iso) return `${iso[1]}-${iso[2]}`;
   const parsed = new Date(value.replace(/\bMTD\b/i, "").trim());
@@ -237,7 +241,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
 
   const metadataResponse = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`,
-    { headers, next: { revalidate: 900 } },
+    { headers, next: { revalidate: 900, tags: ["ttg-dashboard"] } },
   );
   if (!metadataResponse.ok) throw new Error(`Google Sheets metadata failed (${metadataResponse.status})`);
   const metadata = (await metadataResponse.json()) as { sheets?: Array<{ properties?: { title?: string } }> };
@@ -257,7 +261,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   selected.forEach((title) => params.append("ranges", `'${title}'!A:AC`));
   const valuesResponse = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchGet?${params}`,
-    { headers, next: { revalidate: 900 } },
+    { headers, next: { revalidate: 900, tags: ["ttg-dashboard"] } },
   );
   if (!valuesResponse.ok) throw new Error(`Google Sheets values failed (${valuesResponse.status})`);
   const body = (await valuesResponse.json()) as { valueRanges?: Array<{ values?: unknown[][] }> };
@@ -299,8 +303,8 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       uncategorizedExpenses: numeric(row["Uncategorized Expenses"], "Uncategorized Expenses"),
     };
   }).sort((a, b) => periodKey(a.period).localeCompare(periodKey(b.period)));
-  const primary = months.filter((month) => month.status === "Complete").at(-1);
-  if (!primary) throw new Error("No complete reporting period is available");
+  const primary = months.at(-1);
+  if (!primary) throw new Error("No reporting period is available");
   const primaryExpenseKey = periodKey(primary.period);
   const primaryTherapistRows = therapistRows.filter((row) => periodKey(row["Period Start"]) === primaryExpenseKey);
   const therapists: TherapistMetric[] = primaryTherapistRows.map((row) => ({
@@ -399,7 +403,6 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
 export function validateDashboardData(data: TtgDashboardData) {
   const primary = data.months.find((month) => month.period === data.reportingPeriod);
   if (!primary) throw new Error(`Reporting period ${data.reportingPeriod} is missing`);
-  if (primary.status !== "Complete") throw new Error("The primary reporting period must be complete");
   const therapistRevenue = data.therapists.reduce((sum, therapist) => sum + therapist.revenue, 0);
   if (Math.abs(therapistRevenue - primary.grossRevenue) > 0.02) throw new Error("Therapist revenue does not reconcile to gross revenue");
   const expenseTotal = data.expenses.reduce((sum, expense) => sum + expense.amount, 0);

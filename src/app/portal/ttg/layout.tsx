@@ -12,6 +12,7 @@ export default function TtgLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <nav className="ttg-portal-links" aria-label="TTG portal">
             <Link href="/portal/ttg/dashboard">CEO dashboard</Link>
+            <Link href="/portal/ttg/refresh">Refresh data</Link>
             <Link href="/portal/ttg/publish">Blog publisher</Link>
             <span className="ttg-portal-divider" />
             <LogoutButton />
