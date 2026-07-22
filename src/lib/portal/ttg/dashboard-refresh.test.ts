@@ -19,6 +19,7 @@ const files = [
 
 test("TTG refresh aggregates the proven Jane and bank schemas without retaining PHI", () => {
   const payload = buildRefreshPayload(files);
+  assert.equal(payload.refreshType, "full");
   assert.equal(payload.periodLabel, "July 2026 MTD");
   assert.equal(payload.monthly.grossRevenue, 175);
   assert.equal(payload.monthly.operatingExpenses, 10);
@@ -34,4 +35,26 @@ test("TTG refresh aggregates the proven Jane and bank schemas without retaining 
 test("TTG refresh fails closed when a required report is duplicated", () => {
   const payload = buildRefreshPayload([...files, files[0]]);
   assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("Duplicate Jane appointments")), true);
+});
+
+test("TTG refresh accepts the six Jane reports without bank files", () => {
+  const payload = buildRefreshPayload(files.slice(0, 6));
+  assert.equal(payload.refreshType, "jane");
+  assert.equal(payload.bankRows, 0);
+  assert.equal(payload.bankCoverage, "Bank data unchanged");
+  assert.equal(payload.issues.some((issue) => issue.title.toLowerCase().includes("bank")), false);
+  assert.equal(payload.checks.some((check) => check.check.toLowerCase().includes("bank")), false);
+  assert.equal(payload.issues.some((issue) => issue.status === "FAIL"), false);
+});
+
+test("TTG refresh rejects an incomplete bank package instead of zeroing missing accounts", () => {
+  const payload = buildRefreshPayload([...files.slice(0, 6), files[6]]);
+  assert.equal(payload.refreshType, "full");
+  assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("Incomplete bank package")), true);
+});
+
+test("TTG refresh rejects a one-day Jane package that does not start on the first", () => {
+  const oneDay = files.slice(0, 6).map((file) => file.name.startsWith("Sales_") ? { ...file, name: "Sales_20260722_20260722.csv" } : file);
+  const payload = buildRefreshPayload(oneDay);
+  assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("first day")), true);
 });

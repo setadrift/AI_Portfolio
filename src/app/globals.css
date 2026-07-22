@@ -370,6 +370,10 @@ section {
 .ttg-primary-action { background: var(--ttg-ink); color: #fff; }.ttg-primary-action:hover { background: var(--ttg-teal); }.ttg-primary-action:disabled { opacity: .42; cursor: not-allowed; }
 .ttg-secondary-action { border: 1px solid var(--ttg-line); background: #fff; color: var(--ttg-ink); }.ttg-secondary-action:hover { border-color: var(--ttg-teal); }
 .ttg-upload-card > .ttg-primary-action { width: 100%; }
+.ttg-refresh-mode { margin: -5px 0 18px; padding: 14px 16px; border-left: 3px solid var(--ttg-teal); background: #eef5f1; }
+.ttg-refresh-mode strong { display: block; font-size: 13px; }
+.ttg-refresh-mode p { margin-top: 3px; color: var(--ttg-muted); font-size: 10px; line-height: 1.55; }
+.ttg-refresh-mode.is-full { border-left-color: #315d45; background: #edf3ee; }
 .ttg-refresh-metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 9px; margin-bottom: 24px; }.ttg-refresh-metrics div { padding: 15px; background: #f5f4ef; border-radius: 7px; }.ttg-refresh-metrics span { display: block; color: var(--ttg-muted); font-size: 10px; margin-bottom: 5px; }.ttg-refresh-metrics strong { font-size: 20px; letter-spacing: -.03em; }
 .ttg-file-audit { border: 1px solid var(--ttg-line); border-radius: 8px; overflow: hidden; }.ttg-file-audit > div { display: grid; grid-template-columns: 65px 170px 1fr 55px; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #e7eae7; font-size: 11px; }.ttg-file-audit > div:last-child { border: 0; }.ttg-file-audit p { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ttg-muted); }.ttg-file-audit small { color: #929b98; text-align: right; }
 .ttg-file-audit span, .ttg-check-list > div > span { width: fit-content; border-radius: 99px; padding: 3px 7px; font-size: 8px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }.ttg-file-audit .is-ready, .ttg-check-list .is-pass { color: #2f6845; background: #e5f1e8; }.ttg-file-audit .is-warning, .ttg-check-list .is-warning { color: #8b5a13; background: #f6ecd6; }.ttg-file-audit .is-blocked, .ttg-check-list .is-fail { color: #913b35; background: #f4dfdc; }

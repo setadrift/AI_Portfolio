@@ -26,8 +26,8 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
   const activeView = ["practice", "capacity", "controls", "index"].includes(view) ? view : "practice";
   const selectedMonth = activeView === "practice" ? data.months.find((month) => periodKey(month.period) === period) : undefined;
   const copy = getDashboardCopy(data, selectedMonth?.period);
-  const { current, prior, period: periodName, priorPeriod: priorName, warnings, failures } = copy;
-  const operatingMonth = data.months.find((month) => month.period === data.reportingPeriod) ?? current;
+  const { current, prior, priorPeriod: priorName, warnings, failures } = copy;
+  const operatingMonth = data.months.find((month) => month.period === data.clinicalPeriod) ?? current;
   const sourceHealth = getSourceHealth(data);
   const ownerActions = getOwnerActions(data);
   const currentChange = delta(current.grossRevenue, prior.grossRevenue);
@@ -36,6 +36,7 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
   const topExpense = [...data.expenses].sort((a, b) => b.amount - a.amount)[0];
   const refreshedAt = formatDataThrough(data.source.refreshedAt.slice(0, 10));
   const commissionRate = operatingMonth.grossRevenue ? data.summary.contractorCommissions / operatingMonth.grossRevenue : 0;
+  const headingPeriod = activeView === "capacity" ? operatingMonth : current;
   const heading = activeView === "practice"
     ? { eyebrow: "Practice performance", ...copy.practice }
     : activeView === "capacity"
@@ -61,7 +62,7 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
         <header className="ttg-dashboard-heading">
           <div><div className="ttg-eyebrow">{heading.eyebrow}</div><h1>{heading.title}</h1><p>{heading.intro}</p></div>
           <div className="ttg-period-control">
-            <span>Reporting period</span><strong>{current.period}</strong><small>{current.status === "Partial" ? `MTD through ${formatDataThrough(current.dataThrough)}` : "Complete month"}</small>
+            <span>{activeView === "capacity" ? "Clinical period" : "Reporting period"}</span><strong>{headingPeriod.period}</strong><small>{headingPeriod.status === "Partial" ? `MTD through ${formatDataThrough(headingPeriod.dataThrough)}` : "Complete month"}</small>
             {activeView === "practice" && <details><summary>Change month</summary><div>{data.months.map((month) => <Link className={month.period === current.period ? "is-active" : ""} key={month.period} href={`?view=practice&period=${periodKey(month.period)}`}>{month.period}</Link>)}</div></details>}
           </div>
         </header>
@@ -106,10 +107,10 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
             <Metric label="Revenue per therapist" value={money(data.summary.revenuePerTherapist)} detail={`${data.summary.activeTherapists} active revenue-generating therapists`} />
           </div>
           <div className="ttg-dashboard-grid ttg-dashboard-grid-capacity">
-            <Panel eyebrow="Capacity by practitioner" title={data.summary.weightedUtilization < 0.5 ? "Open clinical hours are widespread." : data.summary.weightedUtilization < 0.75 ? "Capacity varies across practitioners." : "Most scheduled capacity is now booked."} note="Sorted by available hours · teal is booked time; stone is open scheduled time"><CapacityChart therapists={data.therapists} /></Panel>
-            <Panel eyebrow="Revenue contribution" title="Revenue contribution across the active team." note={`${periodName} gross revenue · average per therapist ${money(data.summary.revenuePerTherapist)}`}><TherapistRevenueChart therapists={data.therapists} /></Panel>
+            <Panel eyebrow="Capacity by practitioner" title={data.summary.weightedUtilization < 0.5 ? "Open clinical hours are widespread." : data.summary.weightedUtilization < 0.75 ? "Capacity varies across practitioners." : "Most scheduled capacity is now booked."} note={`${data.clinicalPeriod} · sorted by available hours · teal is booked time; stone is open scheduled time`}><CapacityChart therapists={data.therapists} /></Panel>
+            <Panel eyebrow="Revenue contribution" title="Revenue contribution across the active team." note={`${data.clinicalPeriod} gross revenue · average per therapist ${money(data.summary.revenuePerTherapist)}`}><TherapistRevenueChart therapists={data.therapists} /></Panel>
           </div>
-          <div className="ttg-owner-strip"><div><span>Owner contribution</span><strong>{pct(data.summary.ownerRevenueShare)}</strong><small>{money(current.grossRevenue * data.summary.ownerRevenueShare)}</small></div><div className="ttg-owner-bar"><span style={{ width: `${data.summary.ownerRevenueShare * 100}%` }} /><i /></div><div><span>Team contribution</span><strong>{pct(1 - data.summary.ownerRevenueShare)}</strong><small>{money(data.summary.revenueWithoutOwner)}</small></div></div>
+          <div className="ttg-owner-strip"><div><span>Owner contribution</span><strong>{pct(data.summary.ownerRevenueShare)}</strong><small>{money(operatingMonth.grossRevenue * data.summary.ownerRevenueShare)}</small></div><div className="ttg-owner-bar"><span style={{ width: `${data.summary.ownerRevenueShare * 100}%` }} /><i /></div><div><span>Team contribution</span><strong>{pct(1 - data.summary.ownerRevenueShare)}</strong><small>{money(data.summary.revenueWithoutOwner)}</small></div></div>
         </>}
 
         {activeView === "controls" && <>
@@ -124,7 +125,7 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
               <div className="ttg-quality-list">{data.qualityChecks.map((check) => <div className="ttg-quality-row" key={check.check}><span className={`is-${check.status.toLowerCase()}`}>{check.status === "PASS" ? "Pass" : check.status === "FAIL" ? "Fail" : "Review"}</span><div><strong>{check.check}</strong><p>{check.notes}</p></div></div>)}</div>
             </Panel>
           </div>
-          <section className="ttg-refresh-routine"><div><div className="ttg-eyebrow">On-demand refresh routine</div><h2>One controlled upload, then a dependable view.</h2><p>Jess can refresh weekly or whenever Gabby needs a newer cutoff. The portal checks the files before it changes the reporting workbook.</p><Link className="ttg-primary-action" href="/portal/ttg/refresh">Start a dashboard refresh</Link></div><ol><li><strong>Download four Jane CSVs</strong><span>Sales, Hours Scheduled / Booked, Compensation, and Jane Payments Payouts.</span></li><li><strong>Add all five bank exports</strong><span>Main Chequing, Contractor Pay, Mastercard, Peace of Mind, and Profit.</span></li><li><strong>Review the calculated close</strong><span>Missing files and failed reconciliations block publishing; warnings stay visible.</span></li><li><strong>Publish one reporting period</strong><span>The normalized tabs and refresh receipt update together, then the dashboard cache clears.</span></li></ol></section>
+          <section className="ttg-refresh-routine"><div><div className="ttg-eyebrow">On-demand refresh routine</div><h2>Jane can refresh without waiting for the bank.</h2><p>Jess can update revenue, therapist, appointment, and capacity metrics whenever new Jane reports are ready. Bank-backed controls keep their previous cutoff until all five bank exports are supplied.</p><Link className="ttg-primary-action" href="/portal/ttg/refresh">Start a dashboard refresh</Link></div><ol><li><strong>Download six Jane CSVs</strong><span>Appointments, Compensation, Sales, Payments & Refunds, Hours Scheduled / Booked, and Jane Payments Payouts.</span></li><li><strong>Add bank exports when available</strong><span>Include all five accounts for a full financial refresh, or none for a Jane-only refresh.</span></li><li><strong>Review what will change</strong><span>The preview separates Jane-backed updates from bank-backed values that will remain untouched.</span></li><li><strong>Publish one reporting period</strong><span>The applicable reporting tabs and refresh receipt update together, then the dashboard cache clears.</span></li></ol></section>
           <div className="ttg-caveat"><strong>{failures.length ? "Close blocked" : `${warnings.length} ${warnings.length === 1 ? "item" : "items"} to carry into the next refresh`}</strong><p>{[...failures, ...warnings].length ? [...failures, ...warnings].map((warning) => warning.notes).filter(Boolean).join(" ") : "No review items are open for this reporting period."} Current bank balance and available operating cash remain unavailable from transaction-only exports.</p></div>
         </>}
 

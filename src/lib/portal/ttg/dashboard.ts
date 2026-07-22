@@ -54,6 +54,7 @@ export type DashboardSource = {
 export type TtgDashboardData = {
   source: DashboardSource;
   reportingPeriod: string;
+  clinicalPeriod: string;
   months: MonthlyMetric[];
   therapists: TherapistMetric[];
   expenses: ExpenseMetric[];
@@ -305,7 +306,9 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   }).sort((a, b) => periodKey(a.period).localeCompare(periodKey(b.period)));
   const primary = selectReportingMonth(months);
   const primaryExpenseKey = periodKey(primary.period);
-  const primaryTherapistRows = therapistRows.filter((row) => periodKey(row["Period Start"]) === primaryExpenseKey);
+  const latestMonth = months.at(-1)!;
+  const clinicalPeriodKey = periodKey(latestMonth.period);
+  const primaryTherapistRows = therapistRows.filter((row) => periodKey(row["Period Start"]) === clinicalPeriodKey);
   const therapists: TherapistMetric[] = primaryTherapistRows.map((row) => ({
     name: required(row.Therapist, "Therapist"),
     owner: ["true", "1", "yes", "✔"].includes(row["Owner Flag"].toLowerCase()),
@@ -350,7 +353,6 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
     const collected = numeric(row["Collected As Of Today"] || row["Collected Revenue"], "Therapist collected as of today");
     return sum + Math.max(0, invoiced - collected);
   }, 0);
-  const latestMonth = months.at(-1)!;
   const alignmentRow = qualityRows.find((row) => row.Check.toLowerCase().includes("source date alignment"));
   const latestRefresh = refreshRows.at(-1);
   const bankSource = sourceRows.find((row) => (row.Item || "").toLowerCase().includes("bank transaction"));
@@ -375,6 +377,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       spreadsheetId,
     },
     reportingPeriod: primary.period,
+    clinicalPeriod: latestMonth.period,
     months,
     therapists,
     expenses,
@@ -402,8 +405,10 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
 export function validateDashboardData(data: TtgDashboardData) {
   const primary = data.months.find((month) => month.period === data.reportingPeriod);
   if (!primary) throw new Error(`Reporting period ${data.reportingPeriod} is missing`);
+  const clinical = data.months.find((month) => month.period === data.clinicalPeriod);
+  if (!clinical) throw new Error(`Clinical period ${data.clinicalPeriod} is missing`);
   const therapistRevenue = data.therapists.reduce((sum, therapist) => sum + therapist.revenue, 0);
-  if (Math.abs(therapistRevenue - primary.grossRevenue) > 0.02) throw new Error("Therapist revenue does not reconcile to gross revenue");
+  if (Math.abs(therapistRevenue - clinical.grossRevenue) > 0.02) throw new Error("Therapist revenue does not reconcile to gross revenue");
   const expenseTotal = data.expenses.reduce((sum, expense) => sum + expense.amount, 0);
   if (Math.abs(expenseTotal - primary.operatingExpenses) > 0.02) throw new Error("Expense categories do not reconcile to operating expenses");
   return data;

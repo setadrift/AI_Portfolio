@@ -83,19 +83,61 @@ export async function getWorkbookFingerprint() {
 const sheetDate = (value: string) => value;
 const pad = (rows: unknown[][], length: number, width: number) => [...rows, ...Array.from({ length: Math.max(0, length - rows.length) }, () => Array(width).fill(""))];
 
+function rowPeriod(value: unknown) {
+  if (typeof value === "number" && value > 30_000) return new Date(Date.UTC(1899, 11, 30) + value * 86_400_000).toISOString().slice(0, 7);
+  const text = String(value ?? "").trim();
+  const iso = text.match(/(20\d{2})-(0[1-9]|1[0-2])/);
+  if (iso) return `${iso[1]}-${iso[2]}`;
+  const parsed = new Date(text.replace(/\bMTD\b/i, "").trim());
+  return Number.isNaN(parsed.getTime()) ? "" : `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function tableHeader(table: unknown[][], headerName: string) {
+  const headerIndex = table.findIndex((row) => row.map(String).includes(headerName));
+  if (headerIndex < 0) throw new Error(`Workbook tab is missing ${headerName}`);
+  return { headerIndex, header: table[headerIndex].map(String) };
+}
+
+function recordRow(header: string[], values: Record<string, unknown>) {
+  return header.map((field) => values[field] ?? "");
+}
+
+export function buildMonthlyPublishRow(table: unknown[][], payload: RefreshPayload) {
+  const { headerIndex, header } = tableHeader(table, "Period Start");
+  const periodColumn = header.indexOf("Period Start");
+  const existing = table.slice(headerIndex + 1).find((row) => rowPeriod(row[periodColumn]) === payload.periodKey);
+  const next = existing ? [...existing] : Array(header.length).fill(0);
+  const set = (field: string, value: unknown) => {
+    const index = header.indexOf(field);
+    if (index >= 0) next[index] = value;
+  };
+  const m = payload.monthly;
+  set("Period Start", sheetDate(payload.periodStart));
+  set("Period", payload.periodLabel);
+  set("Period Status", payload.periodStatus);
+  set("Data Through", sheetDate(payload.periodEnd));
+  set("Gross Revenue", m.grossRevenue);
+  set("Outstanding Balance", Math.max(0, m.grossRevenue - m.collectedRevenue));
+  set("Collected Revenue", m.collectedRevenue);
+  if (payload.refreshType !== "jane") {
+    set("Operating Expenses", m.operatingExpenses);
+    set("Estimated Operating Profit", m.operatingProfit);
+    set("Estimated Profit Margin", m.collectedRevenue ? m.operatingProfit / m.collectedRevenue : 0);
+    set("Cash Inflows", m.cashInflows);
+    set("Cash Outflows", m.cashOutflows);
+    set("Net Cash Flow", m.netCashFlow);
+    set("Uncategorized Expenses", m.uncategorizedExpenses);
+    set("Payout Reconciliation", m.payoutReconciliation);
+  }
+  set("Notes", `${payload.refreshType === "jane" ? "Jane-only" : "Full"} portal refresh ${payload.refreshId}${payload.refreshType === "jane" ? "; bank-backed values unchanged" : ""}`);
+  return next;
+}
+
 function replacePeriod(table: unknown[][], headerName: string, periodKey: string, rows: unknown[][]) {
   const headerIndex = table.findIndex((row) => row.map(String).includes(headerName));
   if (headerIndex < 0) throw new Error(`Workbook tab is missing ${headerName}`);
   const header = table[headerIndex].map(String);
   const periodColumn = header.includes("Period") ? header.indexOf("Period") : header.indexOf("Period Start");
-  const rowPeriod = (value: unknown) => {
-    if (typeof value === "number" && value > 30_000) return new Date(Date.UTC(1899, 11, 30) + value * 86_400_000).toISOString().slice(0, 7);
-    const text = String(value ?? "").trim();
-    const iso = text.match(/(20\d{2})-(0[1-9]|1[0-2])/);
-    if (iso) return `${iso[1]}-${iso[2]}`;
-    const parsed = new Date(text.replace(/\bMTD\b/i, "").trim());
-    return Number.isNaN(parsed.getTime()) ? "" : `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
-  };
   const existing = table.slice(headerIndex + 1).filter((row) => rowPeriod(row[periodColumn]) !== periodKey);
   const next = [header, ...existing, ...rows];
   return { startRow: headerIndex + 1, values: pad(next, table.length - headerIndex, header.length), width: header.length };
@@ -126,16 +168,44 @@ export async function publishRefresh(payload: RefreshPayload, refreshedBy: strin
   const current = await readTables(true);
   const actualFingerprint = createHash("sha256").update(JSON.stringify(TABS.map((tab) => [tab, current.tables.get(tab) ?? []]))).digest("hex");
   if (actualFingerprint !== expectedFingerprint) throw new Error("The workbook changed after preview. Review the files again before publishing.");
-  const m = payload.monthly;
-  const monthly = replacePeriod(current.tables.get("Monthly Metrics")!, "Period Start", payload.periodKey, [[sheetDate(payload.periodStart), payload.periodLabel, payload.periodStatus, sheetDate(payload.periodEnd), m.grossRevenue, "", m.collectedRevenue, m.operatingExpenses, m.operatingProfit, m.collectedRevenue ? m.operatingProfit / m.collectedRevenue : 0, m.cashInflows, m.cashOutflows, m.netCashFlow, m.uncategorizedExpenses, m.payoutReconciliation, `Portal refresh ${payload.refreshId}`]]);
+  const janeOnly = payload.refreshType === "jane";
+  const monthly = replacePeriod(current.tables.get("Monthly Metrics")!, "Period Start", payload.periodKey, [buildMonthlyPublishRow(current.tables.get("Monthly Metrics")!, payload)]);
   const therapistRows = payload.therapists.map((row) => [payload.periodStart, payload.periodStatus, row.name, row.invoices, row.invoiced, row.collected, row.collected, row.scheduledHours, row.bookedHours, row.scheduledHours ? row.bookedHours / row.scheduledHours : 0, row.bookings, row.compensation, row.owner, row.bookedHours ? row.invoiced / row.bookedHours : 0, "Aggregated in portal; no patient identifiers retained."]);
   const therapists = replacePeriod(current.tables.get("Therapist Monthly")!, "Period Start", payload.periodKey, therapistRows);
   const expenses = replacePeriod(current.tables.get("Expense Categories")!, "Period Start", payload.periodKey, payload.expenses.map((row) => [payload.periodStart, payload.periodKey, row.category, row.amount]));
   const payouts = replaceAll(current.tables.get("Jane Payouts")!, "Date Created", payload.payouts.map((row) => [row.created, row.deposited, row.amount, row.status]));
   const reconciliation = replaceAll(current.tables.get("Reconciliation")!, "Payout ID", payload.reconciliation.map((row) => [row.payoutId, row.janeDepositDate, row.janeAmount, "", row.bankDate, row.bankAmount, row.difference, row.status, row.notes]));
-  const checks = replaceAll(current.tables.get("Checks")!, "Check", payload.checks.map((row) => [row.check, row.actual, row.expected, row.difference, row.tolerance, row.status, row.notes]));
-  const overallStatus = payload.checks.some((row) => row.status === "FAIL") ? "FAIL" : payload.issues.some((issue) => issue.status === "WARNING") ? "WARNING" : "PASS";
-  const refreshLog = appendRow(current.tables.get("Refresh Log")!, "Refresh Timestamp", [new Date().toISOString(), refreshedBy, payload.periodLabel, payload.bankCoverage, payload.bankRows, overallStatus, payload.issues.map((issue) => issue.title).join("; ") || "All import checks passed."]);
+  const checksTable = current.tables.get("Checks")!;
+  let checkRows: unknown[][] = payload.checks.map((row) => [row.check, row.actual, row.expected, row.difference, row.tolerance, row.status, row.notes]);
+  if (janeOnly) {
+    const { headerIndex, header } = tableHeader(checksTable, "Check");
+    const checkIndex = header.indexOf("Check");
+    const actualIndex = header.indexOf("Actual");
+    const previous = checksTable.slice(headerIndex + 1).filter((row) => row.some((cell) => String(cell ?? "").trim()));
+    const alignment = previous.find((row) => String(row[checkIndex] ?? "").toLowerCase().includes("source date alignment"));
+    const janePrefixes = [`${payload.periodKey} therapist invoiced`, `${payload.periodKey} therapist collected`, `${payload.periodKey} Payments & Refunds`].map((value) => value.toLowerCase());
+    const retained = previous.filter((row) => {
+      const name = String(row[checkIndex] ?? "").toLowerCase();
+      return !name.includes("source date alignment") && !janePrefixes.some((prefix) => name.startsWith(prefix));
+    });
+    const bankActual = alignment?.[actualIndex] ?? "";
+    const expected = (Date.parse(`${payload.periodEnd}T00:00:00Z`) - Date.UTC(1899, 11, 30)) / 86_400_000;
+    const actualNumber = Number(bankActual);
+    const difference = Number.isFinite(actualNumber) ? actualNumber - expected : "";
+    const alignmentRow = recordRow(header, {
+      Check: `${payload.periodKey} source date alignment`, Actual: bankActual, Expected: expected, Difference: difference, Tolerance: 0, Status: "WARNING",
+      Notes: `Jane refreshed through ${payload.periodEnd}; bank data was not included and remains unchanged.`,
+    });
+    checkRows = [...retained, ...checkRows, alignmentRow];
+  }
+  const checks = replaceAll(checksTable, "Check", checkRows);
+  const overallStatus = payload.checks.some((row) => row.status === "FAIL") ? "FAIL" : janeOnly || payload.issues.some((issue) => issue.status === "WARNING") ? "WARNING" : "PASS";
+  const refreshLogTable = current.tables.get("Refresh Log")!;
+  const { headerIndex: refreshHeaderIndex, header: refreshHeader } = tableHeader(refreshLogTable, "Refresh Timestamp");
+  const previousRefresh = refreshLogTable.slice(refreshHeaderIndex + 1).filter((row) => row.some((cell) => String(cell ?? "").trim())).at(-1);
+  const previousBankCoverage = previousRefresh?.[refreshHeader.indexOf("Bank Coverage")] ?? "Bank data not yet supplied";
+  const previousBankRows = previousRefresh?.[refreshHeader.indexOf("Bank Rows")] ?? 0;
+  const refreshLog = appendRow(refreshLogTable, "Refresh Timestamp", [new Date().toISOString(), refreshedBy, payload.periodLabel, janeOnly ? previousBankCoverage : payload.bankCoverage, janeOnly ? previousBankRows : payload.bankRows, overallStatus, janeOnly ? "Jane reports refreshed; bank-backed metrics unchanged." : payload.issues.map((issue) => issue.title).join("; ") || "All import checks passed."]);
   const coverage = replaceAll(current.tables.get("Source Coverage")!, "Report", payload.sourceCoverage.map((source) => [source.label, source.role, source.start, source.end, source.status, payload.refreshId, source.note]));
   const payloadJson = JSON.stringify(payload);
   if (payloadJson.length > 45_000) throw new Error("This aggregate refresh snapshot is too large for safe rollback. Reduce the reporting period and preview again.");
@@ -148,7 +218,7 @@ export async function publishRefresh(payload: RefreshPayload, refreshedBy: strin
   });
   const history = { startRow: 1, values: [historyHeader, ...historyRows, [payload.refreshId, new Date().toISOString(), refreshedBy, payload.periodKey, overallStatus, true, payloadJson, ""]], width: historyHeader.length };
   const updates = [
-    ["Monthly Metrics", monthly], ["Therapist Monthly", therapists], ["Expense Categories", expenses], ["Jane Payouts", payouts], ["Reconciliation", reconciliation], ["Checks", checks], ["Refresh Log", refreshLog], ["Source Coverage", coverage], ["Import History", history],
+    ["Monthly Metrics", monthly], ["Therapist Monthly", therapists], ...(!janeOnly ? [["Expense Categories", expenses], ["Reconciliation", reconciliation]] as const : []), ["Jane Payouts", payouts], ["Checks", checks], ["Refresh Log", refreshLog], ["Source Coverage", coverage], ["Import History", history],
   ] as const;
   const data = updates.map(([title, update]) => ({ range: `'${title}'!A${update.startRow}:${column(update.width)}${update.startRow + update.values.length - 1}`, majorDimension: "ROWS", values: update.values }));
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${current.spreadsheetId}/values:batchUpdate`, { method: "POST", headers: { ...current.headers, "content-type": "application/json" }, body: JSON.stringify({ valueInputOption: "RAW", includeValuesInResponse: false, data }), cache: "no-store" });

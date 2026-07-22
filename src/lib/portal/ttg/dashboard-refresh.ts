@@ -39,9 +39,11 @@ export type CoverageDay = {
 };
 
 export type RefreshIssue = { status: "WARNING" | "FAIL"; title: string; detail: string };
+export type RefreshType = "jane" | "full";
 
 export type RefreshPayload = {
   refreshId: string;
+  refreshType: RefreshType;
   periodKey: string;
   periodLabel: string;
   periodStart: string;
@@ -279,10 +281,15 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   if (!period) issues.push({ status: "FAIL", title: "Sales filename does not include its date range", detail: "Use Jane's original Sales_YYYYMMDD_YYYYMMDD.csv filename." });
   const safePeriod = period ?? { start: "1970-01-01", end: "1970-01-01" };
   const periodKey = safePeriod.start.slice(0, 7);
+  const bankFileCount = REQUIRED_BANK_ACCOUNTS.reduce((sum, kind) => sum + (byKind.get(kind)?.length ?? 0), 0);
+  const refreshType: RefreshType = bankFileCount === 0 ? "jane" : "full";
   if (safePeriod.end.slice(0, 7) !== periodKey) issues.push({ status: "FAIL", title: "The refresh spans more than one month", detail: "Upload one calendar month at a time." });
-  for (const kind of REQUIRED_BANK_ACCOUNTS) {
-    const matches = (byKind.get(kind) ?? []).filter((file) => file.name.includes(`${safePeriod.start.slice(5, 7)}-${safePeriod.start.slice(0, 4)}`));
-    if (matches.length !== 1) issues.push({ status: "FAIL", title: `Missing ${kind} bank export`, detail: `Upload exactly one ${periodKey} CSV for this account.` });
+  if (safePeriod.start !== `${periodKey}-01`) issues.push({ status: "FAIL", title: "Jane refresh must start on the first day of the month", detail: `Re-export every Jane report from ${periodKey}-01 through the selected cutoff. A one-day export cannot replace month-to-date totals.` });
+  if (refreshType === "full") {
+    for (const kind of REQUIRED_BANK_ACCOUNTS) {
+      const matches = (byKind.get(kind) ?? []).filter((file) => file.name.includes(`${safePeriod.start.slice(5, 7)}-${safePeriod.start.slice(0, 4)}`));
+      if (matches.length !== 1) issues.push({ status: "FAIL", title: `Incomplete bank package: ${kind}`, detail: `Either upload all five ${periodKey} bank CSVs or upload the six Jane reports without bank files.` });
+    }
   }
   if (fileSummaries.some((file) => file.status === "blocked")) issues.push({ status: "FAIL", title: "One or more files are unrecognized", detail: "Remove them or download the expected CSV directly from Jane or the bank." });
 
@@ -410,40 +417,42 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const bankDates = bank.map((row) => row.date).sort();
   const bankDataThrough = bankDates.at(-1) ?? safePeriod.start;
   const dateSerial = (value: string) => (Date.parse(`${value}T00:00:00Z`) - Date.UTC(1899, 11, 30)) / 86_400_000;
-  const checks: RefreshPayload["checks"] = [
+  const janeChecks: RefreshPayload["checks"] = [
     { check: `${periodKey} therapist invoiced total ties to Jane Sales`, actual: grossRevenue, expected: round(salesRows.reduce((sum, row) => sum + money(row.Total), 0)), tolerance: 0.01, notes: "Aggregated from the uploaded Sales CSV." },
     { check: `${periodKey} therapist collected total ties to Jane Sales`, actual: collectedRevenue, expected: round(salesRows.reduce((sum, row) => sum + money(row.Collected), 0)), tolerance: 0.01, notes: "Aggregated from the uploaded Sales CSV." },
     { check: `${periodKey} Payments & Refunds report parsed`, actual: paymentRows.length, expected: paymentRows.length, tolerance: 0, notes: paymentTotal ? `${paymentRows.length} detail rows; ${paymentTotal.toFixed(2)} net paid to the clinic.` : `${paymentRows.length} detail rows parsed.` },
-    { check: `${periodKey} payout value matched to bank`, actual: matchedValue, expected: expectedPayoutValue, tolerance: 0.01, notes: "Exact amount with a three-day posting window." },
-    { check: `${periodKey} payout count matched to bank`, actual: matched.length, expected: payouts.length, tolerance: 0, notes: "In-transit payouts can remain unmatched until the next bank export." },
-    { check: "Bank clean row count", actual: bank.length, expected: bank.length, tolerance: 0, notes: "Account numbers and cheque numbers are not retained." },
-    { check: `${periodKey} source date alignment`, actual: dateSerial(bankDataThrough), expected: dateSerial(safePeriod.end), tolerance: 0, notes: "Bank transaction coverage compared with the shared Jane report cutoff." },
   ].map((check) => {
     const difference = round(check.actual - check.expected);
-    const payoutCheck = check.check.includes("payout");
-    const sourceDateCheck = check.check.includes("source date alignment");
-    return { ...check, difference, status: Math.abs(difference) <= check.tolerance ? "PASS" as const : payoutCheck || sourceDateCheck ? "WARNING" as const : "FAIL" as const };
+    return { ...check, difference, status: Math.abs(difference) <= check.tolerance ? "PASS" as const : "FAIL" as const };
   });
-  if (operatingExpenses && uncategorizedExpenses / operatingExpenses > 0.05) issues.push({ status: "WARNING", title: "Uncategorized expenses exceed 5%", detail: "Review the uncategorized amount before using estimated profit for a decision." });
-  if (matched.length < payouts.length) issues.push({ status: "WARNING", title: `${payouts.length - matched.length} payouts are not yet matched`, detail: "This is expected for in-transit deposits; upload later bank activity on the next refresh." });
-  if (bankDataThrough !== safePeriod.end) issues.push({ status: "WARNING", title: "Jane and bank cutoffs differ", detail: `Jane runs through ${safePeriod.end}; the latest supplied bank transaction is ${bankDataThrough}.` });
+  const bankChecks: RefreshPayload["checks"] = refreshType === "full" ? [
+    { check: `${periodKey} payout value matched to bank`, actual: matchedValue, expected: expectedPayoutValue, tolerance: 0.01, status: Math.abs(matchedValue - expectedPayoutValue) <= 0.01 ? "PASS" : "WARNING", notes: "Exact amount with a three-day posting window." },
+    { check: `${periodKey} payout count matched to bank`, actual: matched.length, expected: payouts.length, tolerance: 0, status: matched.length === payouts.length ? "PASS" : "WARNING", notes: "In-transit payouts can remain unmatched until the next bank export." },
+    { check: "Bank clean row count", actual: bank.length, expected: bank.length, tolerance: 0, status: "PASS", notes: "Account numbers and cheque numbers are not retained." },
+    { check: `${periodKey} source date alignment`, actual: dateSerial(bankDataThrough), expected: dateSerial(safePeriod.end), tolerance: 0, status: bankDataThrough === safePeriod.end ? "PASS" : "WARNING", notes: "Bank transaction coverage compared with the shared Jane report cutoff." },
+  ].map((check) => ({ ...check, difference: round(check.actual - check.expected), status: check.status as "PASS" | "WARNING" | "FAIL" })) : [];
+  const checks = [...janeChecks, ...bankChecks];
+  if (refreshType === "full" && operatingExpenses && uncategorizedExpenses / operatingExpenses > 0.05) issues.push({ status: "WARNING", title: "Uncategorized expenses exceed 5%", detail: "Review the uncategorized amount before using estimated profit for a decision." });
+  if (refreshType === "full" && matched.length < payouts.length) issues.push({ status: "WARNING", title: `${payouts.length - matched.length} payouts are not yet matched`, detail: "This is expected for in-transit deposits; upload later bank activity on the next refresh." });
+  if (refreshType === "full" && bankDataThrough !== safePeriod.end) issues.push({ status: "WARNING", title: "Jane and bank cutoffs differ", detail: `Jane runs through ${safePeriod.end}; the latest supplied bank transaction is ${bankDataThrough}.` });
   const end = new Date(`${safePeriod.end}T12:00:00Z`);
   const nextDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + 1));
   const complete = nextDay.getUTCDate() === 1;
   const monthName = new Intl.DateTimeFormat("en-CA", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${safePeriod.start}T12:00:00Z`));
   return {
     refreshId: randomUUID(),
+    refreshType,
     periodKey,
-    periodLabel: `${monthName}${complete ? "" : " MTD"}`,
+    periodLabel: `${monthName}${complete && refreshType === "full" ? "" : " MTD"}`,
     periodStart: safePeriod.start,
     periodEnd: safePeriod.end,
-    periodStatus: complete ? "Complete" : "Partial",
+    periodStatus: complete && refreshType === "full" ? "Complete" : "Partial",
     fileSummaries,
     sourceCoverage,
     coverageCalendar,
     issues,
     bankRows: bank.length,
-    bankCoverage: bankDates.length ? `${bankDates[0]} to ${bankDates.at(-1)}` : "No bank rows",
+    bankCoverage: bankDates.length ? `${bankDates[0]} to ${bankDates.at(-1)}` : "Bank data unchanged",
     monthly: { grossRevenue, collectedRevenue, operatingExpenses, operatingProfit: round(collectedRevenue - operatingExpenses), cashInflows, cashOutflows, netCashFlow: round(cashInflows - cashOutflows), uncategorizedExpenses, payoutReconciliation: payouts.length ? matched.length / payouts.length : 0 },
     therapists,
     expenses,
