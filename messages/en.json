@@ -1,6 +1,6 @@
 {
   "nav": {
-    "services": "Services",
+    "services": "Sprint",
     "work": "Work",
     "samples": "Samples",
     "method": "Method",
@@ -122,7 +122,7 @@
     "heading": "Bring one workflow worth fixing.",
     "description": "A useful system starts with a specific operating problem, not a broad AI transformation pitch.",
     "getInTouch": "Discuss your workflow",
-    "tagline": "Practical AI systems.",
+    "tagline": "Independent systems practice.",
     "location": "Montreal, Canada."
   },
   "workflowForm": {
@@ -148,6 +148,6 @@
   },
   "metadata": {
     "title": "One Workflow Sprint — AI Workflow Consultant | Duncan Anderson",
-    "description": "Turn one messy recurring process into a working, reviewable AI or automation system in 10 business days. Most sprints cost CAD $5,000–$9,000."
+    "description": "Turn one messy recurring process into a working, reviewable system in 10 business days."
   }
 }
