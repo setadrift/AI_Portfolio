@@ -14,7 +14,7 @@ export default function About() {
         <div className="flex justify-center md:col-span-2">
           <div className="relative">
             <Image
-              src="/duncs.png"
+              src="/duncs.jpg"
               alt={t("imageAlt")}
               width={400}
               height={400}

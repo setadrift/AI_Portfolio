@@ -21,7 +21,7 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const isHome = pathname === "/";
-  const bookingLabel = locale === "fr" ? "Réserver un appel" : "Book a discovery call";
+  const bookingLabel = locale === "fr" ? "Réserver l’appel de 20 min" : "Book the 20-minute fit call";
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
