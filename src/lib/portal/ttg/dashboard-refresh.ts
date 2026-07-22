@@ -155,7 +155,9 @@ function classify(name: string, rows: string[][]): { source: "Jane" | "Bank" | "
     if (normalizedName.includes("chequing")) return { source: "Bank", kind: "chequing", label: "Main chequing" };
   }
   if (headers.includes("patient guid") && headers.includes("staff member") && headers.includes("collected")) return { source: "Jane", kind: "sales", label: "Sales" };
+  if (headers.includes("start_at") && headers.includes("end_at") && headers.includes("staff_member_name") && headers.includes("state")) return { source: "Jane", kind: "appointments", label: "Appointments" };
   if (headers.includes("type") && headers.includes("client") && headers.includes("session") && headers.includes("state") && headers.includes("booking info")) return { source: "Jane", kind: "appointments", label: "Appointments" };
+  if (headers.includes("date") && headers.includes("payment method") && headers.includes("total") && headers.includes("number of transactions")) return { source: "Jane", kind: "payments", label: "Payments & Refunds" };
   if (headers.includes("payer") && headers.includes("payment method") && headers.includes("applied to") && headers.includes("amount")) return { source: "Jane", kind: "payments", label: "Payments & Refunds" };
   if (normalizedName.includes("appointments") && headers.includes("date") && headers.includes("state")) return { source: "Jane", kind: "appointments", label: "Appointments" };
   if ((normalizedName.includes("payment") || normalizedName.includes("transaction")) && headers.includes("date") && headers.includes("amount")) return { source: "Jane", kind: "payments", label: "Payments & Refunds" };
@@ -175,7 +177,7 @@ const JANE_LABELS: Record<JaneKind, string> = {
 };
 
 const COVERAGE_FIELDS: Record<JaneKind, string[]> = {
-  appointments: ["Date", "Appointment Date"],
+  appointments: ["start_at", "Date", "Appointment Date"],
   compensation: ["Payment Date", "Transaction Date", "Purchase Date"],
   sales: ["Invoice Date", "Purchase Date"],
   payments: ["Date", "Processing Date", "Transaction Date"],
@@ -184,10 +186,10 @@ const COVERAGE_FIELDS: Record<JaneKind, string[]> = {
 };
 
 const HEADER_SIGNATURES: Record<JaneKind, string[]> = {
-  appointments: ["Date", "Session", "State"],
+  appointments: ["start_at", "staff_member_name", "state"],
   compensation: ["Practitioner", "Commission Total"],
   sales: ["Staff Member", "Total", "Collected"],
-  payments: ["Date", "Payment Method", "Amount"],
+  payments: ["Date", "Payment Method", "Total", "Number of Transactions"],
   hours: ["Staff Name", "Shift Total Hours", "Appointment Total Hours"],
   payouts: ["Date Created", "Payout Amount", "Payout Status"],
 };
@@ -338,10 +340,10 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const appointmentFile = byKind.get("appointments")?.[0];
   const appointmentCounts = new Map<string, number>();
   for (const row of janeRecords(appointmentFile, "appointments")) {
-    const state = (row.State ?? "").toLowerCase();
+    const state = (row.state ?? row.State ?? "").toLowerCase();
     if (["never booked", "deleted", "cancelled", "rescheduled"].includes(state)) continue;
     const session = row.Session ?? "";
-    const name = session.match(/\bwith\s+(.+?)(?:\s+with\s+.+)?$/i)?.[1]?.trim() ?? row["Staff Member"] ?? row.Staff ?? "";
+    const name = row.staff_member_name ?? session.match(/\bwith\s+(.+?)(?:\s+with\s+.+)?$/i)?.[1]?.trim() ?? row["Staff Member"] ?? row.Staff ?? "";
     if (name) appointmentCounts.set(name, (appointmentCounts.get(name) ?? 0) + 1);
   }
   const therapistNames = new Set([...salesByTherapist.keys(), ...hours.keys(), ...appointmentCounts.keys()]);
@@ -391,7 +393,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const payouts = payoutRows.filter((row) => row["Date Created"]).map((row) => ({ created: isoDate(row["Date Created"]), deposited: isoDate(row["Date Deposited"]), amount: money(row["Payout Amount"]), status: row["Payout Status"] }));
   const paymentsFile = byKind.get("payments")?.[0];
   const paymentRows = janeRecords(paymentsFile, "payments").filter((row) => rowDate(row, COVERAGE_FIELDS.payments));
-  const paymentTotal = round(paymentRows.reduce((sum, row) => sum + money(row["Amount Paid to Clinic"] || row.Amount), 0));
+  const paymentTotal = round(paymentRows.reduce((sum, row) => sum + money(row["Amount Paid to Clinic"] || row.Amount || row.Total), 0));
   const reconciliation = payouts.map((payout, index) => {
     const match = external.find((row) => row.amount > 0 && Math.abs(row.amount - payout.amount) < 0.01 && daysApart(row.date, payout.deposited) <= 3);
     return { payoutId: `P${String(index + 1).padStart(3, "0")}`, janeDepositDate: payout.deposited, janeAmount: payout.amount, bankDate: match?.date ?? "", bankAmount: match?.amount ?? 0, difference: round((match?.amount ?? 0) - payout.amount), status: match ? "Matched" as const : "Unmatched" as const, notes: match ? `${daysApart(match.date, payout.deposited)} day posting difference` : "No equal bank deposit within three days" };

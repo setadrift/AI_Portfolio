@@ -13,7 +13,7 @@ const JANE_STEPS = [
   { report: "Appointments", role: "Core", href: "https://traumatherapygroup.janeapp.com/admin#reports/appointments", path: "Appointments report", setting: "All locations, all staff and all states" },
   { report: "Compensation", role: "Core", href: "https://traumatherapygroup.janeapp.com/admin#reports/compensation", path: "Compensation report", setting: "All locations, all staff and Collected (Cash)" },
   { report: "Sales", role: "Core", href: "https://traumatherapygroup.janeapp.com/admin#reports/sales", path: "Sales report", setting: "All locations, staff, income categories and invoice states" },
-  { report: "Payments & Refunds", role: "Core", href: "https://traumatherapygroup.janeapp.com/admin#reports/transactions/payments_refunds_and_fees", path: "Payments, Refunds, and Fees", setting: "Detail view, all locations and payment methods" },
+  { report: "Payments & Refunds", role: "Core", href: "https://traumatherapygroup.janeapp.com/admin#reports/transactions/payments_refunds_and_fees", path: "Payments, Refunds, and Fees", setting: "All locations and payment methods; export the Daily Transaction CSV" },
   { report: "Hours Scheduled / Booked", role: "Capacity", href: "https://traumatherapygroup.janeapp.com/admin#reports/shift", path: "Hours Scheduled / Booked", setting: "Needed because Appointments does not contain available shift hours" },
   { report: "Jane Payments Payouts", role: "Reconciliation", href: "https://traumatherapygroup.janeapp.com/admin#reports/stripe_payouts", path: "Jane Payments Payouts", setting: "Needed because Payments & Refunds does not contain payout deposit IDs and dates" },
 ];

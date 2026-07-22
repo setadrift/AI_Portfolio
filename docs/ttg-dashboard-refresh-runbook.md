@@ -21,7 +21,7 @@ Use the direct links on the portal refresh page and set the same date range on e
 - Appointments
 - Compensation
 - Sales
-- Payments, Refunds, and Fees (Detail view)
+- Payments, Refunds, and Fees (Daily Transaction CSV)
 
 Two supplemental reports remain required for Gabby's metrics:
 
