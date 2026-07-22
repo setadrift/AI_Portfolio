@@ -28,6 +28,13 @@ function practiceCopy(current: MonthlyMetric, prior: MonthlyMetric) {
   const cashImproved = current.netCashFlow > prior.netCashFlow;
   const period = periodLabel(current.period);
 
+  if (current.status === "Partial") {
+    return {
+      title: `${period} through ${formatDataThrough(current.dataThrough)}.`,
+      intro: `Month-to-date revenue is ${money(current.grossRevenue)}. Profit and cash are directional until Jane and bank data are aligned and the month is closed.`,
+    };
+  }
+
   if (revenueChange !== null && revenueChange > 0 && profitChange > 0 && cashImproved) {
     return {
       title: `${period} closed with stronger operating momentum.`,
@@ -52,17 +59,20 @@ function practiceCopy(current: MonthlyMetric, prior: MonthlyMetric) {
   };
 }
 
-export function getDashboardCopy(data: TtgDashboardData) {
-  const complete = data.months.filter((month) => month.status === "Complete");
-  const current = complete.find((month) => month.period === data.reportingPeriod) ?? complete.at(-1)!;
-  const currentIndex = complete.indexOf(current);
-  const prior = complete[Math.max(0, currentIndex - 1)] ?? current;
+export function getDashboardCopy(data: TtgDashboardData, selectedPeriod = data.reportingPeriod) {
+  const current = data.months.find((month) => month.period === selectedPeriod)
+    ?? data.months.find((month) => month.period === data.reportingPeriod)
+    ?? data.months.at(-1)!;
+  const currentIndex = data.months.indexOf(current);
+  const prior = data.months[Math.max(0, currentIndex - 1)] ?? current;
   const hasPrior = currentIndex > 0;
+  const hasComparablePrior = hasPrior && current.status === "Complete" && prior.status === "Complete";
   const period = periodLabel(current.period);
   const utilization = data.summary.weightedUtilization;
   const openShare = Math.max(0, 1 - utilization);
   const warnings = data.qualityChecks.filter((check) => check.status === "WARNING");
-  const passes = data.qualityChecks.length - warnings.length;
+  const failures = data.qualityChecks.filter((check) => check.status === "FAIL");
+  const passes = data.qualityChecks.filter((check) => check.status === "PASS").length;
   const partial = data.months.find((month) => month.status === "Partial");
   const practice = practiceCopy(current, prior);
 
@@ -81,7 +91,12 @@ export function getDashboardCopy(data: TtgDashboardData) {
           intro: `${pct(utilization)} of scheduled clinical time was booked, leaving ${pct(openShare)} open across the active team.`,
         };
 
-  const controls = data.summary.payoutReconciliation >= 0.999
+  const controls = failures.length > 0
+    ? {
+        title: `Do not rely on the ${period} close yet.`,
+        intro: `${failures.length} ${failures.length === 1 ? "control has" : "controls have"} failed. Resolve the failed checks before using the close for a cash or payout decision.`,
+      }
+    : data.summary.payoutReconciliation >= 0.999
     ? {
         title: warnings.length === 0 ? `The ${period} close is fully reconciled.` : `The ${period} close reconciles, with ${warnings.length} ${warnings.length === 1 ? "item" : "items"} to review.`,
         intro: `${data.summary.payoutsMatched} practitioner payouts matched. ${passes} of ${data.qualityChecks.length} automated checks pass.`,
@@ -95,6 +110,7 @@ export function getDashboardCopy(data: TtgDashboardData) {
     current,
     prior,
     hasPrior,
+    hasComparablePrior,
     period,
     priorPeriod: periodLabel(prior.period),
     practice,
@@ -102,10 +118,95 @@ export function getDashboardCopy(data: TtgDashboardData) {
     controls,
     passes,
     warnings,
+    failures,
     partialNote: partial
       ? `${periodLabel(partial.period)} is partial through ${formatDataThrough(partial.dataThrough)}`
       : "Complete reporting periods only",
   };
+}
+
+function daysBetween(start: string, end: string) {
+  const startDate = new Date(`${start}T12:00:00Z`);
+  const endDate = new Date(`${end}T12:00:00Z`);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return 0;
+  return Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000);
+}
+
+export function getSourceHealth(data: TtgDashboardData, now = new Date()) {
+  const gapDays = Math.abs(daysBetween(data.source.bankDataThrough, data.source.janeDataThrough));
+  const oldestThrough = [data.source.janeDataThrough, data.source.bankDataThrough].sort()[0];
+  const ageDays = Math.max(0, daysBetween(oldestThrough, now.toISOString().slice(0, 10)));
+  const failures = data.qualityChecks.filter((check) => check.status === "FAIL");
+  const isStale = ageDays > 7;
+  const tone = failures.length > 0 || data.source.refreshStatus === "FAIL"
+    ? "critical"
+    : gapDays > 0 || isStale || data.source.refreshStatus === "WARNING" || data.source.refreshStatus === "UNKNOWN"
+      ? "attention"
+      : "current";
+  const label = tone === "critical" ? "Blocked" : tone === "attention" ? "Review freshness" : "Sources aligned";
+  return { ageDays, gapDays, isStale, tone, label };
+}
+
+export type OwnerAction = {
+  tone: "critical" | "attention" | "opportunity" | "clear";
+  title: string;
+  detail: string;
+};
+
+export function getOwnerActions(data: TtgDashboardData, now = new Date()): OwnerAction[] {
+  const current = data.months.find((month) => month.period === data.reportingPeriod) ?? data.months.at(-1)!;
+  const actions: OwnerAction[] = [];
+  const failures = data.qualityChecks.filter((check) => check.status === "FAIL");
+  const sourceHealth = getSourceHealth(data, now);
+
+  if (failures.length > 0) {
+    actions.push({
+      tone: "critical",
+      title: "Resolve failed controls before using the close",
+      detail: failures.map((check) => check.check).join(" · "),
+    });
+  } else if (data.summary.payoutReconciliation < 0.999) {
+    actions.push({
+      tone: "critical",
+      title: "Finish payout reconciliation",
+      detail: `${data.summary.payoutsMatched} of ${data.summary.payoutsExpected} reviewed payouts currently match.`,
+    });
+  }
+
+  if (sourceHealth.gapDays > 0 || sourceHealth.isStale) {
+    actions.push({
+      tone: "attention",
+      title: sourceHealth.isStale ? "Refresh the reporting workbook" : "Align Jane and bank cutoffs",
+      detail: `Jane is through ${formatDataThrough(data.source.janeDataThrough)}; bank data is through ${formatDataThrough(data.source.bankDataThrough)}.`,
+    });
+  }
+
+  if (current.uncategorizedExpenses > 0) {
+    actions.push({
+      tone: "attention",
+      title: `Classify ${money(current.uncategorizedExpenses)} of expenses`,
+      detail: "Resolve uncategorized bank transactions before treating estimated profit as final.",
+    });
+  }
+
+  if (data.summary.weightedUtilization < 0.75) {
+    const focus = [...data.therapists]
+      .filter((therapist) => !therapist.owner)
+      .sort((a, b) => b.availableHours - a.availableHours)
+      .slice(0, 3);
+    const openHours = focus.reduce((sum, therapist) => sum + therapist.availableHours, 0);
+    actions.push({
+      tone: "opportunity",
+      title: "Review the largest pockets of open capacity",
+      detail: `${focus.map((therapist) => therapist.name).join(", ")} account for ${openHours.toFixed(1)} open scheduled hours.`,
+    });
+  }
+
+  return actions.length ? actions.slice(0, 4) : [{
+    tone: "clear",
+    title: "No material exceptions are open",
+    detail: "Sources align, controls pass, and no classification cleanup is currently required.",
+  }];
 }
 
 export type MetricCoverageStatus = "shown" | "available" | "partial" | "not-available";
@@ -146,7 +247,7 @@ export const gabbyMetricCoverage: Array<{ group: string; items: MetricCoverageIt
   {
     group: "Supporting metrics and drill-downs",
     items: [
-      { metric: "Contractor Commissions / Therapist Payouts", status: "available", source: "Therapist Monthly + Checks", use: "Payout count/value reconciliation; total commissions available" },
+      { metric: "Contractor Commissions / Therapist Payouts", status: "shown", source: "Therapist Monthly + Checks", use: "Controls card and payout reconciliation" },
       { metric: "Expense Breakdown by Category", status: "shown", source: "Expense Categories · Category + Expense Amount", use: "Controls expense chart" },
       { metric: "Average Client Revenue / Client Lifetime Value (LTV)", status: "not-available", source: "Client-level revenue history required", use: "Not present in current reporting tables" },
       { metric: "Outstanding Client Balances", status: "shown", source: "Therapist Monthly · Invoiced less collected as of today", use: "Controls collection card" },
@@ -168,9 +269,9 @@ export const gabbyMetricCoverage: Array<{ group: string; items: MetricCoverageIt
       { metric: "Completed Sessions Per Therapist", status: "partial", source: "Therapist Monthly · Booked Appointments", use: "Current source contains bookings, not completed-session status" },
       { metric: "Average Sessions Per Therapist Per Week", status: "partial", source: "Therapist Monthly · Appointments / Week", use: "Available as booked appointments per week, not confirmed completed sessions" },
       { metric: "Revenue Contribution by Therapist", status: "shown", source: "Therapist Monthly · Gross Revenue", use: "Ranked practitioner chart" },
-      { metric: "Contractor Commission Percentage", status: "available", source: "Therapist Monthly · Contractor Commission / Gross Revenue", use: "Derivable from current source; not promoted in the main views" },
+      { metric: "Contractor Commission Percentage", status: "shown", source: "Therapist Monthly · Contractor Commission / Gross Revenue", use: "Controls card context" },
       { metric: "Revenue Generated Without Owner Clinical Hours", status: "shown", source: "Gross Revenue less owner-flagged therapist revenue", use: "Practice pulse and owner/team strip" },
-      { metric: "Total Appointments", status: "available", source: "Therapist Monthly · Booked Appointments", use: "Available from current source; not promoted in the main views" },
+      { metric: "Total Appointments", status: "shown", source: "Therapist Monthly · Booked Appointments", use: "Capacity outcome card; explicitly labelled booked appointments" },
       { metric: "Average Days from Inquiry to First Appointment", status: "not-available", source: "CRM inquiry timestamp + Jane first appointment required", use: "Not present in current reporting tables" },
       { metric: "Average Days from Consultation to First Session", status: "not-available", source: "Consultation and first-session timestamps required", use: "Not present in current reporting tables" },
       { metric: "Website Traffic", status: "not-available", source: "Google Analytics required", use: "Not connected to the current workbook" },
@@ -184,6 +285,8 @@ export const gabbyMetricCoverage: Array<{ group: string; items: MetricCoverageIt
 ];
 
 export const dashboardVisualIndex = [
+  { visual: "Source freshness strip", source: "Refresh Log + Checks", fields: "Refresh Timestamp, Refreshed By, source-date alignment, Bank Coverage", calculation: "Shows workbook refresh time and distinct Jane/bank data cutoffs; browser fetch time is not presented as source freshness." },
+  { visual: "Owner review list", source: "Checks + Monthly Metrics + Therapist Monthly", fields: "Status, Uncategorized Expenses, Available Hours, source cutoffs", calculation: "Prioritizes failed controls, source alignment, classification cleanup, and the largest open-capacity opportunities." },
   { visual: "Practice outcome cards", source: "Monthly Metrics", fields: "Gross Revenue, Estimated Operating Profit, Estimated Profit Margin, Net Cash Flow", calculation: "Latest complete month; comparison uses the preceding complete month." },
   { visual: "Revenue and profit chart", source: "Monthly Metrics", fields: "Period, Period Status, Gross Revenue, Estimated Operating Profit", calculation: "Complete months only; values are read from the workbook." },
   { visual: "Net cash-flow chart", source: "Monthly Metrics", fields: "Period, Period Status, Data Through, Net Cash Flow", calculation: "All supplied periods; partial periods are visually labelled." },

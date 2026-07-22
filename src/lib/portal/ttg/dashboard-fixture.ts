@@ -24,7 +24,18 @@ const therapist = (
 });
 
 export const ttgDashboardFixture: TtgDashboardData = {
-  source: { mode: "fixture", label: "Prototype data", refreshedAt: "2026-07-20T20:00:00.000Z" },
+  source: {
+    mode: "fixture",
+    label: "Prototype data",
+    refreshedAt: "2026-07-20",
+    refreshedBy: "Duncan Anderson",
+    refreshStatus: "WARNING",
+    refreshNotes: "June is complete and reconciled. July has a three-day source-date mismatch.",
+    janeDataThrough: "2026-07-20",
+    bankDataThrough: "2026-07-17",
+    bankCoverage: "2026-04-01 to 2026-07-17",
+    bankRows: 589,
+  },
   reportingPeriod: "June 2026",
   months: [
     { period: "May 2026", status: "Complete", dataThrough: "2026-05-31", grossRevenue: 85345.9, collectedRevenue: 74652.16, collectionRate: 0.874701, outstandingBalance: 213.85, operatingExpenses: 72602.36, operatingProfit: 2049.8, profitMargin: 0.027458, netCashFlow: -7681.81, marketingSpend: 4224.89, marketingRatio: 0.049503, uncategorizedExpenses: 2838.93 },
@@ -89,6 +100,7 @@ export const ttgDashboardFixture: TtgDashboardData = {
     appointmentsPerTherapistWeek: 6.3117,
     payoutReconciliation: 1,
     payoutsMatched: 21,
+    payoutsExpected: 21,
     payoutValue: 54873.85,
     outstandingBalance: 350,
   },
