@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CapacityChart, CashFlowChart, ExpenseChart, RevenueProfitChart, TherapistRevenueChart } from "@/components/portal/ttg/DashboardCharts";
+import { AdminFlowView } from "@/components/portal/ttg/AdminFlowViews";
 import { getTtgDashboardData } from "@/lib/portal/ttg/dashboard";
 import { dashboardVisualIndex, formatDataThrough, gabbyMetricCoverage, getDashboardCopy, getOwnerActions, getSourceHealth } from "@/lib/portal/ttg/dashboard-copy";
 
@@ -21,9 +22,9 @@ function Panel({ eyebrow, title, note, children, wide = false }: { eyebrow?: str
   return <section className={`ttg-panel ${wide ? "ttg-panel-wide" : ""}`}>{eyebrow && <div className="ttg-eyebrow">{eyebrow}</div>}<div className="ttg-panel-heading"><h2>{title}</h2><p>{note}</p></div>{children}</section>;
 }
 
-export default async function TtgDashboardPage({ searchParams }: { searchParams: Promise<{ view?: string; period?: string }> }) {
-  const [{ view = "practice", period }, data] = await Promise.all([searchParams, getTtgDashboardData()]);
-  const activeView = ["practice", "capacity", "controls", "index"].includes(view) ? view : "practice";
+export default async function TtgDashboardPage({ searchParams }: { searchParams: Promise<{ view?: string; period?: string; tab?: string }> }) {
+  const [{ view = "overview", period, tab = "overview" }, data] = await Promise.all([searchParams, getTtgDashboardData()]);
+  const activeView = ["overview", "financial", "appointments", "team", "retention", "funnel", "imports", "data", "practice", "capacity", "controls", "index"].includes(view) ? view : "overview";
   const selectedMonth = activeView === "practice" ? data.months.find((month) => periodKey(month.period) === period) : undefined;
   const copy = getDashboardCopy(data, selectedMonth?.period);
   const { current, prior, priorPeriod: priorName, warnings, failures } = copy;
@@ -36,24 +37,41 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
   const topExpense = [...data.expenses].sort((a, b) => b.amount - a.amount)[0];
   const refreshedAt = formatDataThrough(data.source.refreshedAt.slice(0, 10));
   const commissionRate = operatingMonth.grossRevenue ? data.summary.contractorCommissions / operatingMonth.grossRevenue : 0;
-  const headingPeriod = activeView === "capacity" ? operatingMonth : current;
-  const heading = activeView === "practice"
+  const headingPeriod = ["overview", "financial", "appointments", "team", "retention", "funnel"].includes(activeView) ? operatingMonth : activeView === "capacity" ? operatingMonth : current;
+  const adminHeadings: Record<string, { eyebrow: string; title: string; intro: string }> = {
+    overview: { eyebrow: "Analytics", title: "Overview", intro: "The current operating picture across revenue, appointments, patients, and the team." },
+    financial: { eyebrow: "Analytics", title: "Financial", intro: "Sales, collections, services, receivables, and cash flow from the available reporting sources." },
+    appointments: { eyebrow: "Analytics", title: "Appointments", intro: "Volume, attendance, missed-visit impact, booking sources, and scheduling patterns." },
+    team: { eyebrow: "Analytics", title: "Team performance", intro: "Practitioner revenue, workload, attendance, compensation, and patient mix." },
+    retention: { eyebrow: "Analytics", title: "Patient retention", intro: "Patient activity and 30, 60, and 90-day return behaviour when sufficient history is available." },
+    funnel: { eyebrow: "Analytics", title: "Patient funnel", intro: "Consultations, first visits, ongoing care, and practitioner-level conversion flow." },
+    imports: { eyebrow: "Data", title: "Data imports", intro: "Coverage, validation, refresh history, and the guided Jane and bank workflow." },
+    data: { eyebrow: "Data", title: "My data", intro: "A transparent table view of the safe aggregate Google Sheets that power this dashboard." },
+  };
+  const heading = adminHeadings[activeView] ?? (activeView === "practice"
     ? { eyebrow: "Practice performance", ...copy.practice }
     : activeView === "capacity"
       ? { eyebrow: "Clinical capacity", ...copy.capacity }
       : activeView === "controls"
         ? { eyebrow: "Financial controls", ...copy.controls }
-        : { eyebrow: "Metric and source index", title: "Every number has a visible lineage.", intro: "This index shows what is currently displayed, how each visualization is calculated, and which of Gabby's requested metrics still need another source." };
+        : { eyebrow: "Metric and source index", title: "Every number has a visible lineage.", intro: "This index shows what is currently displayed, how each visualization is calculated, and which of Gabby's requested metrics still need another source." });
 
   return (
     <div className="ttg-dashboard-shell">
       <aside className="ttg-dashboard-nav" aria-label="Dashboard sections">
         <div><div className="ttg-nav-kicker">CEO dashboard</div><div className="ttg-nav-period">{data.reportingPeriod}</div></div>
         <nav>
-          <Link className={activeView === "practice" ? "is-active" : ""} href="?view=practice"><span>01</span>Practice</Link>
-          <Link className={activeView === "capacity" ? "is-active" : ""} href="?view=capacity"><span>02</span>Capacity</Link>
-          <Link className={activeView === "controls" ? "is-active" : ""} href="?view=controls"><span>03</span>Controls</Link>
-          <Link className={activeView === "index" ? "is-active" : ""} href="?view=index"><span>04</span>Data index</Link>
+          <small>Analytics</small>
+          <Link className={activeView === "overview" ? "is-active" : ""} href="?view=overview">Overview</Link>
+          <Link className={activeView === "financial" ? "is-active" : ""} href="?view=financial">Financial</Link>
+          <Link className={activeView === "appointments" ? "is-active" : ""} href="?view=appointments">Appointments</Link>
+          <Link className={activeView === "team" ? "is-active" : ""} href="?view=team">Team performance</Link>
+          <Link className={activeView === "retention" ? "is-active" : ""} href="?view=retention">Patient retention</Link>
+          <Link className={activeView === "funnel" ? "is-active" : ""} href="?view=funnel">Patient funnel</Link>
+          <small>Workspace</small>
+          <Link className={["practice", "capacity", "controls", "index"].includes(activeView) ? "is-active" : ""} href="?view=practice">Gabby’s dashboard</Link>
+          <Link className={activeView === "imports" ? "is-active" : ""} href="?view=imports">Data imports</Link>
+          <Link className={activeView === "data" ? "is-active" : ""} href="?view=data">My data</Link>
         </nav>
         <div className="ttg-nav-source"><span className={`is-${sourceHealth.tone}`} />{data.source.label}<small>Workbook updated {refreshedAt}</small></div>
       </aside>
@@ -75,6 +93,10 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
         </section>
 
         {data.source.mode === "fixture" && <div className="ttg-prototype-banner"><strong>Prototype data</strong><span>This fixture represents the workbook as updated {refreshedAt}. It is not a live Jane or bank connection.</span></div>}
+
+        {["overview", "financial", "appointments", "team", "retention", "funnel", "imports", "data"].includes(activeView) && <AdminFlowView data={data} view={activeView} tab={tab} />}
+
+        {["practice", "capacity", "controls", "index"].includes(activeView) && <nav className="ttg-af-tabs" aria-label="Gabby's dashboard sections"><Link className={activeView === "practice" ? "is-active" : ""} href="?view=practice">Practice</Link><Link className={activeView === "capacity" ? "is-active" : ""} href="?view=capacity">Capacity</Link><Link className={activeView === "controls" ? "is-active" : ""} href="?view=controls">Controls</Link><Link className={activeView === "index" ? "is-active" : ""} href="?view=index">Data index</Link></nav>}
 
         {activeView === "practice" && <>
           <div className="ttg-hero-metrics">

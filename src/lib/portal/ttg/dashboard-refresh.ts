@@ -49,6 +49,49 @@ export type RefreshPayload = {
   periodStart: string;
   periodEnd: string;
   periodStatus: "Complete" | "Partial";
+  analytics?: {
+    appointments: {
+      total: number;
+      completed: number;
+      cancelled: number;
+      noShows: number;
+      pending: number;
+      bookingSources: Array<{ label: string; count: number }>;
+      days: Array<{ label: string; count: number }>;
+    };
+    financial: {
+      invoiceCount: number;
+      averageTransactionValue: number;
+      services: Array<{ name: string; revenue: number; visits: number }>;
+      payers: Array<{ name: string; invoiced: number; collected: number; outstanding: number }>;
+      paymentMethods: Array<{ name: string; amount: number; transactions: number }>;
+    };
+    team: Array<{
+      name: string;
+      appointments: number;
+      completed: number;
+      cancelled: number;
+      noShows: number;
+      patients: number;
+      revenue: number;
+      commission: number;
+    }>;
+    patients: {
+      total: number;
+      newPatients: number;
+      returningPatients: number;
+      repeatVisitRate: number;
+      historyAvailable: boolean;
+      historyStart: string;
+    };
+    funnel: {
+      consultations: number;
+      consultationPatients: number;
+      firstVisits: number;
+      subsequentVisits: number;
+      uniquePatients: number;
+    };
+  };
   fileSummaries: ImportFileSummary[];
   sourceCoverage: SourceCoverage[];
   coverageCalendar: CoverageDay[];
@@ -234,6 +277,7 @@ function periodFromSalesName(name: string) {
 
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const daysApart = (left: string, right: string) => Math.abs((new Date(left).getTime() - new Date(right).getTime()) / 86_400_000);
+const normalizeName = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 function expenseCategory(description: string, account: BankKind) {
   const value = description.toUpperCase();
@@ -255,6 +299,15 @@ function expenseCategory(description: string, account: BankKind) {
   ];
   const match = rules.find(([pattern]) => pattern.test(value));
   return match ? { category: match[1], operating: match[2] } : { category: "Uncategorized", operating: true };
+}
+
+function safePayerCategory(value: string) {
+  const normalized = value.toLowerCase();
+  if (/patient|private|self/.test(normalized)) return "Patient / private pay";
+  if (/insurance|eclaim/.test(normalized)) return "Insurance / eClaims";
+  if (/wsib|workplace safety/.test(normalized)) return "WSIB";
+  if (/clinic|third.party/.test(normalized)) return "Clinic / third party";
+  return "Other payer";
 }
 
 export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
@@ -336,7 +389,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     salesByTherapist.set(name, item);
   }
   const hoursFile = byKind.get("hours")?.[0];
-  const hours = new Map(janeRecords(hoursFile, "hours").map((row) => [row["Staff Name"], row]));
+  const hours = new Map(janeRecords(hoursFile, "hours").map((row) => [normalizeName(row["Staff Name"]), row]));
   const compensationFile = byKind.get("compensation")?.[0];
   const compensation = new Map<string, number>();
   for (const row of janeRecords(compensationFile, "compensation")) {
@@ -345,27 +398,32 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     compensation.set(name, (compensation.get(name) ?? 0) + money(row["Commission Total"]));
   }
   const appointmentFile = byKind.get("appointments")?.[0];
+  const appointmentRows = janeRecords(appointmentFile, "appointments");
+  const activeAppointmentRows = appointmentRows.filter((row) => !["never booked", "never_booked", "deleted", "archived", "rescheduled"].includes((row.state ?? row.State ?? "").toLowerCase()));
   const appointmentCounts = new Map<string, number>();
-  for (const row of janeRecords(appointmentFile, "appointments")) {
-    const state = (row.state ?? row.State ?? "").toLowerCase();
-    if (["never booked", "deleted", "cancelled", "rescheduled"].includes(state)) continue;
+  const displayNames = new Map<string, string>();
+  for (const row of activeAppointmentRows) {
     const session = row.Session ?? "";
     const name = row.staff_member_name ?? session.match(/\bwith\s+(.+?)(?:\s+with\s+.+)?$/i)?.[1]?.trim() ?? row["Staff Member"] ?? row.Staff ?? "";
-    if (name) appointmentCounts.set(name, (appointmentCounts.get(name) ?? 0) + 1);
+    const key = normalizeName(name);
+    if (key) { appointmentCounts.set(key, (appointmentCounts.get(key) ?? 0) + 1); displayNames.set(key, name); }
   }
-  const therapistNames = new Set([...salesByTherapist.keys(), ...hours.keys(), ...appointmentCounts.keys()]);
-  const therapists = [...therapistNames].map((name) => {
-    const sales = salesByTherapist.get(name);
-    const shift = hours.get(name);
+  const salesByKey = new Map([...salesByTherapist].map(([name, value]) => [normalizeName(name), { name, value }]));
+  const compensationByKey = new Map([...compensation].map(([name, value]) => [normalizeName(name), value]));
+  const therapistKeys = new Set([...salesByKey.keys(), ...hours.keys(), ...appointmentCounts.keys()]);
+  const therapists = [...therapistKeys].map((key) => {
+    const sales = salesByKey.get(key);
+    const shift = hours.get(key);
+    const name = sales?.name ?? displayNames.get(key) ?? shift?.["Staff Name"] ?? key;
     return {
       name,
-      invoices: sales?.invoices.size ?? 0,
-      invoiced: round(sales?.invoiced ?? 0),
-      collected: round(sales?.collected ?? 0),
+      invoices: sales?.value.invoices.size ?? 0,
+      invoiced: round(sales?.value.invoiced ?? 0),
+      collected: round(sales?.value.collected ?? 0),
       scheduledHours: money(shift?.["Shift Total Hours"]),
       bookedHours: money(shift?.["Appointment Total Hours"]),
-      bookings: appointmentCounts.get(name) ?? money(shift?.["Appointment Total Count"]),
-      compensation: round(compensation.get(name) ?? 0),
+      bookings: appointmentCounts.get(key) ?? 0,
+      compensation: round(compensationByKey.get(key) ?? 0),
       owner: name.toLowerCase().includes("gabriella evans"),
     };
   }).filter((item) => item.invoiced || item.bookings || item.compensation).sort((a, b) => b.invoiced - a.invoiced);
@@ -439,6 +497,89 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const nextDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() + 1));
   const complete = nextDay.getUTCDate() === 1;
   const monthName = new Intl.DateTimeFormat("en-CA", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${safePeriod.start}T12:00:00Z`));
+
+  const stateCount = (state: string) => activeAppointmentRows.filter((row) => (row.state ?? row.State ?? "").toLowerCase() === state).length;
+  const completedAppointments = stateCount("arrived") + stateCount("completed");
+  const cancelledAppointments = stateCount("cancelled");
+  const noShows = stateCount("no_show") + stateCount("no show");
+  const pendingAppointments = Math.max(0, activeAppointmentRows.length - completedAppointments - cancelledAppointments - noShows);
+  const sourceTotals = new Map<string, number>();
+  const dayTotals = new Map<string, number>();
+  for (const row of activeAppointmentRows) {
+    const source = String(row.booked_online ?? row["Booked Online"] ?? "").toLowerCase() === "true" ? "Online" : "Staff booked";
+    sourceTotals.set(source, (sourceTotals.get(source) ?? 0) + 1);
+    const date = rowDate(row, COVERAGE_FIELDS.appointments);
+    if (date) {
+      const day = new Intl.DateTimeFormat("en-CA", { weekday: "short", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`));
+      dayTotals.set(day, (dayTotals.get(day) ?? 0) + 1);
+    }
+  }
+  const services = new Map<string, { revenue: number; invoices: Set<string> }>();
+  const payers = new Map<string, { invoiced: number; collected: number; outstanding: number }>();
+  const allInvoices = new Set<string>();
+  for (const row of salesRows) {
+    if (row["Invoice #"]) allInvoices.add(row["Invoice #"]);
+    const serviceName = row.Item || row["Income Category"] || "Other";
+    const service = services.get(serviceName) ?? { revenue: 0, invoices: new Set<string>() };
+    service.revenue += money(row.Total);
+    if (row["Invoice #"]) service.invoices.add(row["Invoice #"]);
+    services.set(serviceName, service);
+    const payerName = safePayerCategory(row.Payer || "Patient / private pay");
+    const payer = payers.get(payerName) ?? { invoiced: 0, collected: 0, outstanding: 0 };
+    payer.invoiced += money(row.Total); payer.collected += money(row.Collected); payer.outstanding += money(row.Balance);
+    payers.set(payerName, payer);
+  }
+  const paymentMethods = new Map<string, { amount: number; transactions: number }>();
+  for (const row of paymentRows) {
+    const name = row["Payment Method"] || "Other";
+    const item = paymentMethods.get(name) ?? { amount: 0, transactions: 0 };
+    item.amount += money(row["Amount Paid to Clinic"] || row.Amount || row.Total);
+    item.transactions += money(row["Number of Transactions"] || "1");
+    paymentMethods.set(name, item);
+  }
+  const teamRows = new Map<string, { name: string; appointments: number; completed: number; cancelled: number; noShows: number; patients: Set<string> }>();
+  const allPatients = new Map<string, number>();
+  const newPatients = new Set<string>();
+  const consultationPatients = new Set<string>();
+  let consultations = 0; let firstVisits = 0; let subsequentVisits = 0;
+  for (const row of activeAppointmentRows) {
+    const name = row.staff_member_name ?? row["Staff Member"] ?? row.Staff ?? "Unassigned";
+    const key = normalizeName(name);
+    const patient = row.patient_guid || row["Patient Guid"] || "";
+    const state = (row.state ?? row.State ?? "").toLowerCase();
+    const item = teamRows.get(key) ?? { name, appointments: 0, completed: 0, cancelled: 0, noShows: 0, patients: new Set<string>() };
+    item.appointments += 1;
+    if (["arrived", "completed"].includes(state)) item.completed += 1;
+    if (state === "cancelled") item.cancelled += 1;
+    if (["no_show", "no show"].includes(state)) item.noShows += 1;
+    if (patient) { item.patients.add(patient); allPatients.set(patient, (allPatients.get(patient) ?? 0) + 1); }
+    teamRows.set(key, item);
+    const isConsultation = /consult/i.test(row.treatment_name || row.Type || row.Session || "");
+    const isFirst = String(row.first_visit ?? row["First Visit"] ?? "").toLowerCase() === "true";
+    if (isConsultation) { consultations += 1; if (patient) consultationPatients.add(patient); }
+    else if (isFirst) { firstVisits += 1; if (patient) newPatients.add(patient); }
+    else subsequentVisits += 1;
+  }
+  const appointmentCoverage = sourceCoverage.find((source) => source.kind === "appointments");
+  const historyStart = appointmentCoverage?.start ?? safePeriod.start;
+  const historyAvailable = daysApart(historyStart, safePeriod.end) >= 90;
+  const analytics: NonNullable<RefreshPayload["analytics"]> = {
+    appointments: {
+      total: activeAppointmentRows.length, completed: completedAppointments, cancelled: cancelledAppointments, noShows, pending: pendingAppointments,
+      bookingSources: [...sourceTotals].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count),
+      days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => ({ label, count: dayTotals.get(label) ?? 0 })),
+    },
+    financial: {
+      invoiceCount: allInvoices.size,
+      averageTransactionValue: paymentRows.reduce((sum, row) => sum + money(row["Number of Transactions"] || "1"), 0) ? paymentTotal / paymentRows.reduce((sum, row) => sum + money(row["Number of Transactions"] || "1"), 0) : 0,
+      services: [...services].map(([name, item]) => ({ name, revenue: round(item.revenue), visits: item.invoices.size })).sort((a, b) => b.revenue - a.revenue),
+      payers: [...payers].map(([name, item]) => ({ name, invoiced: round(item.invoiced), collected: round(item.collected), outstanding: round(item.outstanding) })).sort((a, b) => b.invoiced - a.invoiced),
+      paymentMethods: [...paymentMethods].map(([name, item]) => ({ name, amount: round(item.amount), transactions: item.transactions })).sort((a, b) => b.amount - a.amount),
+    },
+    team: [...teamRows].map(([key, item]) => ({ name: item.name, appointments: item.appointments, completed: item.completed, cancelled: item.cancelled, noShows: item.noShows, patients: item.patients.size, revenue: round(salesByKey.get(key)?.value.invoiced ?? 0), commission: round(compensationByKey.get(key) ?? 0) })).sort((a, b) => b.revenue - a.revenue),
+    patients: { total: allPatients.size, newPatients: newPatients.size, returningPatients: Math.max(0, allPatients.size - newPatients.size), repeatVisitRate: allPatients.size ? [...allPatients.values()].filter((count) => count > 1).length / allPatients.size : 0, historyAvailable, historyStart },
+    funnel: { consultations, consultationPatients: consultationPatients.size, firstVisits, subsequentVisits, uniquePatients: allPatients.size },
+  };
   return {
     refreshId: randomUUID(),
     refreshType,
@@ -447,6 +588,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     periodStart: safePeriod.start,
     periodEnd: safePeriod.end,
     periodStatus: complete && refreshType === "full" ? "Complete" : "Partial",
+    analytics,
     fileSummaries,
     sourceCoverage,
     coverageCalendar,
