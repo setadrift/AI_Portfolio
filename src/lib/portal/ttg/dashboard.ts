@@ -1,6 +1,7 @@
 import { createSign } from "node:crypto";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { ttgDashboardFixture } from "./dashboard-fixture";
+import type { RefreshPayload } from "./dashboard-refresh";
 
 export type MonthlyMetric = {
   period: string;
@@ -66,6 +67,8 @@ export type TtgDashboardData = {
     difference: number;
     notes: string;
   }>;
+  analytics?: NonNullable<RefreshPayload["analytics"]>;
+  dataTables?: Array<{ name: string; columns: string[]; rows: SheetRow[] }>;
   summary: {
     activeTherapists: number;
     weightedUtilization: number;
@@ -92,6 +95,9 @@ const SHEET_HEADERS = new Set([
   "Expense Amount", "Check", "Actual", "Expected", "Status",
   "Refresh Timestamp", "Refreshed By", "Jane Periods", "Bank Coverage",
   "Item", "Value", "Source Type", "Source Name", "Period / As-of",
+  "Date Created", "Date Deposited", "Payout Amount", "Payout Status",
+  "Payout ID", "Jane Deposit Date", "Jane Amount", "Bank Date", "Bank Amount", "Notes",
+  "Report", "Role", "Coverage Start", "Coverage End", "Coverage Status", "Refresh ID",
 ]);
 
 const required = (value: string | undefined, field: string) => {
@@ -253,7 +259,11 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   const qualityTitle = pickTitle(titles, ["Data Quality", "Checks"], "data quality");
   const refreshTitle = findTitle(titles, ["Refresh Log"]);
   const sourcesTitle = findTitle(titles, ["Sources"]);
-  const selected = [monthlyTitle, therapistTitle, expenseTitle, qualityTitle, refreshTitle, sourcesTitle].filter((title): title is string => Boolean(title));
+  const payoutsTitle = findTitle(titles, ["Jane Payouts"]);
+  const reconciliationTitle = findTitle(titles, ["Reconciliation"]);
+  const coverageTitle = findTitle(titles, ["Source Coverage"]);
+  const historyTitle = findTitle(titles, ["Import History"]);
+  const selected = [monthlyTitle, therapistTitle, expenseTitle, qualityTitle, payoutsTitle, reconciliationTitle, coverageTitle, refreshTitle, sourcesTitle, historyTitle].filter((title): title is string => Boolean(title));
   const params = new URLSearchParams({
     majorDimension: "ROWS",
     valueRenderOption: "UNFORMATTED_VALUE",
@@ -266,8 +276,8 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   );
   if (!valuesResponse.ok) throw new Error(`Google Sheets values failed (${valuesResponse.status})`);
   const body = (await valuesResponse.json()) as { valueRanges?: Array<{ values?: unknown[][] }> };
-  const ranges = (body.valueRanges ?? []).map((range) => rowsFromValues(range.values ?? []));
-  const rowsByTitle = new Map(selected.map((title, index) => [title, ranges[index]]));
+  const rawByTitle = new Map(selected.map((title, index) => [title, body.valueRanges?.[index]?.values ?? []]));
+  const rowsByTitle = new Map(selected.filter((title) => title !== historyTitle).map((title) => [title, rowsFromValues(rawByTitle.get(title) ?? [])]));
   const monthRows = rowsByTitle.get(monthlyTitle);
   const therapistRows = rowsByTitle.get(therapistTitle);
   const expenseRows = rowsByTitle.get(expenseTitle);
@@ -359,6 +369,24 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   const janeDataThrough = dateValue(alignmentRow?.Expected) ?? latestMonth.dataThrough;
   const bankDataThrough = dateValue(alignmentRow?.Actual) ?? latestMonth.dataThrough;
   const refreshedAt = dateValue(latestRefresh?.["Refresh Timestamp"]) ?? latestMonth.dataThrough;
+  let analytics: TtgDashboardData["analytics"];
+  if (historyTitle) {
+    const historyValues = (rawByTitle.get(historyTitle) ?? []).map((row) => row.map((value) => String(value ?? "")));
+    const header = historyValues[0] ?? [];
+    const payloadColumn = header.indexOf("Payload JSON");
+    const periodColumn = header.indexOf("Period");
+    const activeColumn = header.indexOf("Active");
+    const active = historyValues.slice(1).reverse().find((row) => row[periodColumn] === clinicalPeriodKey && row[activeColumn].toLowerCase() === "true");
+    if (active?.[payloadColumn]) {
+      try { analytics = (JSON.parse(active[payloadColumn]) as RefreshPayload).analytics; } catch { analytics = undefined; }
+    }
+  }
+  const dataTables = [monthlyTitle, therapistTitle, expenseTitle, qualityTitle, payoutsTitle, reconciliationTitle, coverageTitle, refreshTitle, sourcesTitle]
+    .filter((title): title is string => Boolean(title))
+    .map((title) => {
+      const rows = rowsByTitle.get(title) ?? [];
+      return { name: title, columns: Object.keys(rows[0] ?? {}), rows };
+    });
 
   return validateDashboardData({
     ...ttgDashboardFixture,
@@ -382,6 +410,8 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
     therapists,
     expenses,
     qualityChecks,
+    analytics,
+    dataTables,
     summary: {
       activeTherapists: therapists.length,
       weightedUtilization: scheduledHours ? bookedHours / scheduledHours : 0,

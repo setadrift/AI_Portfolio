@@ -25,6 +25,11 @@ test("TTG refresh aggregates the proven Jane and bank schemas without retaining 
   assert.equal(payload.monthly.operatingExpenses, 10);
   assert.equal(payload.therapists[0].compensation, 105);
   assert.equal(payload.therapists[0].bookings, 1);
+  assert.equal(payload.analytics?.appointments.total, 1);
+  assert.equal(payload.analytics?.appointments.completed, 1);
+  assert.equal(payload.analytics?.financial.invoiceCount, 1);
+  assert.equal(payload.analytics?.patients.total, 1);
+  assert.equal(payload.analytics?.patients.historyAvailable, false);
   assert.equal(payload.sourceCoverage.filter((source) => source.role === "core").length, 4);
   assert.equal(payload.coverageCalendar.length, 22);
   assert.equal(payload.checks.some((check) => check.status === "FAIL"), false);
