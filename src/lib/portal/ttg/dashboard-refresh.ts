@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 
-export const REQUIRED_JANE_REPORTS = ["sales", "hours", "compensation", "payouts"] as const;
+export const CORE_JANE_REPORTS = ["appointments", "compensation", "sales", "payments"] as const;
+export const SUPPLEMENTAL_JANE_REPORTS = ["hours", "payouts"] as const;
+export const REQUIRED_JANE_REPORTS = [...CORE_JANE_REPORTS, ...SUPPLEMENTAL_JANE_REPORTS] as const;
 export const REQUIRED_BANK_ACCOUNTS = ["chequing", "contractor", "mastercard", "peace-of-mind", "profit"] as const;
 
 type JaneKind = (typeof REQUIRED_JANE_REPORTS)[number];
@@ -15,6 +17,25 @@ export type ImportFileSummary = {
   rows: number;
   status: ImportStatus;
   note: string;
+  coverageStart?: string;
+  coverageEnd?: string;
+};
+
+export type SourceCoverage = {
+  kind: JaneKind;
+  label: string;
+  role: "core" | "supplemental";
+  start: string;
+  end: string;
+  status: "complete" | "partial" | "missing";
+  note: string;
+};
+
+export type CoverageDay = {
+  date: string;
+  status: "complete" | "partial" | "missing" | "future";
+  covered: number;
+  expected: number;
 };
 
 export type RefreshIssue = { status: "WARNING" | "FAIL"; title: string; detail: string };
@@ -27,6 +48,8 @@ export type RefreshPayload = {
   periodEnd: string;
   periodStatus: "Complete" | "Partial";
   fileSummaries: ImportFileSummary[];
+  sourceCoverage: SourceCoverage[];
+  coverageCalendar: CoverageDay[];
   issues: RefreshIssue[];
   bankRows: number;
   bankCoverage: string;
@@ -123,7 +146,7 @@ function isoDate(value: string) {
 
 function classify(name: string, rows: string[][]): { source: "Jane" | "Bank" | "Unknown"; kind: JaneKind | BankKind | "unknown"; label: string } {
   const normalizedName = name.toLowerCase();
-  const headers = rows.slice(0, 3).flat().map((header) => header.trim().toLowerCase());
+  const headers = rows.slice(0, 50).flat().map((header) => header.trim().toLowerCase());
   if (headers.includes("account type") && headers.includes("transaction date") && headers.includes("cad$")) {
     if (normalizedName.includes("contractor pay")) return { source: "Bank", kind: "contractor", label: "Contractor Pay account" };
     if (normalizedName.includes("mastercard")) return { source: "Bank", kind: "mastercard", label: "Mastercard" };
@@ -132,10 +155,70 @@ function classify(name: string, rows: string[][]): { source: "Jane" | "Bank" | "
     if (normalizedName.includes("chequing")) return { source: "Bank", kind: "chequing", label: "Main chequing" };
   }
   if (headers.includes("patient guid") && headers.includes("staff member") && headers.includes("collected")) return { source: "Jane", kind: "sales", label: "Sales" };
+  if (headers.includes("type") && headers.includes("client") && headers.includes("session") && headers.includes("state") && headers.includes("booking info")) return { source: "Jane", kind: "appointments", label: "Appointments" };
+  if (headers.includes("payer") && headers.includes("payment method") && headers.includes("applied to") && headers.includes("amount")) return { source: "Jane", kind: "payments", label: "Payments & Refunds" };
+  if (normalizedName.includes("appointments") && headers.includes("date") && headers.includes("state")) return { source: "Jane", kind: "appointments", label: "Appointments" };
+  if ((normalizedName.includes("payment") || normalizedName.includes("transaction")) && headers.includes("date") && headers.includes("amount")) return { source: "Jane", kind: "payments", label: "Payments & Refunds" };
   if (headers.includes("staff name") && headers.includes("shift total hours") && headers.includes("appointment total hours")) return { source: "Jane", kind: "hours", label: "Hours Scheduled / Booked" };
   if (headers.includes("practitioner") && headers.includes("commission total") && headers.includes("patient")) return { source: "Jane", kind: "compensation", label: "Compensation" };
   if (headers.includes("date created") && headers.includes("payout amount") && headers.includes("payout status")) return { source: "Jane", kind: "payouts", label: "Jane Payments Payouts" };
   return { source: "Unknown", kind: "unknown", label: "Unrecognized file" };
+}
+
+const JANE_LABELS: Record<JaneKind, string> = {
+  appointments: "Appointments",
+  compensation: "Compensation",
+  sales: "Sales",
+  payments: "Payments & Refunds",
+  hours: "Hours Scheduled / Booked",
+  payouts: "Jane Payments Payouts",
+};
+
+const COVERAGE_FIELDS: Record<JaneKind, string[]> = {
+  appointments: ["Date", "Appointment Date"],
+  compensation: ["Payment Date", "Transaction Date", "Purchase Date"],
+  sales: ["Invoice Date", "Purchase Date"],
+  payments: ["Date", "Processing Date", "Transaction Date"],
+  hours: ["Date"],
+  payouts: ["Date Created", "Date Deposited"],
+};
+
+const HEADER_SIGNATURES: Record<JaneKind, string[]> = {
+  appointments: ["Date", "Session", "State"],
+  compensation: ["Practitioner", "Commission Total"],
+  sales: ["Staff Member", "Total", "Collected"],
+  payments: ["Date", "Payment Method", "Amount"],
+  hours: ["Staff Name", "Shift Total Hours", "Appointment Total Hours"],
+  payouts: ["Date Created", "Payout Amount", "Payout Status"],
+};
+
+function janeRecords(file: { rows: string[][] } | undefined, kind: JaneKind) {
+  if (!file) return [];
+  const signature = HEADER_SIGNATURES[kind];
+  const headerIndex = file.rows.findIndex((row) => signature.every((header) => row.map((cell) => cell.trim()).includes(header)));
+  return headerIndex < 0 ? [] : records(file.rows, headerIndex);
+}
+
+function rowDate(row: CsvRow, fields: string[]) {
+  for (const field of fields) {
+    const value = row[field];
+    if (value) {
+      const parsed = isoDate(value.replace(/\s+-\s+\d{1,2}:\d{2}(?:am|pm).*$/i, ""));
+      if (parsed) return parsed;
+    }
+  }
+  return "";
+}
+
+function dateRange(file: { rows: string[][] }, kind: JaneKind, fallback: { start: string; end: string }) {
+  const dates = janeRecords(file, kind).map((row) => rowDate(row, COVERAGE_FIELDS[kind])).filter(Boolean).sort();
+  return { start: dates[0] ?? fallback.start, end: dates.at(-1) ?? fallback.end };
+}
+
+function eachDate(start: string, end: string) {
+  const values: string[] = [];
+  for (let cursor = new Date(`${start}T12:00:00Z`); cursor <= new Date(`${end}T12:00:00Z`); cursor = new Date(cursor.getTime() + 86_400_000)) values.push(cursor.toISOString().slice(0, 10));
+  return values;
 }
 
 function periodFromSalesName(name: string) {
@@ -201,7 +284,38 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   }
   if (fileSummaries.some((file) => file.status === "blocked")) issues.push({ status: "FAIL", title: "One or more files are unrecognized", detail: "Remove them or download the expected CSV directly from Jane or the bank." });
 
-  const salesRows = salesFile ? records(salesFile.rows) : [];
+  const sourceCoverage: SourceCoverage[] = REQUIRED_JANE_REPORTS.map((kind) => {
+    const file = byKind.get(kind)?.[0];
+    const range = file ? dateRange(file, kind, safePeriod) : { start: "", end: "" };
+    const status = !file ? "missing" : range.start <= safePeriod.start && range.end >= safePeriod.end ? "complete" : "partial";
+    return {
+      kind,
+      label: JANE_LABELS[kind],
+      role: (CORE_JANE_REPORTS as readonly string[]).includes(kind) ? "core" : "supplemental",
+      start: range.start,
+      end: range.end,
+      status,
+      note: kind === "hours" ? "Required for available-capacity and utilization calculations." : kind === "payouts" ? "Required to match Jane deposits to bank activity." : status === "complete" ? "Covers the selected refresh period." : "Does not cover the full selected refresh period.",
+    };
+  });
+  sourceCoverage.forEach((coverage) => {
+    const summary = fileSummaries.find((file) => file.kind === coverage.kind);
+    if (summary) {
+      summary.coverageStart = coverage.start;
+      summary.coverageEnd = coverage.end;
+      if (coverage.status === "partial") {
+        summary.status = "warning";
+        summary.note = "The latest dated row is earlier than the selected refresh cutoff; confirm the export range before publishing.";
+      }
+    }
+    if (coverage.status === "partial") issues.push({ status: "WARNING", title: `${coverage.label} may have incomplete date coverage`, detail: `The selected package is ${safePeriod.start} through ${safePeriod.end}; dated rows run ${coverage.start || "no dated rows"} through ${coverage.end || "no dated rows"}. Empty days can be valid, so confirm the Jane date selector rather than treating this as a hard failure.` });
+  });
+  const coverageCalendar: CoverageDay[] = eachDate(safePeriod.start, safePeriod.end).map((date) => {
+    const covered = sourceCoverage.filter((source) => source.start && source.start <= date && source.end >= date).length;
+    return { date, covered, expected: REQUIRED_JANE_REPORTS.length, status: covered === REQUIRED_JANE_REPORTS.length ? "complete" : covered ? "partial" : "missing" };
+  });
+
+  const salesRows = janeRecords(salesFile, "sales");
   const salesByTherapist = new Map<string, { invoices: Set<string>; invoiced: number; collected: number }>();
   for (const row of salesRows) {
     const name = row["Staff Member"];
@@ -213,15 +327,24 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     salesByTherapist.set(name, item);
   }
   const hoursFile = byKind.get("hours")?.[0];
-  const hours = new Map((hoursFile ? records(hoursFile.rows) : []).map((row) => [row["Staff Name"], row]));
+  const hours = new Map(janeRecords(hoursFile, "hours").map((row) => [row["Staff Name"], row]));
   const compensationFile = byKind.get("compensation")?.[0];
   const compensation = new Map<string, number>();
-  for (const row of compensationFile ? records(compensationFile.rows) : []) {
+  for (const row of janeRecords(compensationFile, "compensation")) {
     const name = row.Practitioner;
     if (!name) continue;
     compensation.set(name, (compensation.get(name) ?? 0) + money(row["Commission Total"]));
   }
-  const therapistNames = new Set([...salesByTherapist.keys(), ...hours.keys()]);
+  const appointmentFile = byKind.get("appointments")?.[0];
+  const appointmentCounts = new Map<string, number>();
+  for (const row of janeRecords(appointmentFile, "appointments")) {
+    const state = (row.State ?? "").toLowerCase();
+    if (["never booked", "deleted", "cancelled", "rescheduled"].includes(state)) continue;
+    const session = row.Session ?? "";
+    const name = session.match(/\bwith\s+(.+?)(?:\s+with\s+.+)?$/i)?.[1]?.trim() ?? row["Staff Member"] ?? row.Staff ?? "";
+    if (name) appointmentCounts.set(name, (appointmentCounts.get(name) ?? 0) + 1);
+  }
+  const therapistNames = new Set([...salesByTherapist.keys(), ...hours.keys(), ...appointmentCounts.keys()]);
   const therapists = [...therapistNames].map((name) => {
     const sales = salesByTherapist.get(name);
     const shift = hours.get(name);
@@ -232,7 +355,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
       collected: round(sales?.collected ?? 0),
       scheduledHours: money(shift?.["Shift Total Hours"]),
       bookedHours: money(shift?.["Appointment Total Hours"]),
-      bookings: money(shift?.["Appointment Total Count"]),
+      bookings: appointmentCounts.get(name) ?? money(shift?.["Appointment Total Count"]),
       compensation: round(compensation.get(name) ?? 0),
       owner: name.toLowerCase().includes("gabriella evans"),
     };
@@ -264,8 +387,11 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const expenses = [...expenseTotals].map(([category, amount]) => ({ category, amount: round(amount) })).sort((a, b) => b.amount - a.amount);
 
   const payoutFile = byKind.get("payouts")?.[0];
-  const payoutRows = payoutFile ? records(payoutFile.rows, payoutFile.rows.findIndex((row) => row.map((cell) => cell.trim()).includes("Date Created"))) : [];
+  const payoutRows = janeRecords(payoutFile, "payouts");
   const payouts = payoutRows.filter((row) => row["Date Created"]).map((row) => ({ created: isoDate(row["Date Created"]), deposited: isoDate(row["Date Deposited"]), amount: money(row["Payout Amount"]), status: row["Payout Status"] }));
+  const paymentsFile = byKind.get("payments")?.[0];
+  const paymentRows = janeRecords(paymentsFile, "payments").filter((row) => rowDate(row, COVERAGE_FIELDS.payments));
+  const paymentTotal = round(paymentRows.reduce((sum, row) => sum + money(row["Amount Paid to Clinic"] || row.Amount), 0));
   const reconciliation = payouts.map((payout, index) => {
     const match = external.find((row) => row.amount > 0 && Math.abs(row.amount - payout.amount) < 0.01 && daysApart(row.date, payout.deposited) <= 3);
     return { payoutId: `P${String(index + 1).padStart(3, "0")}`, janeDepositDate: payout.deposited, janeAmount: payout.amount, bankDate: match?.date ?? "", bankAmount: match?.amount ?? 0, difference: round((match?.amount ?? 0) - payout.amount), status: match ? "Matched" as const : "Unmatched" as const, notes: match ? `${daysApart(match.date, payout.deposited)} day posting difference` : "No equal bank deposit within three days" };
@@ -285,6 +411,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const checks: RefreshPayload["checks"] = [
     { check: `${periodKey} therapist invoiced total ties to Jane Sales`, actual: grossRevenue, expected: round(salesRows.reduce((sum, row) => sum + money(row.Total), 0)), tolerance: 0.01, notes: "Aggregated from the uploaded Sales CSV." },
     { check: `${periodKey} therapist collected total ties to Jane Sales`, actual: collectedRevenue, expected: round(salesRows.reduce((sum, row) => sum + money(row.Collected), 0)), tolerance: 0.01, notes: "Aggregated from the uploaded Sales CSV." },
+    { check: `${periodKey} Payments & Refunds report parsed`, actual: paymentRows.length, expected: paymentRows.length, tolerance: 0, notes: paymentTotal ? `${paymentRows.length} detail rows; ${paymentTotal.toFixed(2)} net paid to the clinic.` : `${paymentRows.length} detail rows parsed.` },
     { check: `${periodKey} payout value matched to bank`, actual: matchedValue, expected: expectedPayoutValue, tolerance: 0.01, notes: "Exact amount with a three-day posting window." },
     { check: `${periodKey} payout count matched to bank`, actual: matched.length, expected: payouts.length, tolerance: 0, notes: "In-transit payouts can remain unmatched until the next bank export." },
     { check: "Bank clean row count", actual: bank.length, expected: bank.length, tolerance: 0, notes: "Account numbers and cheque numbers are not retained." },
@@ -310,6 +437,8 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     periodEnd: safePeriod.end,
     periodStatus: complete ? "Complete" : "Partial",
     fileSummaries,
+    sourceCoverage,
+    coverageCalendar,
     issues,
     bankRows: bank.length,
     bankCoverage: bankDates.length ? `${bankDates[0]} to ${bankDates.at(-1)}` : "No bank rows",

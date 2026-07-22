@@ -14,15 +14,19 @@ The dashboard is a read-only presentation of the reporting workbook. Updating th
 
 ## Monday workflow
 
-### 1. Replace the Jane inputs
+### 1. Export the Jane package
 
-Export or update the approved aggregate reporting inputs for:
+Use the direct links on the portal refresh page and set the same date range on every report. The four reports mirrored from AdminFlow are:
 
-- Sales and collections
-- Revenue by staff member
-- Scheduled and booked hours
-- Practitioner compensation
-- Jane payment payouts
+- Appointments
+- Compensation
+- Sales
+- Payments, Refunds, and Fees (Detail view)
+
+Two supplemental reports remain required for Gabby's metrics:
+
+- Hours Scheduled / Booked supplies available shift hours for utilization. The Appointments export only describes appointment records.
+- Jane Payments Payouts supplies payout deposit dates and statuses for bank reconciliation. Payments, Refunds, and Fees does not contain that payout lifecycle.
 
 Do not place patient names or other PHI in the reporting tabs read by the portal. Remove or mask patient identity columns before retaining an export.
 
@@ -77,6 +81,14 @@ Append one row to `Refresh Log` with:
 - Plain-language notes describing anything Gabby still needs to review
 
 The dashboard will display this record. It will not substitute the time the web page was opened.
+
+The portal also writes a PHI-free aggregate snapshot to the hidden `Import History` tab and records current report coverage in `Source Coverage`. A restore creates a new refresh record and keeps the version it replaced, so rollback is auditable rather than destructive.
+
+## Coverage calendar
+
+The preview calendar compares the dated rows observed in each Jane export with the Sales filename date range. A report can legitimately have no rows on a given day, so a shorter observed range is a review warning rather than an automatic failure. Jess should confirm the Jane date selector before acknowledging that warning.
+
+Missing or duplicate required files remain hard failures. Raw CSV rows are never stored in the workbook; only normalized aggregates, source cutoffs, checks, and rollback snapshots are retained.
 
 ## Gabby's daily read
 
