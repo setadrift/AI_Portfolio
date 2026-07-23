@@ -397,6 +397,36 @@ const normalizeName = (value: string) => value.trim().toLowerCase().replace(/[^a
 const privateKey = (namespace: string, value: string) => value
   ? createHash("sha256").update(`ttg-reporting-v1|${namespace}|${value}`).digest("hex")
   : "";
+
+const DIRECT_CLIENT_IDENTIFIER_HEADER = /(?:^|[_\s-])(patient|client)(?:$|[_\s-])|(?:^|[_\s-])(email|phone|mobile|address|postal|birth(?:day|date)?|dob|health[_\s-]?card|chart[_\s-]?(?:number|no)|notes?)(?:$|[_\s-])/i;
+
+function privacySafeJaneRow(row: CsvRow) {
+  const safe: CsvRow = {};
+  for (const [header, value] of Object.entries(row)) {
+    const normalizedHeader = header.trim().replace(/([a-z])([A-Z])/g, "$1 $2");
+    const patientLinkageKey = /^(patient[_\s-]?guid)$/i.test(normalizedHeader);
+    if (!patientLinkageKey && DIRECT_CLIENT_IDENTIFIER_HEADER.test(normalizedHeader)) continue;
+    if (/^payer$/i.test(normalizedHeader)) {
+      safe[header] = safePayerCategory(value);
+      continue;
+    }
+    if (/^(applied[_\s-]?to|details?)$/i.test(normalizedHeader)) {
+      safe[header] = value ? privateKey("source-reference", value) : "";
+      continue;
+    }
+    safe[header] = value;
+  }
+  return safe;
+}
+
+function safeUploadLabel(
+  classification: ReturnType<typeof classify>,
+  index: number,
+) {
+  const label = classification.source === "Unknown" ? "Unrecognized CSV" : classification.label;
+  return `${label} ${index + 1}.csv`;
+}
+
 const latestCompleteTorontoDate = () => {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((part) => [part.type, part.value]));
   const today = new Date(`${parts.year}-${parts.month}-${parts.day}T12:00:00Z`);
@@ -725,9 +755,17 @@ function buildPrivateFacts(
 
 export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const parsed = files.map((file) => ({ ...file, rows: parseCsv(file.text) }));
-  const identified = parsed.map((file) => ({ ...file, classification: classify(file.name, file.rows) }));
+  const identified = parsed.map((file, index) => {
+    const classification = classify(file.name, file.rows);
+    return {
+      ...file,
+      uploadIndex: index,
+      safeName: safeUploadLabel(classification, index),
+      classification,
+    };
+  });
   const fileSummaries: ImportFileSummary[] = identified.map((file) => ({
-    name: file.name,
+    name: file.safeName,
     source: file.classification.source,
     kind: file.classification.kind,
     label: file.classification.label,
@@ -749,7 +787,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
       const rightRange = dateRange(right, kind, { start: "", end: "" });
       return leftRange.end.localeCompare(rightRange.end) || left.name.localeCompare(right.name);
     });
-    return dedupeJaneRows(kind, ordered.flatMap((file) => janeRecords(file, kind)));
+    return dedupeJaneRows(kind, ordered.flatMap((file) => janeRecords(file, kind).map(privacySafeJaneRow)));
   };
   const allAppointmentRows = allRows("appointments");
   const allCompensationRows = allRows("compensation");
@@ -822,7 +860,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   sourceCoverage.forEach((coverage) => {
     const summaries = fileSummaries.filter((file) => file.kind === coverage.kind);
     summaries.forEach((summary) => {
-      const sourceFile = identified.find((file) => file.name === summary.name);
+      const sourceFile = identified.find((file) => file.safeName === summary.name);
       const range = sourceFile ? dateRange(sourceFile, coverage.kind, safePeriod) : { start: "", end: "" };
       summary.coverageStart = range.start;
       summary.coverageEnd = range.end;
