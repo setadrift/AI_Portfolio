@@ -322,10 +322,10 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     return <><Tabs active={marketingTab} range={range} tabs={tabs} view={view} />
       {marketingTab === "performance" && <><div className="ttg-af-configuration-alert"><div><strong>Ad accounts are not connected</strong><p>Manual campaigns remain the source for spend; Jane booking sources provide acquisition volume.</p></div><AddCampaignButton /></div><Cards items={[
         { label: "Total Spend", value: cad.format(marketingSpend), detail: marketingSpend ? range.label : "No spend in the selected range", unavailable: !marketingSpend },
-        { label: "New Clients", value: integer.format(newPatients), detail: "Jane first-visit activity" },
+        { label: "New Clients", value: integer.format(newPatients), detail: "Unique clients with a first qualifying appointment" },
         { label: "New Client CAC", value: cad.format(cac), detail: "Spend ÷ new clients", unavailable: !marketingSpend },
         { label: "Gross ROAS", value: marketingSpend ? `${roas.toFixed(2)}×` : "--", detail: "Invoiced revenue ÷ spend", unavailable: !marketingSpend },
-      ]} /><div className="ttg-af-grid"><Panel title="Top Channels" note="Highest spend channels">{sourceRows.length ? <div className="ttg-af-channel-list">{sourceRows.slice(0, 5).map((source) => <div key={source.label}><strong>{source.label}</strong><span>{cad.format(source.spend)}</span><small>{integer.format(source.newPatients)} new clients · {source.spend ? `${(source.revenue / source.spend).toFixed(2)}× ROAS` : "No ROAS"}</small></div>)}</div> : <p>No attributed channels in this period.</p>}</Panel><Panel title="Monthly Spend" note={marketingSpend ? range.label : "No spend data available for the selected period"}><InteractiveTrendChart currency data={marketingTrend} series={[{ key: "spend", label: "Spend", color: "#2f86ba" }]} /></Panel></div><Panel title="Channel Performance" note="Channel attribution is estimated from Jane booking-source data"><DataTable rows={sourceRows} columns={[
+      ]} /><div className="ttg-af-grid"><Panel title="Top Channels" note="Highest spend channels">{sourceRows.length ? <div className="ttg-af-channel-list">{sourceRows.slice(0, 5).map((source) => <div key={source.label}><strong>{source.label}</strong><span>{cad.format(source.spend)}</span><small>{integer.format(source.newPatients)} new clients · {source.spend ? `${(source.revenue / source.spend).toFixed(2)}× ROAS` : "No ROAS"}</small></div>)}</div> : <p>No attributed channels in this period.</p>}</Panel><Panel title="Monthly Spend" note={marketingSpend ? range.label : "No spend data available for the selected period"}>{marketingSpend ? <InteractiveTrendChart currency data={marketingTrend} series={[{ key: "spend", label: "Spend", color: "#2f86ba" }]} /> : <p>No spend data available for the selected period.</p>}</Panel></div><Panel title="Channel Performance" note="Channel attribution is estimated from qualifying Jane appointments"><DataTable rows={sourceRows} columns={[
         { label: "Channel", value: (row) => String(row.label) },
         { label: "Spend", value: (row) => cad.format(Number(row.spend)) },
         { label: "New Clients", value: (row) => integer.format(Number(row.newPatients)) },
@@ -334,7 +334,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
         { label: "CTR", value: () => "—" },
         { label: "CPC", value: () => "—" },
         { label: "First Visit Lag", value: () => "-" },
-        { label: "Confidence", value: () => pct(confidence) },
+        { label: "Confidence", value: () => `${Math.round(confidence * 100)}%` },
       ]} /></Panel></>}
       {marketingTab === "campaigns" && <><Cards items={[
         { label: "Active Campaigns", value: String(selectedCampaigns.filter((campaign) => campaign.status.toLowerCase() === "active").length), detail: range.label },
