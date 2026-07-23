@@ -37,6 +37,38 @@ export type TherapistMetric = {
 
 export type ExpenseMetric = { category: string; amount: number; share: number };
 
+export type MarketingCampaign = {
+  id: string;
+  name: string;
+  channel: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  spend: number;
+  impressions?: number;
+  clicks?: number;
+  source: string;
+};
+
+export type CustomWidget = {
+  id: string;
+  position: number;
+  widgetType: string;
+  title: string;
+  metricKey?: string;
+  configuration: Record<string, unknown>;
+};
+
+export type CustomDashboard = {
+  id: string;
+  name: string;
+  description: string;
+  isDefault: boolean;
+  pinned: boolean;
+  updatedAt: string;
+  widgets: CustomWidget[];
+};
+
 export type QualityStatus = "PASS" | "WARNING" | "FAIL";
 
 export type DashboardSource = {
@@ -72,6 +104,8 @@ export type TtgDashboardData = {
   analytics?: NonNullable<RefreshPayload["analytics"]>;
   analyticsRows: AnalyticsDailyRow[];
   cohortRows: RetentionCohortRow[];
+  marketingCampaigns?: MarketingCampaign[];
+  customDashboards?: CustomDashboard[];
   dataTables?: Array<{ name: string; columns: string[]; rows: SheetRow[]; rowCount?: number }>;
   summary: {
     activeTherapists: number;

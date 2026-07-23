@@ -1,6 +1,8 @@
 import type {
+  CustomDashboard,
   DashboardSource,
   ExpenseMetric,
+  MarketingCampaign,
   MonthlyMetric,
   TherapistMetric,
   TtgDashboardData,
@@ -314,6 +316,9 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     transactionPreview,
     salesPreview,
     collectionPreview,
+    marketingDb,
+    customDashboardDb,
+    customWidgetDb,
   ] = await Promise.all([
     allRows("analytics_daily_current", "date"),
     allRows("retention_cohorts_current", "cohort_month"),
@@ -326,6 +331,9 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     previewRows("transaction_facts_current", "date"),
     previewRows("sales_facts_current", "date"),
     previewRows("collection_facts_current", "date"),
+    allRows("marketing_campaigns", "start_date"),
+    allRows("custom_dashboards", "created_at"),
+    allRows("custom_widgets", "position"),
   ]);
   const activeRuns = runsDb.filter((row) => !row.rolled_back_at);
   const latestRun = activeRuns.at(-1);
@@ -413,6 +421,42 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
   const clinicalMonth = months.find((row) => row.period === capacityPeriod) ?? months.at(-1)!;
   const payoutCheck = qualityChecks.find((check) => check.check.toLowerCase().includes("payout count"));
   const payoutValue = qualityChecks.find((check) => check.check.toLowerCase().includes("payout value"))?.actual ?? 0;
+  const marketingCampaigns: MarketingCampaign[] = marketingDb
+    .filter((row) => !row.archived_at)
+    .map((row) => ({
+      id: text(row.id),
+      name: text(row.name),
+      channel: text(row.channel),
+      status: text(row.status),
+      startDate: text(row.start_date),
+      endDate: text(row.end_date),
+      spend: number(row.spend),
+      impressions: row.impressions == null ? undefined : number(row.impressions),
+      clicks: row.clicks == null ? undefined : number(row.clicks),
+      source: text(row.source),
+    }))
+    .sort((left, right) => right.startDate.localeCompare(left.startDate));
+  const customDashboards: CustomDashboard[] = customDashboardDb
+    .filter((row) => !row.deleted_at)
+    .map((row) => ({
+      id: text(row.id),
+      name: text(row.name),
+      description: text(row.description),
+      isDefault: Boolean(row.is_default),
+      pinned: Boolean(row.pinned),
+      updatedAt: text(row.updated_at),
+      widgets: customWidgetDb
+        .filter((widget) => text(widget.dashboard_id) === text(row.id))
+        .map((widget) => ({
+          id: text(widget.id),
+          position: number(widget.position),
+          widgetType: text(widget.widget_type),
+          title: text(widget.title),
+          metricKey: text(widget.metric_key) || undefined,
+          configuration: (widget.configuration ?? {}) as Record<string, unknown>,
+        }))
+        .sort((left, right) => left.position - right.position),
+    }));
 
   return {
     ...ttgDashboardFixture,
@@ -426,6 +470,8 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     analytics,
     analyticsRows,
     cohortRows,
+    marketingCampaigns,
+    customDashboards,
     dataTables: [
       {
         name: "Appointments",

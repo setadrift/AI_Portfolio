@@ -403,6 +403,73 @@ export async function rollbackSupabaseRefresh(refreshId: string, refreshedBy: st
   };
 }
 
+export async function createSupabaseMarketingCampaign(input: {
+  name: string;
+  channel: string;
+  startDate: string;
+  endDate: string;
+  spend: number;
+  createdBy: string;
+}) {
+  const { error } = await db().from("marketing_campaigns").insert({
+    name: input.name,
+    channel: input.channel,
+    status: "completed",
+    start_date: input.startDate,
+    end_date: input.endDate,
+    spend: input.spend,
+    source: `manual:${input.createdBy}`,
+  });
+  if (error) throw new Error(`TTG campaign write failed: ${error.message}`);
+}
+
+export async function createSupabaseCustomDashboard(input: {
+  name: string;
+  description: string;
+  createdBy: string;
+}) {
+  const { error } = await db().from("custom_dashboards").insert({
+    name: input.name,
+    description: input.description,
+    is_default: false,
+    pinned: false,
+  });
+  if (error) throw new Error(`TTG custom dashboard write failed: ${error.message}`);
+}
+
+export async function addSupabaseCustomWidget(input: {
+  dashboardId: string;
+  widgetType: string;
+  title: string;
+  metricKey?: string;
+  createdBy: string;
+}) {
+  const { data: dashboard, error: dashboardError } = await db()
+    .from("custom_dashboards")
+    .select("id")
+    .eq("id", input.dashboardId)
+    .is("deleted_at", null)
+    .single();
+  if (dashboardError || !dashboard) throw new Error("That custom dashboard is no longer available.");
+  const { data: lastWidget, error: positionError } = await db()
+    .from("custom_widgets")
+    .select("position")
+    .eq("dashboard_id", input.dashboardId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (positionError) throw new Error(`TTG widget position read failed: ${positionError.message}`);
+  const { error } = await db().from("custom_widgets").insert({
+    dashboard_id: input.dashboardId,
+    position: Number(lastWidget?.position ?? -1) + 1,
+    widget_type: input.widgetType,
+    title: input.title,
+    metric_key: input.metricKey ?? null,
+    configuration: { created_by: input.createdBy },
+  });
+  if (error) throw new Error(`TTG custom widget write failed: ${error.message}`);
+}
+
 export function ttgReportingClient() {
   return db();
 }
