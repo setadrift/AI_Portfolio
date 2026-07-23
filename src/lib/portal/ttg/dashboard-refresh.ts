@@ -41,6 +41,50 @@ export type CoverageDay = {
 export type RefreshIssue = { status: "WARNING" | "FAIL"; title: string; detail: string };
 export type RefreshType = "jane" | "full";
 
+export type AnalyticsDailyRow = {
+  date: string;
+  entity: "clinic" | "practitioner" | "service" | "payer" | "payment_method" | "booking_source" | "hour";
+  name: string;
+  appointments: number;
+  completed: number;
+  cancelled: number;
+  noShows: number;
+  pending: number;
+  invoiced: number;
+  collected: number;
+  processed: number;
+  outstanding: number;
+  commission: number;
+  transactions: number;
+  fees: number;
+  refunds: number;
+  patients: number;
+  newPatients: number;
+  consultations: number;
+  firstVisits: number;
+  subsequentVisits: number;
+  bookedMinutes: number;
+  recovered: number;
+  paymentLagDays: number;
+  paymentLagSamples: number;
+};
+
+export type RetentionCohortRow = {
+  cohortMonth: string;
+  entity: "clinic" | "practitioner" | "service";
+  name: string;
+  cohortSize: number;
+  eligible30: number;
+  retained30: number;
+  eligible60: number;
+  retained60: number;
+  eligible90: number;
+  retained90: number;
+  repeatPatients: number;
+  visitGapDays: number;
+  visitGapSamples: number;
+};
+
 export type RefreshPayload = {
   refreshId: string;
   refreshType: RefreshType;
@@ -92,6 +136,8 @@ export type RefreshPayload = {
       uniquePatients: number;
     };
   };
+  analyticsRows: AnalyticsDailyRow[];
+  cohortRows: RetentionCohortRow[];
   fileSummaries: ImportFileSummary[];
   sourceCoverage: SourceCoverage[];
   coverageCalendar: CoverageDay[];
@@ -246,6 +292,24 @@ function janeRecords(file: { rows: string[][] } | undefined, kind: JaneKind) {
   return headerIndex < 0 ? [] : records(file.rows, headerIndex);
 }
 
+function dedupeJaneRows(kind: JaneKind, rows: CsvRow[]) {
+  const fields: Record<JaneKind, string[]> = {
+    appointments: ["id"],
+    compensation: ["Invoice #", "Description", "Practitioner", "Transaction Date", "Payment Date", "Collected Total", "Commission Total", "Quantity", "Income Category"],
+    sales: ["Invoice #", "Patient Guid", "Item", "Staff Member", "Total", "Collected", "Balance", "Details", "Status"],
+    payments: ["Date", "Payer", "Payment Method", "Applied To", "Total", "Number of Transactions", "Amount"],
+    hours: ["Date", "Staff Name", "Shift Total Hours", "Appointment Total Hours"],
+    payouts: ["Date Created", "Date Deposited", "Payout Amount", "Payout Status"],
+  };
+  const unique = new Map<string, CsvRow>();
+  rows.forEach((row) => {
+    const values = fields[kind].map((field) => row[field] ?? "");
+    const key = values.some(Boolean) ? values.join("\u001f") : JSON.stringify(row);
+    unique.set(key, row);
+  });
+  return [...unique.values()];
+}
+
 function rowDate(row: CsvRow, fields: string[]) {
   for (const field of fields) {
     const value = row[field];
@@ -278,6 +342,12 @@ function periodFromSalesName(name: string) {
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const daysApart = (left: string, right: string) => Math.abs((new Date(left).getTime() - new Date(right).getTime()) / 86_400_000);
 const normalizeName = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const latestCompleteTorontoDate = () => {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((part) => [part.type, part.value]));
+  const today = new Date(`${parts.year}-${parts.month}-${parts.day}T12:00:00Z`);
+  today.setUTCDate(today.getUTCDate() - 1);
+  return today.toISOString().slice(0, 10);
+};
 
 function expenseCategory(description: string, account: BankKind) {
   const value = description.toUpperCase();
@@ -310,6 +380,173 @@ function safePayerCategory(value: string) {
   return "Other payer";
 }
 
+type AnalyticsAccumulator = Omit<AnalyticsDailyRow, "date" | "entity" | "name" | "patients"> & {
+  patientIds: Set<string>;
+};
+
+function buildAnalyticsRows(
+  appointmentRows: CsvRow[],
+  salesRows: CsvRow[],
+  compensationRows: CsvRow[],
+  paymentRows: CsvRow[],
+  dataThrough: string,
+) {
+  const daily = new Map<string, AnalyticsAccumulator>();
+  const base = (): AnalyticsAccumulator => ({
+    appointments: 0, completed: 0, cancelled: 0, noShows: 0, pending: 0,
+    invoiced: 0, collected: 0, processed: 0, outstanding: 0, commission: 0, transactions: 0,
+    fees: 0, refunds: 0, patientIds: new Set(), newPatients: 0, consultations: 0,
+    firstVisits: 0, subsequentVisits: 0, bookedMinutes: 0, recovered: 0,
+    paymentLagDays: 0, paymentLagSamples: 0,
+  });
+  const add = (
+    date: string,
+    entity: AnalyticsDailyRow["entity"],
+    name: string,
+    update: Partial<Omit<AnalyticsDailyRow, "date" | "entity" | "name" | "patients">> & { patientId?: string },
+  ) => {
+    if (!date || !name) return;
+    const key = `${date}\u001f${entity}\u001f${name}`;
+    const row = daily.get(key) ?? base();
+    for (const [field, value] of Object.entries(update)) {
+      if (field === "patientId") continue;
+      const numericValue = Number(value ?? 0);
+      if (Number.isFinite(numericValue)) (row as unknown as Record<string, number>)[field] = ((row as unknown as Record<string, number>)[field] ?? 0) + numericValue;
+    }
+    if (update.patientId) row.patientIds.add(update.patientId);
+    daily.set(key, row);
+  };
+  const dimensions = (
+    date: string,
+    update: Parameters<typeof add>[3],
+    values: Array<[AnalyticsDailyRow["entity"], string]>,
+  ) => {
+    add(date, "clinic", "Clinic", update);
+    values.forEach(([entity, name]) => add(date, entity, name || "Unassigned", update));
+  };
+
+  const activeAppointments = appointmentRows.filter((row) => !["never booked", "never_booked", "deleted", "archived", "rescheduled"].includes((row.state ?? row.State ?? "").toLowerCase()));
+  const patientVisits = new Map<string, Array<{ date: string; practitioner: string; service: string; first: boolean }>>();
+  const missedAppointments: Array<{ date: string; patientId: string; practitioner: string }> = [];
+  for (const row of activeAppointments) {
+    const date = rowDate(row, COVERAGE_FIELDS.appointments);
+    if (!date) continue;
+    const state = (row.state ?? row.State ?? "").toLowerCase();
+    const practitioner = row.staff_member_name ?? row["Staff Member"] ?? row.Staff ?? "Unassigned";
+    const service = row.treatment_name || row.Type || row.Session || "Unknown service";
+    const bookingSource = String(row.booked_online ?? row["Booked Online"] ?? "").toLowerCase() === "true" ? "Online" : "Staff booked";
+    const patientId = row.patient_guid || row["Patient Guid"] || "";
+    const isConsultation = /consult/i.test(service);
+    const isFirst = String(row.first_visit ?? row["First Visit"] ?? "").toLowerCase() === "true";
+    const startValue = row.start_at || row["Start At"] || row.Date || `${date}T00:00:00Z`;
+    const start = new Date(startValue);
+    const end = new Date(row.end_at || row["End At"] || row.Date || `${date}T00:00:00Z`);
+    const bookedMinutes = Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) ? Math.max(0, (end.getTime() - start.getTime()) / 60_000) : 0;
+    const update = {
+      appointments: 1,
+      completed: ["arrived", "completed"].includes(state) ? 1 : 0,
+      cancelled: state === "cancelled" ? 1 : 0,
+      noShows: ["no_show", "no show"].includes(state) ? 1 : 0,
+      pending: ["arrived", "completed", "cancelled", "no_show", "no show"].includes(state) ? 0 : 1,
+      consultations: isConsultation ? 1 : 0,
+      firstVisits: !isConsultation && isFirst ? 1 : 0,
+      subsequentVisits: !isConsultation && !isFirst ? 1 : 0,
+      newPatients: isFirst ? 1 : 0,
+      bookedMinutes,
+      patientId,
+    };
+    const hour = String(startValue).match(/[T ](\d{1,2}):/)?.[1]?.padStart(2, "0") ?? (Number.isFinite(start.getTime()) ? String(start.getUTCHours()).padStart(2, "0") : "Unknown");
+    dimensions(date, update, [["practitioner", practitioner], ["service", service], ["booking_source", bookingSource], ["hour", hour]]);
+    if (patientId && ["arrived", "completed"].includes(state)) {
+      patientVisits.set(patientId, [...(patientVisits.get(patientId) ?? []), { date, practitioner, service, first: isFirst }]);
+    }
+    if (patientId && (state === "cancelled" || state === "no_show" || state === "no show")) missedAppointments.push({ date, patientId, practitioner });
+  }
+  for (const missed of missedAppointments) {
+    const recovered = (patientVisits.get(missed.patientId) ?? []).some((visit) => visit.date > missed.date);
+    if (recovered) dimensions(missed.date, { recovered: 1 }, [["practitioner", missed.practitioner]]);
+  }
+
+  for (const row of salesRows) {
+    const date = rowDate(row, COVERAGE_FIELDS.sales);
+    if (!date) continue;
+    const invoice = money(row.Total);
+    const collected = money(row.Collected);
+    const update = { invoiced: invoice, collected, outstanding: money(row.Balance) };
+    dimensions(date, update, [
+      ["practitioner", row["Staff Member"] || "Unassigned"],
+      ["service", row.Item || row["Income Category"] || "Other"],
+      ["payer", safePayerCategory(row.Payer || "Patient / private pay")],
+    ]);
+  }
+
+  for (const row of compensationRows) {
+    const date = rowDate(row, COVERAGE_FIELDS.compensation);
+    if (!date) continue;
+    const purchaseDate = isoDate(row["Purchase Date"]);
+    const paymentDate = isoDate(row["Payment Date"]);
+    const lag = purchaseDate && paymentDate ? daysApart(paymentDate, purchaseDate) : 0;
+    dimensions(date, { commission: money(row["Commission Total"]), paymentLagDays: lag, paymentLagSamples: purchaseDate && paymentDate ? 1 : 0 }, [["practitioner", row.Practitioner || "Unassigned"]]);
+  }
+
+  for (const row of paymentRows) {
+    const date = rowDate(row, COVERAGE_FIELDS.payments);
+    if (!date) continue;
+    const method = row["Payment Method"] || "Other";
+    const amount = money(row["Amount Paid to Clinic"] || row.Amount || row.Total);
+    const transactions = money(row["Number of Transactions"] || "1");
+    const fees = /fee/i.test(method) ? Math.abs(amount) : 0;
+    const refunds = /refund/i.test(method) || amount < 0 && !/fee/i.test(method) ? Math.abs(amount) : 0;
+    const update = { transactions, fees, refunds };
+    dimensions(date, { ...update, processed: amount }, [["payment_method", method]]);
+  }
+
+  const cohortMap = new Map<string, { patientIds: Set<string>; eligible30: number; retained30: number; eligible60: number; retained60: number; eligible90: number; retained90: number; repeatPatients: number; visitGapDays: number; visitGapSamples: number }>();
+  const cohortBase = () => ({ patientIds: new Set<string>(), eligible30: 0, retained30: 0, eligible60: 0, retained60: 0, eligible90: 0, retained90: 0, repeatPatients: 0, visitGapDays: 0, visitGapSamples: 0 });
+  const addCohort = (patientId: string, visits: Array<{ date: string; practitioner: string; service: string; first: boolean }>, entity: RetentionCohortRow["entity"], name: string) => {
+    const ordered = [...visits].sort((a, b) => a.date.localeCompare(b.date));
+    const first = ordered.find((visit) => visit.first);
+    if (!first) return;
+    const eligibleVisits = ordered.filter((visit) => visit.date >= first.date);
+    const key = `${first.date.slice(0, 7)}\u001f${entity}\u001f${name}`;
+    const group = cohortMap.get(key) ?? cohortBase();
+    if (group.patientIds.has(patientId)) return;
+    group.patientIds.add(patientId);
+    const gaps = eligibleVisits.slice(1).map((visit, index) => daysApart(visit.date, eligibleVisits[index].date)).filter((gap) => gap >= 0);
+    const maturity = daysApart(dataThrough, first.date);
+    const retainedWithin = (days: number) => eligibleVisits.slice(1).some((visit) => daysApart(visit.date, first.date) <= days);
+    if (maturity >= 30) { group.eligible30 += 1; if (retainedWithin(30)) group.retained30 += 1; }
+    if (maturity >= 60) { group.eligible60 += 1; if (retainedWithin(60)) group.retained60 += 1; }
+    if (maturity >= 90) { group.eligible90 += 1; if (retainedWithin(90)) group.retained90 += 1; }
+    if (eligibleVisits.length > 1) group.repeatPatients += 1;
+    if (gaps.length) { group.visitGapDays += gaps.reduce((sum, gap) => sum + gap, 0); group.visitGapSamples += gaps.length; }
+    cohortMap.set(key, group);
+  };
+  for (const [patientId, visits] of patientVisits) {
+    const first = [...visits].sort((a, b) => a.date.localeCompare(b.date)).find((visit) => visit.first);
+    if (!first) continue;
+    addCohort(patientId, visits, "clinic", "Clinic");
+    addCohort(patientId, visits, "practitioner", first.practitioner || "Unassigned");
+    addCohort(patientId, visits, "service", first.service || "Unknown service");
+  }
+
+  const analyticsRows: AnalyticsDailyRow[] = [...daily].map(([key, row]) => {
+    const [date, entity, name] = key.split("\u001f");
+    return {
+      date,
+      entity: entity as AnalyticsDailyRow["entity"],
+      name,
+      ...Object.fromEntries(Object.entries(row).filter(([field]) => field !== "patientIds")),
+      patients: row.patientIds.size,
+    } as AnalyticsDailyRow;
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.entity.localeCompare(b.entity) || a.name.localeCompare(b.name));
+  const cohortRows: RetentionCohortRow[] = [...cohortMap].map(([key, row]) => {
+    const [cohortMonth, entity, name] = key.split("\u001f");
+    return { cohortMonth, entity: entity as RetentionCohortRow["entity"], name, cohortSize: row.patientIds.size, eligible30: row.eligible30, retained30: row.retained30, eligible60: row.eligible60, retained60: row.retained60, eligible90: row.eligible90, retained90: row.retained90, repeatPatients: row.repeatPatients, visitGapDays: row.visitGapDays, visitGapSamples: row.visitGapSamples };
+  }).sort((a, b) => a.cohortMonth.localeCompare(b.cohortMonth) || a.entity.localeCompare(b.entity) || a.name.localeCompare(b.name));
+  return { analyticsRows, cohortRows };
+}
+
 export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const parsed = files.map((file) => ({ ...file, rows: parseCsv(file.text) }));
   const identified = parsed.map((file) => ({ ...file, classification: classify(file.name, file.rows) }));
@@ -325,31 +562,77 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const issues: RefreshIssue[] = [];
   const byKind = new Map<string, typeof identified>();
   for (const file of identified) byKind.set(file.classification.kind, [...(byKind.get(file.classification.kind) ?? []), file]);
-  for (const kind of REQUIRED_JANE_REPORTS) {
+  for (const kind of CORE_JANE_REPORTS) {
     const count = byKind.get(kind)?.length ?? 0;
-    if (count !== 1) issues.push({ status: "FAIL", title: count ? `Duplicate Jane ${kind} report` : `Missing Jane ${kind} report`, detail: "Upload exactly one CSV for each required Jane report." });
+    if (!count) issues.push({ status: "FAIL", title: `Missing Jane ${kind} report`, detail: "Upload at least one CSV for each of the four AdminFlow core reports." });
   }
-  const salesFile = byKind.get("sales")?.[0];
-  const period = salesFile ? periodFromSalesName(salesFile.name) : null;
-  if (!period) issues.push({ status: "FAIL", title: "Sales filename does not include its date range", detail: "Use Jane's original Sales_YYYYMMDD_YYYYMMDD.csv filename." });
-  const safePeriod = period ?? { start: "1970-01-01", end: "1970-01-01" };
+
+  const allRows = <T extends JaneKind>(kind: T) => {
+    const ordered = [...(byKind.get(kind) ?? [])].sort((left, right) => {
+      const leftRange = dateRange(left, kind, { start: "", end: "" });
+      const rightRange = dateRange(right, kind, { start: "", end: "" });
+      return leftRange.end.localeCompare(rightRange.end) || left.name.localeCompare(right.name);
+    });
+    return dedupeJaneRows(kind, ordered.flatMap((file) => janeRecords(file, kind)));
+  };
+  const allAppointmentRows = allRows("appointments");
+  const allCompensationRows = allRows("compensation");
+  const allSalesRows = allRows("sales");
+  const allPaymentRows = allRows("payments");
+  const allHoursRows = allRows("hours");
+  const allPayoutRows = allRows("payouts");
+  const salesDates = allSalesRows.map((row) => rowDate(row, COVERAGE_FIELDS.sales)).filter(Boolean).sort();
+  const namedSalesDates = (byKind.get("sales") ?? []).map((file) => periodFromSalesName(file.name)?.end ?? "").filter(Boolean).sort();
+  const latestSelectedSalesDate = [...salesDates, ...namedSalesDates].sort().at(-1) ?? "";
+  const latestSalesDate = latestSelectedSalesDate ? [latestSelectedSalesDate, latestCompleteTorontoDate()].sort()[0] : "";
+  if (!latestSalesDate) issues.push({ status: "FAIL", title: "Sales report has no usable dates", detail: "Export Sales directly from Jane with Purchase Date or Invoice Date included." });
+  const safePeriod = {
+    start: latestSalesDate ? `${latestSalesDate.slice(0, 7)}-01` : "1970-01-01",
+    end: latestSalesDate || "1970-01-01",
+  };
   const periodKey = safePeriod.start.slice(0, 7);
+  const inCurrentPeriod = (row: CsvRow, kind: JaneKind) => {
+    const date = rowDate(row, COVERAGE_FIELDS[kind]);
+    return date >= safePeriod.start && date <= safePeriod.end;
+  };
+  const appointmentRows = allAppointmentRows.filter((row) => inCurrentPeriod(row, "appointments"));
+  const compensationRows = allCompensationRows.filter((row) => inCurrentPeriod(row, "compensation"));
+  const salesRows = allSalesRows.filter((row) => inCurrentPeriod(row, "sales"));
+  const paymentRows = allPaymentRows.filter((row) => inCurrentPeriod(row, "payments"));
+  const hoursRows = allHoursRows.filter((row) => inCurrentPeriod(row, "hours"));
+  const payoutRows = allPayoutRows.filter((row) => inCurrentPeriod(row, "payouts"));
+
+  const overlappingKinds = CORE_JANE_REPORTS.filter((kind) => {
+    const rawCount = (byKind.get(kind) ?? []).reduce((sum, file) => sum + janeRecords(file, kind).length, 0);
+    return rawCount > allRows(kind).length;
+  });
+  if (overlappingKinds.length) {
+    issues.push({
+      status: "WARNING",
+      title: "Overlapping historical exports were de-duplicated",
+      detail: `${overlappingKinds.map((kind) => JANE_LABELS[kind]).join(", ")} contained repeated rows across files. Stable report keys were used so the repeats do not inflate the dashboard.`,
+    });
+  }
+
   const bankFileCount = REQUIRED_BANK_ACCOUNTS.reduce((sum, kind) => sum + (byKind.get(kind)?.length ?? 0), 0);
   const refreshType: RefreshType = bankFileCount === 0 ? "jane" : "full";
-  if (safePeriod.end.slice(0, 7) !== periodKey) issues.push({ status: "FAIL", title: "The refresh spans more than one month", detail: "Upload one calendar month at a time." });
-  if (safePeriod.start !== `${periodKey}-01`) issues.push({ status: "FAIL", title: "Jane refresh must start on the first day of the month", detail: `Re-export every Jane report from ${periodKey}-01 through the selected cutoff. A one-day export cannot replace month-to-date totals.` });
   if (refreshType === "full") {
     for (const kind of REQUIRED_BANK_ACCOUNTS) {
       const matches = (byKind.get(kind) ?? []).filter((file) => file.name.includes(`${safePeriod.start.slice(5, 7)}-${safePeriod.start.slice(0, 4)}`));
-      if (matches.length !== 1) issues.push({ status: "FAIL", title: `Incomplete bank package: ${kind}`, detail: `Either upload all five ${periodKey} bank CSVs or upload the six Jane reports without bank files.` });
+      if (matches.length !== 1) issues.push({ status: "FAIL", title: `Incomplete bank package: ${kind}`, detail: `Either upload all five ${periodKey} bank CSVs or upload the Jane reports without bank files.` });
     }
   }
   if (fileSummaries.some((file) => file.status === "blocked")) issues.push({ status: "FAIL", title: "One or more files are unrecognized", detail: "Remove them or download the expected CSV directly from Jane or the bank." });
 
   const sourceCoverage: SourceCoverage[] = REQUIRED_JANE_REPORTS.map((kind) => {
-    const file = byKind.get(kind)?.[0];
-    const range = file ? dateRange(file, kind, safePeriod) : { start: "", end: "" };
-    const status = !file ? "missing" : range.start <= safePeriod.start && range.end >= safePeriod.end ? "complete" : "partial";
+    const filesForKind = byKind.get(kind) ?? [];
+    const rowsForKind = allRows(kind);
+    const dates = rowsForKind.map((row) => rowDate(row, COVERAGE_FIELDS[kind])).filter(Boolean).sort();
+    const range = {
+      start: dates[0] ?? "",
+      end: dates.at(-1) ?? "",
+    };
+    const status = !filesForKind.length ? "missing" : range.start <= safePeriod.start && range.end >= safePeriod.end ? "complete" : "partial";
     return {
       kind,
       label: JANE_LABELS[kind],
@@ -361,23 +644,29 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     };
   });
   sourceCoverage.forEach((coverage) => {
-    const summary = fileSummaries.find((file) => file.kind === coverage.kind);
-    if (summary) {
-      summary.coverageStart = coverage.start;
-      summary.coverageEnd = coverage.end;
-      if (coverage.status === "partial") {
+    const summaries = fileSummaries.filter((file) => file.kind === coverage.kind);
+    summaries.forEach((summary) => {
+      const sourceFile = identified.find((file) => file.name === summary.name);
+      const range = sourceFile ? dateRange(sourceFile, coverage.kind, safePeriod) : { start: "", end: "" };
+      summary.coverageStart = range.start;
+      summary.coverageEnd = range.end;
+      if (coverage.status === "partial" && summaries.length === 1) {
         summary.status = "warning";
         summary.note = "The latest dated row is earlier than the selected refresh cutoff; confirm the export range before publishing.";
+      } else if (summaries.length > 1) {
+        summary.note = "Historical segment recognized; overlapping rows are de-duplicated automatically.";
       }
+    });
+    if (!summaries.length && coverage.role === "supplemental") return;
+    if (coverage.role === "core" && coverage.status === "partial") {
+      issues.push({ status: "WARNING", title: `${coverage.label} may have incomplete current-period coverage`, detail: `The latest dashboard period is ${safePeriod.start} through ${safePeriod.end}; dated rows run ${coverage.start || "no dated rows"} through ${coverage.end || "no dated rows"}. Empty days can be valid, so confirm the Jane date selector if the cutoff is unexpected.` });
     }
-    if (coverage.status === "partial") issues.push({ status: "WARNING", title: `${coverage.label} may have incomplete date coverage`, detail: `The selected package is ${safePeriod.start} through ${safePeriod.end}; dated rows run ${coverage.start || "no dated rows"} through ${coverage.end || "no dated rows"}. Empty days can be valid, so confirm the Jane date selector rather than treating this as a hard failure.` });
   });
   const coverageCalendar: CoverageDay[] = eachDate(safePeriod.start, safePeriod.end).map((date) => {
-    const covered = sourceCoverage.filter((source) => source.start && source.start <= date && source.end >= date).length;
-    return { date, covered, expected: REQUIRED_JANE_REPORTS.length, status: covered === REQUIRED_JANE_REPORTS.length ? "complete" : covered ? "partial" : "missing" };
+    const covered = sourceCoverage.filter((source) => source.role === "core" && source.start && source.start <= date && source.end >= date).length;
+    return { date, covered, expected: CORE_JANE_REPORTS.length, status: covered === CORE_JANE_REPORTS.length ? "complete" : covered ? "partial" : "missing" };
   });
 
-  const salesRows = janeRecords(salesFile, "sales");
   const salesByTherapist = new Map<string, { invoices: Set<string>; invoiced: number; collected: number }>();
   for (const row of salesRows) {
     const name = row["Staff Member"];
@@ -388,17 +677,13 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     item.collected += money(row.Collected);
     salesByTherapist.set(name, item);
   }
-  const hoursFile = byKind.get("hours")?.[0];
-  const hours = new Map(janeRecords(hoursFile, "hours").map((row) => [normalizeName(row["Staff Name"]), row]));
-  const compensationFile = byKind.get("compensation")?.[0];
+  const hours = new Map(hoursRows.map((row) => [normalizeName(row["Staff Name"]), row]));
   const compensation = new Map<string, number>();
-  for (const row of janeRecords(compensationFile, "compensation")) {
+  for (const row of compensationRows) {
     const name = row.Practitioner;
     if (!name) continue;
     compensation.set(name, (compensation.get(name) ?? 0) + money(row["Commission Total"]));
   }
-  const appointmentFile = byKind.get("appointments")?.[0];
-  const appointmentRows = janeRecords(appointmentFile, "appointments");
   const activeAppointmentRows = appointmentRows.filter((row) => !["never booked", "never_booked", "deleted", "archived", "rescheduled"].includes((row.state ?? row.State ?? "").toLowerCase()));
   const appointmentCounts = new Map<string, number>();
   const displayNames = new Map<string, string>();
@@ -453,11 +738,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   for (const row of external.filter((item) => item.amount < 0 && item.operating)) expenseTotals.set(row.category, (expenseTotals.get(row.category) ?? 0) + Math.abs(row.amount));
   const expenses = [...expenseTotals].map(([category, amount]) => ({ category, amount: round(amount) })).sort((a, b) => b.amount - a.amount);
 
-  const payoutFile = byKind.get("payouts")?.[0];
-  const payoutRows = janeRecords(payoutFile, "payouts");
   const payouts = payoutRows.filter((row) => row["Date Created"]).map((row) => ({ created: isoDate(row["Date Created"]), deposited: isoDate(row["Date Deposited"]), amount: money(row["Payout Amount"]), status: row["Payout Status"] }));
-  const paymentsFile = byKind.get("payments")?.[0];
-  const paymentRows = janeRecords(paymentsFile, "payments").filter((row) => rowDate(row, COVERAGE_FIELDS.payments));
   const paymentTotal = round(paymentRows.reduce((sum, row) => sum + money(row["Amount Paid to Clinic"] || row.Amount || row.Total), 0));
   const reconciliation = payouts.map((payout, index) => {
     const match = external.find((row) => row.amount > 0 && Math.abs(row.amount - payout.amount) < 0.01 && daysApart(row.date, payout.deposited) <= 3);
@@ -580,6 +861,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     patients: { total: allPatients.size, newPatients: newPatients.size, returningPatients: Math.max(0, allPatients.size - newPatients.size), repeatVisitRate: allPatients.size ? [...allPatients.values()].filter((count) => count > 1).length / allPatients.size : 0, historyAvailable, historyStart },
     funnel: { consultations, consultationPatients: consultationPatients.size, firstVisits, subsequentVisits, uniquePatients: allPatients.size },
   };
+  const { analyticsRows, cohortRows } = buildAnalyticsRows(allAppointmentRows, allSalesRows, allCompensationRows, allPaymentRows, safePeriod.end);
   return {
     refreshId: randomUUID(),
     refreshType,
@@ -589,6 +871,8 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     periodEnd: safePeriod.end,
     periodStatus: complete && refreshType === "full" ? "Complete" : "Partial",
     analytics,
+    analyticsRows,
+    cohortRows,
     fileSummaries,
     sourceCoverage,
     coverageCalendar,

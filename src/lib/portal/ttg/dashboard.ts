@@ -1,7 +1,7 @@
 import { createSign } from "node:crypto";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { ttgDashboardFixture } from "./dashboard-fixture";
-import type { RefreshPayload } from "./dashboard-refresh";
+import type { AnalyticsDailyRow, RefreshPayload, RetentionCohortRow } from "./dashboard-refresh";
 
 export type MonthlyMetric = {
   period: string;
@@ -68,6 +68,8 @@ export type TtgDashboardData = {
     notes: string;
   }>;
   analytics?: NonNullable<RefreshPayload["analytics"]>;
+  analyticsRows: AnalyticsDailyRow[];
+  cohortRows: RetentionCohortRow[];
   dataTables?: Array<{ name: string; columns: string[]; rows: SheetRow[] }>;
   summary: {
     activeTherapists: number;
@@ -98,6 +100,12 @@ const SHEET_HEADERS = new Set([
   "Date Created", "Date Deposited", "Payout Amount", "Payout Status",
   "Payout ID", "Jane Deposit Date", "Jane Amount", "Bank Date", "Bank Amount", "Notes",
   "Report", "Role", "Coverage Start", "Coverage End", "Coverage Status", "Refresh ID",
+  "Date", "Entity", "Name", "Appointments", "Completed", "Cancelled", "No Shows", "Pending",
+  "Invoiced", "Collected", "Outstanding", "Commission", "Transactions", "Fees", "Refunds",
+  "Processed", "Patients", "New Patients", "Consultations", "First Visits", "Subsequent Visits", "Booked Minutes",
+  "Recovered", "Payment Lag Days", "Payment Lag Samples",
+  "Cohort Month", "Cohort Size", "Eligible 30", "Retained 30", "Eligible 60", "Retained 60",
+  "Eligible 90", "Retained 90", "Repeat Patients", "Visit Gap Days", "Visit Gap Samples",
 ]);
 
 const required = (value: string | undefined, field: string) => {
@@ -263,7 +271,9 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   const reconciliationTitle = findTitle(titles, ["Reconciliation"]);
   const coverageTitle = findTitle(titles, ["Source Coverage"]);
   const historyTitle = findTitle(titles, ["Import History"]);
-  const selected = [monthlyTitle, therapistTitle, expenseTitle, qualityTitle, payoutsTitle, reconciliationTitle, coverageTitle, refreshTitle, sourcesTitle, historyTitle].filter((title): title is string => Boolean(title));
+  const analyticsTitle = findTitle(titles, ["Analytics Daily"]);
+  const cohortsTitle = findTitle(titles, ["Retention Cohorts"]);
+  const selected = [monthlyTitle, therapistTitle, expenseTitle, qualityTitle, payoutsTitle, reconciliationTitle, coverageTitle, refreshTitle, sourcesTitle, historyTitle, analyticsTitle, cohortsTitle].filter((title): title is string => Boolean(title));
   const params = new URLSearchParams({
     majorDimension: "ROWS",
     valueRenderOption: "UNFORMATTED_VALUE",
@@ -381,7 +391,49 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       try { analytics = (JSON.parse(active[payloadColumn]) as RefreshPayload).analytics; } catch { analytics = undefined; }
     }
   }
-  const dataTables = [monthlyTitle, therapistTitle, expenseTitle, qualityTitle, payoutsTitle, reconciliationTitle, coverageTitle, refreshTitle, sourcesTitle]
+  const analyticsRows: AnalyticsDailyRow[] = analyticsTitle ? (rowsByTitle.get(analyticsTitle) ?? []).map((row) => ({
+    date: required(row.Date, "Analytics date"),
+    entity: row.Entity as AnalyticsDailyRow["entity"],
+    name: required(row.Name, "Analytics name"),
+    appointments: optionalNumeric(row.Appointments),
+    completed: optionalNumeric(row.Completed),
+    cancelled: optionalNumeric(row.Cancelled),
+    noShows: optionalNumeric(row["No Shows"]),
+    pending: optionalNumeric(row.Pending),
+    invoiced: optionalNumeric(row.Invoiced),
+    collected: optionalNumeric(row.Collected),
+    processed: optionalNumeric(row.Processed),
+    outstanding: optionalNumeric(row.Outstanding),
+    commission: optionalNumeric(row.Commission),
+    transactions: optionalNumeric(row.Transactions),
+    fees: optionalNumeric(row.Fees),
+    refunds: optionalNumeric(row.Refunds),
+    patients: optionalNumeric(row.Patients),
+    newPatients: optionalNumeric(row["New Patients"]),
+    consultations: optionalNumeric(row.Consultations),
+    firstVisits: optionalNumeric(row["First Visits"]),
+    subsequentVisits: optionalNumeric(row["Subsequent Visits"]),
+    bookedMinutes: optionalNumeric(row["Booked Minutes"]),
+    recovered: optionalNumeric(row.Recovered),
+    paymentLagDays: optionalNumeric(row["Payment Lag Days"]),
+    paymentLagSamples: optionalNumeric(row["Payment Lag Samples"]),
+  })) : [];
+  const cohortRows: RetentionCohortRow[] = cohortsTitle ? (rowsByTitle.get(cohortsTitle) ?? []).map((row) => ({
+    cohortMonth: required(row["Cohort Month"], "Cohort month"),
+    entity: row.Entity as RetentionCohortRow["entity"],
+    name: required(row.Name, "Cohort name"),
+    cohortSize: optionalNumeric(row["Cohort Size"]),
+    eligible30: optionalNumeric(row["Eligible 30"]),
+    retained30: optionalNumeric(row["Retained 30"]),
+    eligible60: optionalNumeric(row["Eligible 60"]),
+    retained60: optionalNumeric(row["Retained 60"]),
+    eligible90: optionalNumeric(row["Eligible 90"]),
+    retained90: optionalNumeric(row["Retained 90"]),
+    repeatPatients: optionalNumeric(row["Repeat Patients"]),
+    visitGapDays: optionalNumeric(row["Visit Gap Days"]),
+    visitGapSamples: optionalNumeric(row["Visit Gap Samples"]),
+  })) : [];
+  const dataTables = [monthlyTitle, therapistTitle, expenseTitle, qualityTitle, payoutsTitle, reconciliationTitle, coverageTitle, refreshTitle, sourcesTitle, analyticsTitle, cohortsTitle]
     .filter((title): title is string => Boolean(title))
     .map((title) => {
       const rows = rowsByTitle.get(title) ?? [];
@@ -411,6 +463,8 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
     expenses,
     qualityChecks,
     analytics,
+    analyticsRows,
+    cohortRows,
     dataTables,
     summary: {
       activeTherapists: therapists.length,

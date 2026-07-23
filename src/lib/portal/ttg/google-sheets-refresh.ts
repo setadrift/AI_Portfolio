@@ -43,6 +43,8 @@ const TABS = ["Monthly Metrics", "Therapist Monthly", "Expense Categories", "Jan
 const OPERATIONAL_TABS = {
   "Source Coverage": ["Report", "Role", "Coverage Start", "Coverage End", "Status", "Last Refresh ID", "Notes"],
   "Import History": ["Refresh ID", "Published At", "Refreshed By", "Period", "Status", "Active", "Payload JSON", "Superseded By"],
+  "Analytics Daily": ["Date", "Entity", "Name", "Appointments", "Completed", "Cancelled", "No Shows", "Pending", "Invoiced", "Collected", "Processed", "Outstanding", "Commission", "Transactions", "Fees", "Refunds", "Patients", "New Patients", "Consultations", "First Visits", "Subsequent Visits", "Booked Minutes", "Recovered", "Payment Lag Days", "Payment Lag Samples", "Refresh ID"],
+  "Retention Cohorts": ["Cohort Month", "Entity", "Name", "Cohort Size", "Eligible 30", "Retained 30", "Eligible 60", "Retained 60", "Eligible 90", "Retained 90", "Repeat Patients", "Visit Gap Days", "Visit Gap Samples", "Refresh ID"],
 } as const;
 
 async function readTables(includeOperational = false) {
@@ -133,6 +135,51 @@ export function buildMonthlyPublishRow(table: unknown[][], payload: RefreshPaylo
   return next;
 }
 
+export function buildTherapistPublishRows(table: unknown[][], payload: RefreshPayload) {
+  const { headerIndex, header } = tableHeader(table, "Period Start");
+  const periodColumn = header.indexOf("Period Start");
+  const therapistColumn = header.indexOf("Therapist");
+  const existing = new Map(
+    table
+      .slice(headerIndex + 1)
+      .filter((row) => rowPeriod(row[periodColumn]) === payload.periodKey && row[therapistColumn])
+      .map((row) => [String(row[therapistColumn]).trim().toLowerCase(), row]),
+  );
+  const hoursSupplied = payload.sourceCoverage.some((source) => source.kind === "hours" && source.status !== "missing");
+  return payload.therapists.map((row) => {
+    const previous = existing.get(row.name.trim().toLowerCase());
+    const previousScheduled = Number(previous?.[header.indexOf("Scheduled Hours")] ?? 0);
+    const previousBooked = Number(previous?.[header.indexOf("Booked Hours")] ?? 0);
+    const scheduledHours = hoursSupplied ? row.scheduledHours : Number.isFinite(previousScheduled) ? previousScheduled : 0;
+    const bookedHours = hoursSupplied ? row.bookedHours : Number.isFinite(previousBooked) ? previousBooked : 0;
+    return recordRow(header, {
+      "Period Start": payload.periodStart,
+      "Period Status": payload.periodStatus,
+      Therapist: row.name,
+      Invoices: row.invoices,
+      "Gross Revenue": row.invoiced,
+      "Collected Revenue": row.collected,
+      Outstanding: Math.max(0, row.invoiced - row.collected),
+      "Scheduled Hours": scheduledHours,
+      "Booked Hours": bookedHours,
+      Utilization: scheduledHours ? bookedHours / scheduledHours : 0,
+      "Booked Appointments": row.bookings,
+      "Contractor Commission": row.compensation,
+      "Owner Flag": row.owner,
+      "Revenue per Booked Hour": bookedHours ? row.invoiced / bookedHours : 0,
+      Notes: hoursSupplied
+        ? "Aggregated in portal; no patient identifiers retained."
+        : "Core Jane reports refreshed; previously published scheduled and booked hours retained.",
+    });
+  });
+}
+
+export function hasRetentionHistory(payload: RefreshPayload) {
+  const appointments = payload.sourceCoverage.find((source) => source.kind === "appointments");
+  if (!appointments?.start || !appointments.end || !payload.cohortRows.length) return false;
+  return (Date.parse(`${appointments.end}T12:00:00Z`) - Date.parse(`${appointments.start}T12:00:00Z`)) / 86_400_000 >= 90;
+}
+
 function replacePeriod(table: unknown[][], headerName: string, periodKey: string, rows: unknown[][]) {
   const headerIndex = table.findIndex((row) => row.map(String).includes(headerName));
   if (headerIndex < 0) throw new Error(`Workbook tab is missing ${headerName}`);
@@ -158,6 +205,17 @@ function appendRow(table: unknown[][], headerName: string, row: unknown[]) {
   return { startRow: headerIndex + 1, values: [header, ...existing, row], width: header.length };
 }
 
+function replaceDateRange(table: unknown[][], headerName: string, start: string, end: string, rows: unknown[][]) {
+  const { headerIndex, header } = tableHeader(table, headerName);
+  const dateIndex = header.indexOf(headerName);
+  const existing = table.slice(headerIndex + 1).filter((row) => {
+    if (!row.some((cell) => String(cell ?? "").trim())) return false;
+    const date = String(row[dateIndex] ?? "").slice(0, 10);
+    return !date || date < start || date > end;
+  });
+  return { startRow: headerIndex + 1, values: [header, ...existing, ...rows], width: header.length };
+}
+
 const column = (index: number) => String.fromCharCode(64 + index);
 
 export async function publishRefresh(payload: RefreshPayload, refreshedBy: string, expectedFingerprint: string) {
@@ -170,11 +228,13 @@ export async function publishRefresh(payload: RefreshPayload, refreshedBy: strin
   if (actualFingerprint !== expectedFingerprint) throw new Error("The workbook changed after preview. Review the files again before publishing.");
   const janeOnly = payload.refreshType === "jane";
   const monthly = replacePeriod(current.tables.get("Monthly Metrics")!, "Period Start", payload.periodKey, [buildMonthlyPublishRow(current.tables.get("Monthly Metrics")!, payload)]);
-  const therapistRows = payload.therapists.map((row) => [payload.periodStart, payload.periodStatus, row.name, row.invoices, row.invoiced, row.collected, row.collected, row.scheduledHours, row.bookedHours, row.scheduledHours ? row.bookedHours / row.scheduledHours : 0, row.bookings, row.compensation, row.owner, row.bookedHours ? row.invoiced / row.bookedHours : 0, "Aggregated in portal; no patient identifiers retained."]);
+  const therapistRows = buildTherapistPublishRows(current.tables.get("Therapist Monthly")!, payload);
   const therapists = replacePeriod(current.tables.get("Therapist Monthly")!, "Period Start", payload.periodKey, therapistRows);
   const expenses = replacePeriod(current.tables.get("Expense Categories")!, "Period Start", payload.periodKey, payload.expenses.map((row) => [payload.periodStart, payload.periodKey, row.category, row.amount]));
   const payouts = replaceAll(current.tables.get("Jane Payouts")!, "Date Created", payload.payouts.map((row) => [row.created, row.deposited, row.amount, row.status]));
   const reconciliation = replaceAll(current.tables.get("Reconciliation")!, "Payout ID", payload.reconciliation.map((row) => [row.payoutId, row.janeDepositDate, row.janeAmount, "", row.bankDate, row.bankAmount, row.difference, row.status, row.notes]));
+  const payoutsSupplied = payload.sourceCoverage.some((source) => source.kind === "payouts" && source.status !== "missing");
+  const retentionHistorySupplied = hasRetentionHistory(payload);
   const checksTable = current.tables.get("Checks")!;
   let checkRows: unknown[][] = payload.checks.map((row) => [row.check, row.actual, row.expected, row.difference, row.tolerance, row.status, row.notes]);
   if (janeOnly) {
@@ -206,8 +266,41 @@ export async function publishRefresh(payload: RefreshPayload, refreshedBy: strin
   const previousBankCoverage = previousRefresh?.[refreshHeader.indexOf("Bank Coverage")] ?? "Bank data not yet supplied";
   const previousBankRows = previousRefresh?.[refreshHeader.indexOf("Bank Rows")] ?? 0;
   const refreshLog = appendRow(refreshLogTable, "Refresh Timestamp", [new Date().toISOString(), refreshedBy, payload.periodLabel, janeOnly ? previousBankCoverage : payload.bankCoverage, janeOnly ? previousBankRows : payload.bankRows, overallStatus, janeOnly ? "Jane reports refreshed; bank-backed metrics unchanged." : payload.issues.map((issue) => issue.title).join("; ") || "All import checks passed."]);
-  const coverage = replaceAll(current.tables.get("Source Coverage")!, "Report", payload.sourceCoverage.map((source) => [source.label, source.role, source.start, source.end, source.status, payload.refreshId, source.note]));
-  const payloadJson = JSON.stringify(payload);
+  const coverageTable = current.tables.get("Source Coverage")!;
+  const { headerIndex: coverageHeaderIndex, header: coverageHeader } = tableHeader(coverageTable, "Report");
+  const coverageReportIndex = coverageHeader.indexOf("Report");
+  const coverageStartIndex = coverageHeader.indexOf("Coverage Start");
+  const coverageEndIndex = coverageHeader.indexOf("Coverage End");
+  const previousCoverage = new Map(coverageTable.slice(coverageHeaderIndex + 1).filter((row) => row[coverageReportIndex]).map((row) => [String(row[coverageReportIndex]), row]));
+  const coverageRows = payload.sourceCoverage.map((source) => {
+    const previous = previousCoverage.get(source.label);
+    const previousStart = String(previous?.[coverageStartIndex] ?? "");
+    const previousEnd = String(previous?.[coverageEndIndex] ?? "");
+    const start = [previousStart, source.start].filter(Boolean).sort()[0] ?? "";
+    const end = [previousEnd, source.end].filter(Boolean).sort().at(-1) ?? "";
+    const status = source.status === "missing" && previous ? String(previous[coverageHeader.indexOf("Status")] ?? "missing") : source.status;
+    const note = source.status === "missing" && previous ? "No new file supplied; previously published coverage retained." : source.note;
+    return [source.label, source.role, start, end, status, payload.refreshId, note];
+  });
+  const coverage = replaceAll(coverageTable, "Report", coverageRows);
+  const analyticsDates = payload.analyticsRows.map((row) => row.date).sort();
+  const analyticsDaily = replaceDateRange(
+    current.tables.get("Analytics Daily")!,
+    "Date",
+    analyticsDates[0] ?? payload.periodStart,
+    analyticsDates.at(-1) ?? payload.periodEnd,
+    payload.analyticsRows.map((row) => [row.date, row.entity, row.name, row.appointments, row.completed, row.cancelled, row.noShows, row.pending, row.invoiced, row.collected, row.processed, row.outstanding, row.commission, row.transactions, row.fees, row.refunds, row.patients, row.newPatients, row.consultations, row.firstVisits, row.subsequentVisits, row.bookedMinutes, row.recovered, row.paymentLagDays, row.paymentLagSamples, payload.refreshId]),
+  );
+  const cohortMonths = payload.cohortRows.map((row) => row.cohortMonth).sort();
+  const retentionCohorts = replaceDateRange(
+    current.tables.get("Retention Cohorts")!,
+    "Cohort Month",
+    cohortMonths[0] ?? payload.periodKey,
+    cohortMonths.at(-1) ?? payload.periodKey,
+    payload.cohortRows.map((row) => [row.cohortMonth, row.entity, row.name, row.cohortSize, row.eligible30, row.retained30, row.eligible60, row.retained60, row.eligible90, row.retained90, row.repeatPatients, row.visitGapDays, row.visitGapSamples, payload.refreshId]),
+  );
+  const historyPayload: RefreshPayload = { ...payload, analyticsRows: [], cohortRows: [] };
+  const payloadJson = JSON.stringify(historyPayload);
   if (payloadJson.length > 45_000) throw new Error("This aggregate refresh snapshot is too large for safe rollback. Reduce the reporting period and preview again.");
   const historyTable = current.tables.get("Import History")!;
   const historyHeader = historyTable[0]?.map(String) ?? [...OPERATIONAL_TABS["Import History"]];
@@ -218,7 +311,17 @@ export async function publishRefresh(payload: RefreshPayload, refreshedBy: strin
   });
   const history = { startRow: 1, values: [historyHeader, ...historyRows, [payload.refreshId, new Date().toISOString(), refreshedBy, payload.periodKey, overallStatus, true, payloadJson, ""]], width: historyHeader.length };
   const updates = [
-    ["Monthly Metrics", monthly], ["Therapist Monthly", therapists], ...(!janeOnly ? [["Expense Categories", expenses], ["Reconciliation", reconciliation]] as const : []), ["Jane Payouts", payouts], ["Checks", checks], ["Refresh Log", refreshLog], ["Source Coverage", coverage], ["Import History", history],
+    ["Monthly Metrics", monthly],
+    ["Therapist Monthly", therapists],
+    ...(!janeOnly ? [["Expense Categories", expenses]] as const : []),
+    ...(payoutsSupplied ? [["Jane Payouts", payouts]] as const : []),
+    ...(!janeOnly && payoutsSupplied ? [["Reconciliation", reconciliation]] as const : []),
+    ["Checks", checks],
+    ["Refresh Log", refreshLog],
+    ["Source Coverage", coverage],
+    ["Import History", history],
+    ["Analytics Daily", analyticsDaily],
+    ...(retentionHistorySupplied ? [["Retention Cohorts", retentionCohorts]] as const : []),
   ] as const;
   const data = updates.map(([title, update]) => ({ range: `'${title}'!A${update.startRow}:${column(update.width)}${update.startRow + update.values.length - 1}`, majorDimension: "ROWS", values: update.values }));
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${current.spreadsheetId}/values:batchUpdate`, { method: "POST", headers: { ...current.headers, "content-type": "application/json" }, body: JSON.stringify({ valueInputOption: "RAW", includeValuesInResponse: false, data }), cache: "no-store" });
