@@ -11,6 +11,181 @@ import { ttgReportingClient } from "./ttg-reporting-db";
 
 type DbRow = Record<string, unknown>;
 
+export type SupabaseDataPage = {
+  name: string;
+  columns: string[];
+  rows: Array<Record<string, string>>;
+  rowCount: number;
+  tableCounts: Record<string, number>;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  sort: string;
+  direction: "asc" | "desc";
+  search: string;
+};
+
+type DataPageConfig = {
+  table: string;
+  select: string;
+  dateColumn?: string;
+  defaultSort: string;
+  searchColumns: string[];
+  columns: Array<{ label: string; field: string; format?: "currency" | "minutes" }>;
+};
+
+const DATA_PAGE_CONFIG: Record<string, DataPageConfig> = {
+  Appointments: {
+    table: "appointment_facts_current",
+    select: "occurred_at,service,practitioner,state,duration_minutes,booking_source",
+    dateColumn: "date",
+    defaultSort: "occurred_at",
+    searchColumns: ["service", "practitioner", "state", "booking_source"],
+    columns: [
+      { label: "Date / Time", field: "occurred_at" },
+      { label: "Service", field: "service" },
+      { label: "Staff", field: "practitioner" },
+      { label: "Status", field: "state" },
+      { label: "Duration", field: "duration_minutes", format: "minutes" },
+      { label: "Booking Source", field: "booking_source" },
+    ],
+  },
+  Transactions: {
+    table: "transaction_facts_current",
+    select: "date,practitioner,service,revenue,collected,commission,status",
+    dateColumn: "date",
+    defaultSort: "date",
+    searchColumns: ["practitioner", "service", "status"],
+    columns: [
+      { label: "Date", field: "date" },
+      { label: "Practitioner", field: "practitioner" },
+      { label: "Service", field: "service" },
+      { label: "Revenue", field: "revenue", format: "currency" },
+      { label: "Collected", field: "collected", format: "currency" },
+      { label: "Commission", field: "commission", format: "currency" },
+      { label: "Status", field: "status" },
+    ],
+  },
+  Sales: {
+    table: "sales_facts_current",
+    select: "date,item,practitioner,payer_category,total,collected,outstanding,status",
+    dateColumn: "date",
+    defaultSort: "date",
+    searchColumns: ["item", "practitioner", "payer_category", "status"],
+    columns: [
+      { label: "Invoice Date", field: "date" },
+      { label: "Item", field: "item" },
+      { label: "Practitioner", field: "practitioner" },
+      { label: "Payer", field: "payer_category" },
+      { label: "Total", field: "total", format: "currency" },
+      { label: "Collected", field: "collected", format: "currency" },
+      { label: "Outstanding", field: "outstanding", format: "currency" },
+      { label: "Status", field: "status" },
+    ],
+  },
+  Collections: {
+    table: "collection_facts_current",
+    select: "date,method,amount,transaction_count",
+    dateColumn: "date",
+    defaultSort: "date",
+    searchColumns: ["method"],
+    columns: [
+      { label: "Date", field: "date" },
+      { label: "Method", field: "method" },
+      { label: "Amount", field: "amount", format: "currency" },
+      { label: "Transactions", field: "transaction_count" },
+    ],
+  },
+  "Source Coverage": {
+    table: "source_coverage_current",
+    select: "label,role,coverage_start,coverage_end,status",
+    defaultSort: "coverage_end",
+    searchColumns: ["label", "role", "status"],
+    columns: [
+      { label: "Report", field: "label" },
+      { label: "Role", field: "role" },
+      { label: "Coverage Start", field: "coverage_start" },
+      { label: "Coverage End", field: "coverage_end" },
+      { label: "Status", field: "status" },
+    ],
+  },
+};
+
+const pageCurrency = new Intl.NumberFormat("en-CA", {
+  style: "currency",
+  currency: "CAD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+export async function fetchSupabaseDataPage(input: {
+  name?: string;
+  page?: string;
+  pageSize?: string;
+  sort?: string;
+  direction?: string;
+  search?: string;
+  start: string;
+  end: string;
+}): Promise<SupabaseDataPage> {
+  const name = DATA_PAGE_CONFIG[input.name ?? ""] ? input.name! : "Appointments";
+  const config = DATA_PAGE_CONFIG[name];
+  const pageSize = [10, 20, 50, 100].includes(Number(input.pageSize)) ? Number(input.pageSize) : 20;
+  const page = Math.max(1, Number.parseInt(input.page ?? "1", 10) || 1);
+  const direction = input.direction === "asc" ? "asc" : "desc";
+  const sortColumn = config.columns.find((column) => column.label === input.sort);
+  const sort = sortColumn?.label ?? config.columns.find((column) => column.field === config.defaultSort)?.label ?? config.columns[0].label;
+  const sortField = sortColumn?.field ?? config.defaultSort;
+  const search = (input.search ?? "").trim().slice(0, 100);
+  const safeSearch = search.replace(/[,().]/g, " ").replace(/\s+/g, " ").trim();
+  const from = (page - 1) * pageSize;
+  let query = ttgReportingClient()
+    .from(config.table)
+    .select(config.select, { count: "exact" });
+  if (config.dateColumn) query = query.gte(config.dateColumn, input.start).lte(config.dateColumn, input.end);
+  if (safeSearch) query = query.or(config.searchColumns.map((column) => `${column}.ilike.%${safeSearch}%`).join(","));
+  const { data, error, count } = await query
+    .order(sortField, { ascending: direction === "asc", nullsFirst: false })
+    .range(from, from + pageSize - 1);
+  if (error) throw new Error(`TTG ${name} data read failed: ${error.message}`);
+  const rowCount = count ?? 0;
+  const pageCount = Math.max(1, Math.ceil(rowCount / pageSize));
+  if (page > pageCount) {
+    return fetchSupabaseDataPage({ ...input, name, page: String(pageCount), pageSize: String(pageSize) });
+  }
+  const rows = ((data ?? []) as unknown as DbRow[]).map((row) => Object.fromEntries(config.columns.map((column) => {
+    const raw = row[column.field];
+    const value = column.format === "currency"
+      ? pageCurrency.format(number(raw))
+      : column.format === "minutes"
+        ? `${number(raw)} min`
+        : text(raw);
+    return [column.label, value];
+  })));
+  const tableCounts = Object.fromEntries(await Promise.all(Object.entries(DATA_PAGE_CONFIG).map(async ([tableName, tableConfig]) => {
+    let countQuery = ttgReportingClient()
+      .from(tableConfig.table)
+      .select(tableConfig.columns[0].field, { count: "exact", head: true });
+    if (tableConfig.dateColumn) countQuery = countQuery.gte(tableConfig.dateColumn, input.start).lte(tableConfig.dateColumn, input.end);
+    const { error: countError, count: tableCount } = await countQuery;
+    if (countError) throw new Error(`TTG ${tableName} count failed: ${countError.message}`);
+    return [tableName, tableCount ?? 0];
+  })));
+  return {
+    name,
+    columns: config.columns.map((column) => column.label),
+    rows,
+    rowCount,
+    tableCounts,
+    page,
+    pageSize,
+    pageCount,
+    sort,
+    direction,
+    search,
+  };
+}
+
 async function allRows(table: string, order: string) {
   const rows: DbRow[] = [];
   for (let from = 0; ; from += 1000) {

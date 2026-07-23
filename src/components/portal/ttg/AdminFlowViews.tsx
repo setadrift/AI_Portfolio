@@ -9,6 +9,7 @@ import {
 import type { AnalyticsDailyRow, RetentionCohortRow } from "@/lib/portal/ttg/dashboard-refresh";
 import type { TtgDashboardData } from "@/lib/portal/ttg/dashboard";
 import { rangeContains, type DashboardRange } from "@/lib/portal/ttg/dashboard-period";
+import type { SupabaseDataPage } from "@/lib/portal/ttg/supabase-dashboard";
 
 const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
 const integer = new Intl.NumberFormat("en-CA", { maximumFractionDigits: 0 });
@@ -102,7 +103,7 @@ function retentionCohortWindow(range: DashboardRange) {
   };
 }
 
-export function AdminFlowView({ data, view, tab = "overview", range }: { data: TtgDashboardData; view: string; tab?: string; range: DashboardRange }) {
+export function AdminFlowView({ data, dataPage, view, tab = "overview", range }: { data: TtgDashboardData; dataPage?: SupabaseDataPage; view: string; tab?: string; range: DashboardRange }) {
   const rows = data.analyticsRows.filter((row) => rangeContains(row.date, range));
   const clinic = rows.filter((row) => row.entity === "clinic");
   const trend = daily(rows, ["invoiced", "collected", "processed", "appointments", "completed", "cancelled", "noShows"]);
@@ -338,7 +339,48 @@ export function AdminFlowView({ data, view, tab = "overview", range }: { data: T
   if (view === "data") {
     const tables = data.dataTables ?? [];
     const selected = tables.find((table) => table.name === tab) ?? tables[0];
-    return <div className="ttg-af-data"><nav>{tables.map((table) => <Link className={selected?.name === table.name ? "is-active" : ""} href={queryFor(range, { view: "data", tab: table.name })} key={table.name}><strong>{table.name}</strong><span>{table.rowCount ?? table.rows.length} rows</span></Link>)}</nav><Panel title={selected?.name ?? "My data"} note="Read-only privacy-safe values from the secure reporting database">{selected ? <div className="ttg-af-table-wrap"><table><thead><tr>{selected.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{selected.rows.slice(0, 250).map((row, index) => <tr key={index}>{selected.columns.map((column) => <td key={column}>{row[column]}</td>)}</tr>)}</tbody></table></div> : <div className="ttg-af-empty">No reporting tables are available.</div>}</Panel></div>;
+    const page = dataPage && dataPage.name === selected?.name ? dataPage : undefined;
+    const columns = page?.columns ?? selected?.columns ?? [];
+    const displayRows = page?.rows ?? selected?.rows.slice(0, 250) ?? [];
+    const pageHref = (updates: Partial<{ page: number; size: number; sort: string; direction: "asc" | "desc"; search: string }>) => queryFor(range, {
+      view: "data",
+      tab: page?.name ?? selected?.name ?? "Appointments",
+      dataPage: String(updates.page ?? page?.page ?? 1),
+      dataSize: String(updates.size ?? page?.pageSize ?? 20),
+      dataSort: updates.sort ?? page?.sort ?? columns[0] ?? "",
+      dataDir: updates.direction ?? page?.direction ?? "desc",
+      dataSearch: updates.search ?? page?.search ?? "",
+    });
+    const firstRow = page?.rowCount ? (page.page - 1) * page.pageSize + 1 : 0;
+    const lastRow = page ? Math.min(page.page * page.pageSize, page.rowCount) : displayRows.length;
+    return <div className="ttg-af-data">
+      <nav>{tables.map((table) => <Link className={selected?.name === table.name ? "is-active" : ""} href={queryFor(range, { view: "data", tab: table.name })} key={table.name}><strong>{table.name}</strong><span>{page?.tableCounts[table.name] ?? table.rowCount ?? table.rows.length} rows</span></Link>)}</nav>
+      <Panel title={selected?.name ?? "My data"} note="Read-only privacy-safe values from the secure reporting database">
+        {page && <form className="ttg-af-table-controls" method="get">
+          <input name="view" type="hidden" value="data" />
+          <input name="tab" type="hidden" value={page.name} />
+          {range.kind === "custom" ? <><input name="from" type="hidden" value={range.start} /><input name="to" type="hidden" value={range.end} /></> : <><input name="period" type="hidden" value={range.kind} /><input name="offset" type="hidden" value={range.offset} /></>}
+          <input name="dataPage" type="hidden" value="1" />
+          <input name="dataSort" type="hidden" value={page.sort} />
+          <input name="dataDir" type="hidden" value={page.direction} />
+          <label><span>Search this table</span><input defaultValue={page.search} name="dataSearch" placeholder={`Search ${page.name.toLowerCase()}`} type="search" /></label>
+          <label><span>Rows per page</span><select defaultValue={String(page.pageSize)} name="dataSize">{[10, 20, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+          <button type="submit">Apply</button>
+          {page.search && <Link href={pageHref({ page: 1, search: "" })}>Clear search</Link>}
+        </form>}
+        {selected ? <><div className="ttg-af-table-meta"><strong>{page ? `${integer.format(firstRow)}–${integer.format(lastRow)} of ${integer.format(page.rowCount)}` : `${displayRows.length} rows`}</strong><span>{range.label}</span></div><div className="ttg-af-table-wrap"><table><thead><tr>{columns.map((column) => {
+          const activeSort = page?.sort === column;
+          const direction = activeSort && page?.direction === "asc" ? "desc" : "asc";
+          return <th key={column}>{page ? <Link aria-label={`Sort by ${column} ${direction === "asc" ? "ascending" : "descending"}`} href={pageHref({ page: 1, sort: column, direction })}>{column}{activeSort ? page.direction === "asc" ? " ↑" : " ↓" : ""}</Link> : column}</th>;
+        })}</tr></thead><tbody>{displayRows.map((row, index) => <tr key={index}>{columns.map((column) => <td key={column}>{row[column]}</td>)}</tr>)}</tbody></table></div>{page && <nav aria-label={`${page.name} pagination`} className="ttg-af-pagination">
+          <Link aria-disabled={page.page === 1} className={page.page === 1 ? "is-disabled" : ""} href={pageHref({ page: 1 })}>First</Link>
+          <Link aria-disabled={page.page === 1} className={page.page === 1 ? "is-disabled" : ""} href={pageHref({ page: Math.max(1, page.page - 1) })}>Previous</Link>
+          <span>Page {page.page} of {page.pageCount}</span>
+          <Link aria-disabled={page.page === page.pageCount} className={page.page === page.pageCount ? "is-disabled" : ""} href={pageHref({ page: Math.min(page.pageCount, page.page + 1) })}>Next</Link>
+          <Link aria-disabled={page.page === page.pageCount} className={page.page === page.pageCount ? "is-disabled" : ""} href={pageHref({ page: page.pageCount })}>Last</Link>
+        </nav>}</> : <div className="ttg-af-empty">No reporting tables are available.</div>}
+      </Panel>
+    </div>;
   }
 
   return null;

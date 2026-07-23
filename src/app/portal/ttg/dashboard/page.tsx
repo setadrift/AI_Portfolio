@@ -5,6 +5,7 @@ import { DashboardPeriodControl } from "@/components/portal/ttg/DashboardPeriodC
 import { getTtgDashboardData } from "@/lib/portal/ttg/dashboard";
 import { dashboardVisualIndex, formatDataThrough, gabbyMetricCoverage, getDashboardCopy, getOwnerActions, getSourceHealth } from "@/lib/portal/ttg/dashboard-copy";
 import { resolveDashboardRange } from "@/lib/portal/ttg/dashboard-period";
+import { fetchSupabaseDataPage } from "@/lib/portal/ttg/supabase-dashboard";
 
 const money = (value: number, digits = 1) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", notation: "compact", maximumFractionDigits: digits }).format(value);
 const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
@@ -24,14 +25,26 @@ function Panel({ eyebrow, title, note, children, wide = false }: { eyebrow?: str
   return <section className={`ttg-panel ${wide ? "ttg-panel-wide" : ""}`}>{eyebrow && <div className="ttg-eyebrow">{eyebrow}</div>}<div className="ttg-panel-heading"><h2>{title}</h2><p>{note}</p></div>{children}</section>;
 }
 
-export default async function TtgDashboardPage({ searchParams }: { searchParams: Promise<{ view?: string; period?: string; offset?: string; from?: string; to?: string; tab?: string; banks?: string }> }) {
+export default async function TtgDashboardPage({ searchParams }: { searchParams: Promise<{ view?: string; period?: string; offset?: string; from?: string; to?: string; tab?: string; banks?: string; dataPage?: string; dataSize?: string; dataSort?: string; dataDir?: string; dataSearch?: string }> }) {
   const [params, data] = await Promise.all([searchParams, getTtgDashboardData()]);
-  const { view = "overview", period, offset, from, to, tab = "overview", banks } = params;
+  const { view = "overview", period, offset, from, to, tab = "overview", banks, dataPage, dataSize, dataSort, dataDir, dataSearch } = params;
   const activeView = ["overview", "financial", "appointments", "team", "retention", "funnel", "insights", "marketing", "custom", "imports", "data", "practice", "capacity", "controls", "index"].includes(view) ? view : "overview";
   const latestJaneDate = /^\d{4}-\d{2}-\d{2}$/.test(data.source.janeDataThrough)
     ? data.source.janeDataThrough
     : data.analyticsRows.map((row) => row.date).sort().at(-1) ?? new Date().toISOString().slice(0, 10);
   const range = resolveDashboardRange({ period, offset, from, to }, latestJaneDate);
+  const pagedData = activeView === "data" && data.source.label.includes("Supabase")
+    ? await fetchSupabaseDataPage({
+      name: tab,
+      page: dataPage,
+      pageSize: dataSize,
+      sort: dataSort,
+      direction: dataDir,
+      search: dataSearch,
+      start: range.start,
+      end: range.end,
+    })
+    : undefined;
   const selectedMonth = data.months.find((month) => periodKey(month.period) === range.start.slice(0, 7));
   const copy = getDashboardCopy(data, selectedMonth?.period);
   const { current, prior, priorPeriod: priorName, warnings, failures } = copy;
@@ -130,7 +143,7 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
 
         {data.source.mode === "fixture" && <div className="ttg-prototype-banner"><strong>Prototype data</strong><span>This fixture represents the reporting data as updated {refreshedAt}. It is not a live Jane or bank connection.</span></div>}
 
-        {["overview", "financial", "appointments", "team", "retention", "funnel", "insights", "marketing", "custom", "imports", "data"].includes(activeView) && <AdminFlowView data={data} view={activeView} tab={tab} range={range} />}
+        {["overview", "financial", "appointments", "team", "retention", "funnel", "insights", "marketing", "custom", "imports", "data"].includes(activeView) && <AdminFlowView data={data} dataPage={pagedData} view={activeView} tab={tab} range={range} />}
 
         {["practice", "capacity", "controls", "index"].includes(activeView) && <nav className="ttg-af-tabs" aria-label="Gabby's dashboard sections"><Link className={activeView === "practice" ? "is-active" : ""} href={href("practice")}>Practice</Link><Link className={activeView === "capacity" ? "is-active" : ""} href={href("capacity")}>Capacity</Link><Link className={activeView === "controls" ? "is-active" : ""} href={href("controls")}>Controls</Link><Link className={activeView === "index" ? "is-active" : ""} href={href("index")}>Data index</Link></nav>}
 
