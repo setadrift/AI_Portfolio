@@ -23,6 +23,38 @@ type WorkspaceAction =
       widgetType: string;
       title: string;
       metricKey?: string;
+    }
+  | {
+      action: "update-campaign";
+      id: string;
+      name: string;
+      channel: string;
+      startDate: string;
+      endDate: string;
+      spend: number;
+    }
+  | {
+      action: "archive-campaign";
+      id: string;
+    }
+  | {
+      action: "update-widget";
+      widgetId: string;
+      dashboardId: string;
+      widgetType: string;
+      title: string;
+      metricKey?: string;
+    }
+  | {
+      action: "delete-widget";
+      widgetId: string;
+      dashboardId: string;
+    }
+  | {
+      action: "move-widget";
+      widgetId: string;
+      dashboardId: string;
+      direction: -1 | 1;
     };
 
 async function saveWorkspaceAction(payload: WorkspaceAction) {
@@ -105,6 +137,89 @@ export function AddCampaignButton() {
           <label>Total Spend *<input min="0" name="spend" required step="0.01" type="number" /></label>
           {error && <p className="ttg-workspace-form-error" role="alert">{error}</p>}
           <div className="ttg-workspace-form-actions"><button onClick={() => setOpen(false)} type="button">Cancel</button><button disabled={saving} type="submit">{saving ? "Adding…" : "Add Campaign"}</button></div>
+        </form>
+      </Dialog>
+    </>
+  );
+}
+
+type CampaignActionProps = {
+  campaign: {
+    id: string;
+    name: string;
+    channel: string;
+    startDate: string;
+    endDate: string;
+    spend: number;
+  };
+};
+
+export function CampaignActions({ campaign }: CampaignActionProps) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function archive() {
+    if (!window.confirm(`Archive ${campaign.name}? It will be removed from marketing totals and campaign lists.`)) return;
+    setError("");
+    setSaving(true);
+    try {
+      await saveWorkspaceAction({ action: "archive-campaign", id: campaign.id });
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not archive that campaign.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <details className="ttg-workspace-menu">
+        <summary aria-label={`Actions for ${campaign.name}`}>•••</summary>
+        <div>
+          <button onClick={() => setEditing(true)} type="button">Edit campaign</button>
+          <button className="is-danger" disabled={saving} onClick={archive} type="button">Archive campaign</button>
+        </div>
+      </details>
+      {error && <span className="ttg-workspace-inline-error" role="alert">{error}</span>}
+      <Dialog open={editing} onClose={() => setEditing(false)} title="Edit Campaign" intro="Update the campaign dates, platform, and total spend.">
+        <form
+          className="ttg-workspace-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setError("");
+            setSaving(true);
+            const form = new FormData(event.currentTarget);
+            try {
+              await saveWorkspaceAction({
+                action: "update-campaign",
+                id: campaign.id,
+                name: String(form.get("name") ?? ""),
+                channel: String(form.get("channel") ?? ""),
+                startDate: String(form.get("startDate") ?? ""),
+                endDate: String(form.get("endDate") ?? ""),
+                spend: Number(form.get("spend") ?? 0),
+              });
+              setEditing(false);
+              router.refresh();
+            } catch (caught) {
+              setError(caught instanceof Error ? caught.message : "Could not update that campaign.");
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          <label>Campaign Name *<input defaultValue={campaign.name} name="name" required /></label>
+          <label>Platform *<select defaultValue={campaign.channel} name="channel" required><option>Google Ads</option><option>Meta Ads</option><option>Other</option></select></label>
+          <div className="ttg-workspace-form-grid">
+            <label>Start Date *<input defaultValue={campaign.startDate} name="startDate" required type="date" /></label>
+            <label>End Date *<input defaultValue={campaign.endDate} name="endDate" required type="date" /></label>
+          </div>
+          <label>Total Spend *<input defaultValue={campaign.spend} min="0" name="spend" required step="0.01" type="number" /></label>
+          {error && <p className="ttg-workspace-form-error" role="alert">{error}</p>}
+          <div className="ttg-workspace-form-actions"><button onClick={() => setEditing(false)} type="button">Cancel</button><button disabled={saving} type="submit">{saving ? "Saving…" : "Save Changes"}</button></div>
         </form>
       </Dialog>
     </>
@@ -212,6 +327,96 @@ export function AddWidgetButton({ dashboardId }: { dashboardId: string }) {
           <label>Metric<select defaultValue="" name="metricKey">{metricOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           {error && <p className="ttg-workspace-form-error" role="alert">{error}</p>}
           <div className="ttg-workspace-form-actions"><button onClick={() => setOpen(false)} type="button">Cancel</button><button disabled={saving} type="submit">{saving ? "Adding…" : "Add Widget"}</button></div>
+        </form>
+      </Dialog>
+    </>
+  );
+}
+
+type WidgetActionProps = {
+  dashboardId: string;
+  widget: {
+    id: string;
+    widgetType: string;
+    title: string;
+    metricKey?: string;
+  };
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+};
+
+export function WidgetActions({ dashboardId, widget, canMoveUp, canMoveDown }: WidgetActionProps) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function run(payload: WorkspaceAction) {
+    setError("");
+    setSaving(true);
+    try {
+      await saveWorkspaceAction(payload);
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not update that widget.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm(`Delete ${widget.title}?`)) return;
+    await run({ action: "delete-widget", widgetId: widget.id, dashboardId });
+  }
+
+  return (
+    <>
+      <details className="ttg-workspace-menu">
+        <summary aria-label={`Actions for ${widget.title}`}>•••</summary>
+        <div>
+          <button onClick={() => setEditing(true)} type="button">Edit widget</button>
+          <button disabled={!canMoveUp || saving} onClick={() => run({ action: "move-widget", widgetId: widget.id, dashboardId, direction: -1 })} type="button">Move up</button>
+          <button disabled={!canMoveDown || saving} onClick={() => run({ action: "move-widget", widgetId: widget.id, dashboardId, direction: 1 })} type="button">Move down</button>
+          <button className="is-danger" disabled={saving} onClick={remove} type="button">Delete widget</button>
+        </div>
+      </details>
+      {error && <span className="ttg-workspace-inline-error" role="alert">{error}</span>}
+      <Dialog open={editing} onClose={() => setEditing(false)} title="Edit Widget" intro="Change the widget type, title, or metric.">
+        <form
+          className="ttg-workspace-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            const widgetType = String(form.get("widgetType") ?? "kpi");
+            const metricKey = String(form.get("metricKey") ?? "");
+            setSaving(true);
+            setError("");
+            try {
+              await saveWorkspaceAction({
+                action: "update-widget",
+                widgetId: widget.id,
+                dashboardId,
+                widgetType,
+                title: String(form.get("title") ?? ""),
+                metricKey: metricKey || undefined,
+              });
+              setEditing(false);
+              router.refresh();
+            } catch (caught) {
+              setError(caught instanceof Error ? caught.message : "Could not update that widget.");
+            } finally {
+              setSaving(false);
+            }
+          }}
+        >
+          <fieldset className="ttg-workspace-widget-options">
+            <legend>Widget type</legend>
+            {widgetOptions.map((option) => <label key={option.value}><input defaultChecked={option.value === widget.widgetType} name="widgetType" type="radio" value={option.value} /><span><strong>{option.label}</strong><small>{option.detail}</small></span></label>)}
+          </fieldset>
+          <label>Title<input defaultValue={widget.title} name="title" required /></label>
+          <label>Metric<select defaultValue={widget.metricKey ?? ""} name="metricKey">{metricOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          {error && <p className="ttg-workspace-form-error" role="alert">{error}</p>}
+          <div className="ttg-workspace-form-actions"><button onClick={() => setEditing(false)} type="button">Cancel</button><button disabled={saving} type="submit">{saving ? "Saving…" : "Save Changes"}</button></div>
         </form>
       </Dialog>
     </>

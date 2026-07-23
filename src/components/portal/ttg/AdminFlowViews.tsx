@@ -9,7 +9,9 @@ import {
 import {
   AddCampaignButton,
   AddWidgetButton,
+  CampaignActions,
   NewDashboardButton,
+  WidgetActions,
 } from "@/components/portal/ttg/WorkspaceConfiguration";
 import type { AnalyticsDailyRow, RetentionCohortRow } from "@/lib/portal/ttg/dashboard-refresh";
 import type { TtgDashboardData } from "@/lib/portal/ttg/dashboard";
@@ -341,7 +343,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
         { label: "Total Spend", value: cad.format(marketingSpend), detail: range.label },
         { label: "New Clients", value: integer.format(newPatients), detail: "Jane first visits" },
         { label: "Data Confidence", value: pct(confidence), detail: `${pct(confidence)} booking source coverage` },
-      ]} /><Panel title="Your Campaigns" note={`${campaigns.length} campaigns`} action={<AddCampaignButton />}><div className="ttg-af-campaign-list">{campaigns.map((campaign) => <article key={campaign.id}><div><h3>{campaign.name}</h3><span>{campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}</span></div><p>{campaign.channel} · {shortDate(campaign.startDate)} - {shortDate(campaign.endDate)}</p><strong>{cad.format(campaign.spend)}</strong><small>Total spend</small></article>)}</div></Panel></>}
+      ]} /><Panel title="Your Campaigns" note={`${campaigns.length} campaigns`} action={<AddCampaignButton />}><div className="ttg-af-campaign-list">{campaigns.map((campaign) => <article key={campaign.id}><div><h3>{campaign.name}</h3><span>{campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}</span><CampaignActions campaign={campaign} /></div><p>{campaign.channel} · {shortDate(campaign.startDate)} - {shortDate(campaign.endDate)}</p><strong>{cad.format(campaign.spend)}</strong><small>Total spend</small></article>)}</div></Panel></>}
       {marketingTab === "trends" && <><Cards items={[
         { label: "Gross ROAS", value: marketingSpend ? `${roas.toFixed(2)}×` : "--", detail: range.label, unavailable: !marketingSpend },
         { label: "New Client CAC", value: cad.format(cac), detail: "Spend ÷ new clients", unavailable: !marketingSpend },
@@ -375,7 +377,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
       return "";
     };
     const editing = tab.startsWith("edit-");
-    return <section className="ttg-af-custom-dashboard"><div className="ttg-af-workspace-heading"><div><Link href={queryFor(range, { view: "custom", tab: "list" })}>Custom Dashboards</Link><h2>{selectedDashboard.name}</h2><p>{selectedDashboard.description}</p></div><div>{editing ? <><Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `dashboard-${selectedDashboard.id}` })}>Done Editing</Link><AddWidgetButton dashboardId={selectedDashboard.id} /></> : <Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `edit-${selectedDashboard.id}` })}>Edit Dashboard</Link>}</div></div><div aria-label="Dashboard widgets" className={`ttg-af-custom-widgets ${editing ? "is-editing" : ""}`}>{selectedDashboard.widgets.map((widget) => <article key={widget.id}><div>{editing && <span aria-label="Drag to reorder">⋮⋮</span>}<h3>{widget.title}</h3>{editing && <button aria-label="Widget actions" disabled title="Edit and delete actions remain to be verified against AdminFlow" type="button">•••</button>}</div>{widget.metricKey ? <><small>{widget.title}</small><strong>{widgetValue(widget.metricKey)}</strong></> : <><p>No metric selected</p><small>Configure this widget to select a metric</small></>}</article>)}</div></section>;
+    return <section className="ttg-af-custom-dashboard"><div className="ttg-af-workspace-heading"><div><Link href={queryFor(range, { view: "custom", tab: "list" })}>Custom Dashboards</Link><h2>{selectedDashboard.name}</h2><p>{selectedDashboard.description}</p></div><div>{editing ? <><Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `dashboard-${selectedDashboard.id}` })}>Done Editing</Link><AddWidgetButton dashboardId={selectedDashboard.id} /></> : <Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `edit-${selectedDashboard.id}` })}>Edit Dashboard</Link>}</div></div><div aria-label="Dashboard widgets" className={`ttg-af-custom-widgets ${editing ? "is-editing" : ""}`}>{selectedDashboard.widgets.map((widget, index) => <article key={widget.id}><div>{editing && <span aria-label="Drag to reorder">⋮⋮</span>}<h3>{widget.title}</h3>{editing && <WidgetActions canMoveDown={index < selectedDashboard.widgets.length - 1} canMoveUp={index > 0} dashboardId={selectedDashboard.id} widget={widget} />}</div>{widget.metricKey ? <><small>{widget.title}</small><strong>{widgetValue(widget.metricKey)}</strong></> : <><p>No metric selected</p><small>Configure this widget to select a metric</small></>}</article>)}</div></section>;
   }
 
   if (view === "imports") {
