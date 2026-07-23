@@ -156,8 +156,7 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
   const latestRun = activeRuns.at(-1);
   if (!latestRun || !analyticsDb.length) throw new Error("TTG Supabase reporting has no published Jane history");
   const latestBankRun = [...activeRuns].reverse().find((row) => (
-    text(row.refresh_type) === "full"
-    && number(row.bank_rows) > 0
+    number(row.bank_rows) > 0
     && text(row.bank_coverage) !== "Bank data unchanged"
   ));
 
