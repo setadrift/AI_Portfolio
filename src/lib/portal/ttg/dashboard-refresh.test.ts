@@ -5,7 +5,7 @@ import { buildRefreshPayload } from "./dashboard-refresh";
 const bankHeader = "Account Type,Account Number,Transaction Date,Cheque Number,Description 1,Description 2,CAD$,USD$\n";
 const files = [
   { name: "TheTraumaTherapyGroup_Appointments_20260701_20260722.csv", text: "id,location_name,start_at,end_at,patient_guid,patient_number,patient_prefix,patient_first_name,patient_preferred_name,patient_last_name,treatment_name,staff_member_name,break,insurance_state,state,first_visit,chart_status,notes_text,booked_at,arrived_at,booked_online,archived_at,no_show_at,cancelled_at,cancelled_reason,referral_source\n1,TTG,2026-07-02 10:00,2026-07-02 10:50,secret-guid,1,,Secret,,Patient,Individual Counselling,Gabriella Evans,false,,arrived,false,signed,,2026-07-01,2026-07-02,false,,,,,,\n" },
-  { name: "Sales_20260701_20260722.csv", text: "Location,Purchase Date,Invoice Date,Patient Guid,Patient,Item,Staff Member,Payer,Invoice #,Income Category,Details,Status,Subtotal,Total,Collected,Balance\nTTG,2026-07-02,2026-07-02,secret-guid,Secret Patient,Session,Gabriella Evans,Patient,1,Treatment,,paid,175,175,175,0\n" },
+  { name: "Sales_20260701_20260722.csv", text: "Location,Purchase Date,Invoice Date,Patient Guid,Patient,Item,Staff Member,Payer,Invoice #,Income Category,Details,Status,Subtotal,Total,Collected,Balance\nTTG,2026-07-02,2026-07-02,secret-guid,Secret Patient,Session,Gabriella Evans,Secret Patient,1,Treatment,,paid,175,175,175,0\n" },
   { name: "Shift_Report_20260722.csv", text: "Staff Name,Location Name,Date,Shift Total Hours,Shift Total Count,Break Total Hours,Break Total Count,Appointment Total Hours,Appointment Total Count\nGabriella Evans,,,10,1,0,0,8,8\n" },
   { name: "Compensation_Report_Details_20260722.csv", text: "Description,Invoice #,Purchase Date,Transaction Date,Payment Date,Practitioner,patient_guid,Patient,Referred To,Payment Method,Invoice Total,Collected Subtotal,Adjustments Owed to Staff Member,Collected Tax,Collected Total,Adjusted Total,Product Cost,Quantity,Income Category,Commission Rate,Referral Commission Rate,Commission Subtotal,Commission Total\nSession,1,2026-07-02,2026-07-02,2026-07-02,Gabriella Evans,secret-guid,Secret Patient,,Visa,175,175,0,0,175,175,0,1,Treatment,60,0,105,105\n" },
   { name: "Daily_Transaction_Report_20260722.csv", text: "Date,Payment Method,Total,Number of Transactions\nJuly 1 2026,Visa,97,1\nJuly 22 2026,Visa,0,0\n" },
@@ -37,13 +37,15 @@ test("TTG refresh aggregates the proven Jane and bank schemas without retaining 
   assert.doesNotMatch(JSON.stringify(payload), /Secret Patient|secret-guid|\b123\b/);
 });
 
-test("TTG refresh fails closed when a required report is duplicated", () => {
+test("TTG refresh de-duplicates overlapping historical report rows", () => {
   const payload = buildRefreshPayload([...files, files[0]]);
-  assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("Duplicate Jane appointments")), true);
+  assert.equal(payload.issues.some((issue) => issue.status === "WARNING" && issue.title.includes("de-duplicated")), true);
+  assert.equal(payload.analytics?.appointments.total, 1);
+  assert.equal(payload.monthly.grossRevenue, 175);
 });
 
-test("TTG refresh accepts the six Jane reports without bank files", () => {
-  const payload = buildRefreshPayload(files.slice(0, 6));
+test("TTG refresh accepts the four AdminFlow core reports without supplemental or bank files", () => {
+  const payload = buildRefreshPayload([files[0], files[1], files[3], files[4]]);
   assert.equal(payload.refreshType, "jane");
   assert.equal(payload.bankRows, 0);
   assert.equal(payload.bankCoverage, "Bank data unchanged");
@@ -58,8 +60,10 @@ test("TTG refresh rejects an incomplete bank package instead of zeroing missing 
   assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("Incomplete bank package")), true);
 });
 
-test("TTG refresh rejects a one-day Jane package that does not start on the first", () => {
+test("TTG refresh accepts a one-day Jane package and anchors it to the latest month", () => {
   const oneDay = files.slice(0, 6).map((file) => file.name.startsWith("Sales_") ? { ...file, name: "Sales_20260722_20260722.csv" } : file);
   const payload = buildRefreshPayload(oneDay);
-  assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("first day")), true);
+  assert.equal(payload.periodStart, "2026-07-01");
+  assert.equal(payload.periodEnd, "2026-07-22");
+  assert.equal(payload.issues.some((issue) => issue.status === "FAIL"), false);
 });

@@ -88,6 +88,8 @@ export const ttgDashboardFixture: TtgDashboardData = {
     { check: "AdminFlow vs live Jane", status: "WARNING", actual: 87106.4, expected: 86931.4, difference: 175, notes: "AdminFlow is stale; live Jane controls." },
     { check: "July source dates aligned", status: "WARNING", actual: 17, expected: 20, difference: -3, notes: "Bank ends Jul 17; Jane observed Jul 20." },
   ],
+  analyticsRows: [],
+  cohortRows: [],
   summary: {
     activeTherapists: 20,
     weightedUtilization: 0.3546552,
