@@ -1,0 +1,2 @@
+-- Remote migration ledger marker.
+-- The temporary one-time privacy-safe fact transfer function was removed.

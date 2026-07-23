@@ -1,0 +1,3 @@
+-- Remote migration ledger marker.
+-- A temporary, server-side function was used for the one-time privacy-safe fact
+-- transfer and removed immediately afterward. No persistent schema object is needed.

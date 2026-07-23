@@ -27,7 +27,7 @@ function Panel({ eyebrow, title, note, children, wide = false }: { eyebrow?: str
 export default async function TtgDashboardPage({ searchParams }: { searchParams: Promise<{ view?: string; period?: string; offset?: string; from?: string; to?: string; tab?: string; banks?: string }> }) {
   const [params, data] = await Promise.all([searchParams, getTtgDashboardData()]);
   const { view = "overview", period, offset, from, to, tab = "overview", banks } = params;
-  const activeView = ["overview", "financial", "appointments", "team", "retention", "funnel", "imports", "data", "practice", "capacity", "controls", "index"].includes(view) ? view : "overview";
+  const activeView = ["overview", "financial", "appointments", "team", "retention", "funnel", "insights", "marketing", "custom", "imports", "data", "practice", "capacity", "controls", "index"].includes(view) ? view : "overview";
   const latestJaneDate = /^\d{4}-\d{2}-\d{2}$/.test(data.source.janeDataThrough)
     ? data.source.janeDataThrough
     : data.analyticsRows.map((row) => row.date).sort().at(-1) ?? new Date().toISOString().slice(0, 10);
@@ -36,7 +36,21 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
   const copy = getDashboardCopy(data, selectedMonth?.period);
   const { current, prior, priorPeriod: priorName, warnings, failures } = copy;
   const operatingMonth = data.months.find((month) => month.period === data.clinicalPeriod) ?? current;
-  const sourceHealth = getSourceHealth(data);
+  const analyticsView = ["overview", "financial", "appointments", "team", "retention", "funnel", "insights", "marketing", "custom"].includes(activeView);
+  const combinedSourceHealth = getSourceHealth(data);
+  const janeAgeDays = Math.max(0, Math.round(
+    (Date.parse(data.source.fetchedAt ?? data.source.refreshedAt) - Date.parse(`${data.source.janeDataThrough}T12:00:00Z`)) / 86_400_000,
+  ));
+  const janeFailures = data.qualityChecks.filter((check) => check.status === "FAIL" && !check.check.toLowerCase().includes("bank"));
+  const janeSourceHealth = {
+    ...combinedSourceHealth,
+    ageDays: janeAgeDays,
+    gapDays: 0,
+    isStale: janeAgeDays > 7,
+    tone: janeFailures.length ? "critical" as const : janeAgeDays > 7 ? "attention" as const : "current" as const,
+    label: janeFailures.length ? "Jane checks blocked" : janeAgeDays > 7 ? "Refresh Jane data" : "Jane data current",
+  };
+  const sourceHealth = analyticsView ? janeSourceHealth : combinedSourceHealth;
   const ownerActions = getOwnerActions(data);
   const currentChange = delta(current.grossRevenue, prior.grossRevenue);
   const operatingPrior = data.months[Math.max(0, data.months.indexOf(operatingMonth) - 1)] ?? operatingMonth;
@@ -51,8 +65,11 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
     team: { eyebrow: "Analytics", title: "Team performance", intro: "Practitioner revenue, workload, attendance, compensation, and patient mix." },
     retention: { eyebrow: "Analytics", title: "Patient retention", intro: "Patient activity and 30, 60, and 90-day return behaviour when sufficient history is available." },
     funnel: { eyebrow: "Analytics", title: "Patient funnel", intro: "Consultations, first visits, ongoing care, and practitioner-level conversion flow." },
+    insights: { eyebrow: "Intelligence", title: "Insights", intro: "Period-aware operating signals, with truthful empty states when the selected range is not mature enough." },
+    marketing: { eyebrow: "Intelligence", title: "Marketing", intro: "Campaign spend, acquisition volume, CAC, and return metrics using manually maintained campaign inputs." },
+    custom: { eyebrow: "Workspace", title: "Custom dashboards", intro: "Gabby’s saved KPI layouts alongside the standard analytics views." },
     imports: { eyebrow: "Data", title: "Data imports", intro: "Coverage, validation, refresh history, and the guided Jane and bank workflow." },
-    data: { eyebrow: "Data", title: "My data", intro: "A transparent table view of the safe aggregate Google Sheets that power this dashboard." },
+    data: { eyebrow: "Data", title: "My data", intro: "A transparent, read-only view of the privacy-safe reporting records that power this dashboard." },
   };
   const heading = adminHeadings[activeView] ?? (activeView === "practice"
     ? { eyebrow: "Practice performance", ...copy.practice }
@@ -71,7 +88,6 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
     Object.entries(extra ?? {}).forEach(([key, value]) => query.set(key, value));
     return `?${query.toString()}`;
   };
-  const analyticsView = ["overview", "financial", "appointments", "team", "retention", "funnel"].includes(activeView);
   const showBank = banks === "1" && !analyticsView;
 
   return (
@@ -86,12 +102,16 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
           <Link className={activeView === "team" ? "is-active" : ""} href={href("team")}>Team performance</Link>
           <Link className={activeView === "retention" ? "is-active" : ""} href={href("retention")}>Patient retention</Link>
           <Link className={activeView === "funnel" ? "is-active" : ""} href={href("funnel")}>Patient funnel</Link>
+          <small>Intelligence</small>
+          <Link className={activeView === "insights" ? "is-active" : ""} href={href("insights")}>Insights</Link>
+          <Link className={activeView === "marketing" ? "is-active" : ""} href={href("marketing")}>Marketing</Link>
           <small>Workspace</small>
+          <Link className={activeView === "custom" ? "is-active" : ""} href={href("custom")}>Custom dashboards</Link>
           <Link className={["practice", "capacity", "controls", "index"].includes(activeView) ? "is-active" : ""} href={href("practice")}>Gabby’s dashboard</Link>
           <Link className={activeView === "imports" ? "is-active" : ""} href={href("imports")}>Data imports</Link>
           <Link className={activeView === "data" ? "is-active" : ""} href={href("data")}>My data</Link>
         </nav>
-        <div className="ttg-nav-source"><span className={`is-${sourceHealth.tone}`} />{data.source.label}<small>Workbook updated {refreshedAt}</small></div>
+        <div className="ttg-nav-source"><span className={`is-${sourceHealth.tone}`} />{data.source.label}<small>Reporting data updated {refreshedAt}</small></div>
       </aside>
 
       <div className="ttg-dashboard-main">
@@ -105,12 +125,12 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
           <div><span>Jane</span><strong>Through {formatDataThrough(data.source.janeDataThrough)}</strong><small>Clinical and revenue reporting</small></div>
           {showBank && <div><span>Bank</span><strong>Through {formatDataThrough(data.source.bankDataThrough)}</strong><small>{data.source.bankRows ? `${data.source.bankRows} transaction rows` : "Corporate transaction exports"}</small></div>}
           {!showBank && <div><span>Selected range</span><strong>{range.label}</strong><small>All analytics views use this period</small></div>}
-          <div><span>Workbook</span><strong>Updated {refreshedAt}</strong><small>{data.source.refreshedBy ? `By ${data.source.refreshedBy}` : "Refresh owner not recorded"}</small></div>
+          <div><span>Reporting data</span><strong>Updated {refreshedAt}</strong><small>{data.source.refreshedBy ? `By ${data.source.refreshedBy}` : "Refresh owner not recorded"}</small></div>
         </section>
 
-        {data.source.mode === "fixture" && <div className="ttg-prototype-banner"><strong>Prototype data</strong><span>This fixture represents the workbook as updated {refreshedAt}. It is not a live Jane or bank connection.</span></div>}
+        {data.source.mode === "fixture" && <div className="ttg-prototype-banner"><strong>Prototype data</strong><span>This fixture represents the reporting data as updated {refreshedAt}. It is not a live Jane or bank connection.</span></div>}
 
-        {["overview", "financial", "appointments", "team", "retention", "funnel", "imports", "data"].includes(activeView) && <AdminFlowView data={data} view={activeView} tab={tab} range={range} />}
+        {["overview", "financial", "appointments", "team", "retention", "funnel", "insights", "marketing", "custom", "imports", "data"].includes(activeView) && <AdminFlowView data={data} view={activeView} tab={tab} range={range} />}
 
         {["practice", "capacity", "controls", "index"].includes(activeView) && <nav className="ttg-af-tabs" aria-label="Gabby's dashboard sections"><Link className={activeView === "practice" ? "is-active" : ""} href={href("practice")}>Practice</Link><Link className={activeView === "capacity" ? "is-active" : ""} href={href("capacity")}>Capacity</Link><Link className={activeView === "controls" ? "is-active" : ""} href={href("controls")}>Controls</Link><Link className={activeView === "index" ? "is-active" : ""} href={href("index")}>Data index</Link></nav>}
 
@@ -159,7 +179,7 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
           </div>
           <div className="ttg-dashboard-grid">
             <Panel eyebrow="Expense composition" title={topExpense ? `${topExpense.category} is the largest operating cost.` : "Operating expense composition"} note={`${money(operatingMonth.operatingExpenses)} total operating expenses · ${data.reportingPeriod} ${operatingMonth.status.toLowerCase()}`}><ExpenseChart expenses={data.expenses} /></Panel>
-            <Panel eyebrow="Close checklist" title={failures.length ? `${failures.length} ${failures.length === 1 ? "control has" : "controls have"} failed.` : `${copy.passes} checks pass; ${warnings.length} ${warnings.length === 1 ? "needs" : "need"} review.`} note="Checks reconcile the reporting workbook to Jane and supplied bank exports">
+            <Panel eyebrow="Close checklist" title={failures.length ? `${failures.length} ${failures.length === 1 ? "control has" : "controls have"} failed.` : `${copy.passes} checks pass; ${warnings.length} ${warnings.length === 1 ? "needs" : "need"} review.`} note="Checks reconcile the secure reporting store to Jane and supplied bank exports">
               <div className="ttg-quality-list">{data.qualityChecks.map((check) => <div className="ttg-quality-row" key={check.check}><span className={`is-${check.status.toLowerCase()}`}>{check.status === "PASS" ? "Pass" : check.status === "FAIL" ? "Fail" : "Review"}</span><div><strong>{check.check}</strong><p>{check.notes}</p></div></div>)}</div>
             </Panel>
           </div>
@@ -169,12 +189,12 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
 
         {activeView === "index" && <>
           <div className="ttg-index-summary">
-            <div><span>Source mode</span><strong>{data.source.mode === "live" ? "Connected workbook" : "Verified fixture"}</strong><small>{data.source.label}</small></div>
+            <div><span>Source mode</span><strong>{data.source.mode === "live" ? "Connected database" : "Verified fixture"}</strong><small>{data.source.label}</small></div>
             <div><span>Source cutoffs</span><strong>Jane {formatDataThrough(data.source.janeDataThrough)}</strong><small>Bank {formatDataThrough(data.source.bankDataThrough)}</small></div>
-            <div><span>Workbook refresh</span><strong>{refreshedAt}</strong><small>{data.source.refreshedBy ? `By ${data.source.refreshedBy}` : "Refresh owner not recorded"}</small></div>
+            <div><span>Database refresh</span><strong>{refreshedAt}</strong><small>{data.source.refreshedBy ? `By ${data.source.refreshedBy}` : "Refresh owner not recorded"}</small></div>
           </div>
 
-          <Panel eyebrow="Visualization lineage" title="What powers each dashboard view" note="Fixed definitions; values refresh from the workbook" wide>
+          <Panel eyebrow="Visualization lineage" title="What powers each dashboard view" note="Fixed definitions; values refresh from the secure reporting database" wide>
             <div className="ttg-lineage-list">
               {dashboardVisualIndex.map((item) => <div className="ttg-lineage-row" key={item.visual}><strong>{item.visual}</strong><span>{item.source}</span><p>{item.fields}</p><p>{item.calculation}</p></div>)}
             </div>
@@ -187,7 +207,7 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
           </section>
         </>}
 
-        <footer className="ttg-dashboard-footer"><span>No client names or PHI included.</span><span>{analyticsView ? "Jane aggregate reporting" : "Jane + supplied corporate-bank CSVs"}</span><span>Workbook updated {refreshedAt}{data.source.refreshedBy ? ` by ${data.source.refreshedBy}` : ""}</span></footer>
+        <footer className="ttg-dashboard-footer"><span>No client names included.</span><span>{analyticsView ? "Jane privacy-safe reporting" : "Jane + supplied corporate-bank CSVs"}</span><span>Database updated {refreshedAt}{data.source.refreshedBy ? ` by ${data.source.refreshedBy}` : ""}</span></footer>
       </div>
     </div>
   );

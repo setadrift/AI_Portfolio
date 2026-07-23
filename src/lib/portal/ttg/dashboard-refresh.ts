@@ -56,6 +56,8 @@ export type AnalyticsDailyRow = {
   outstanding: number;
   commission: number;
   transactions: number;
+  completedTransactions: number;
+  completedTransactionValue: number;
   fees: number;
   refunds: number;
   patients: number;
@@ -83,6 +85,55 @@ export type RetentionCohortRow = {
   repeatPatients: number;
   visitGapDays: number;
   visitGapSamples: number;
+};
+
+export type RefreshPrivateFacts = {
+  appointments: Array<{
+    recordKey: string;
+    occurredAt: string;
+    date: string;
+    service: string;
+    practitioner: string;
+    state: string;
+    durationMinutes: number;
+    bookingSource: string;
+    patientKey: string | null;
+    firstVisit: boolean;
+    consultation: boolean;
+    recovered: boolean;
+  }>;
+  transactions: Array<{
+    recordKey: string;
+    date: string;
+    practitioner: string;
+    service: string;
+    revenue: number;
+    collected: number;
+    commission: number;
+    paymentMethod: string;
+    status: string;
+    patientKey: string | null;
+  }>;
+  sales: Array<{
+    recordKey: string;
+    date: string;
+    invoiceKey: string;
+    item: string;
+    practitioner: string;
+    payerCategory: string;
+    status: string;
+    subtotal: number;
+    total: number;
+    collected: number;
+    outstanding: number;
+  }>;
+  collections: Array<{
+    recordKey: string;
+    date: string;
+    method: string;
+    amount: number;
+    transactionCount: number;
+  }>;
 };
 
 export type RefreshPayload = {
@@ -138,6 +189,7 @@ export type RefreshPayload = {
   };
   analyticsRows: AnalyticsDailyRow[];
   cohortRows: RetentionCohortRow[];
+  privateFacts?: RefreshPrivateFacts;
   fileSummaries: ImportFileSummary[];
   sourceCoverage: SourceCoverage[];
   coverageCalendar: CoverageDay[];
@@ -342,6 +394,9 @@ function periodFromSalesName(name: string) {
 const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 const daysApart = (left: string, right: string) => Math.abs((new Date(left).getTime() - new Date(right).getTime()) / 86_400_000);
 const normalizeName = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const privateKey = (namespace: string, value: string) => value
+  ? createHash("sha256").update(`ttg-reporting-v1|${namespace}|${value}`).digest("hex")
+  : "";
 const latestCompleteTorontoDate = () => {
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((part) => [part.type, part.value]));
   const today = new Date(`${parts.year}-${parts.month}-${parts.day}T12:00:00Z`);
@@ -395,6 +450,7 @@ function buildAnalyticsRows(
   const base = (): AnalyticsAccumulator => ({
     appointments: 0, completed: 0, cancelled: 0, noShows: 0, pending: 0,
     invoiced: 0, collected: 0, processed: 0, outstanding: 0, commission: 0, transactions: 0,
+    completedTransactions: 0, completedTransactionValue: 0,
     fees: 0, refunds: 0, patientIds: new Set(), newPatients: 0, consultations: 0,
     firstVisits: 0, subsequentVisits: 0, bookedMinutes: 0, recovered: 0,
     paymentLagDays: 0, paymentLagSamples: 0,
@@ -430,7 +486,7 @@ function buildAnalyticsRows(
   const missedAppointments: Array<{ date: string; patientId: string; practitioner: string }> = [];
   for (const row of activeAppointments) {
     const date = rowDate(row, COVERAGE_FIELDS.appointments);
-    if (!date) continue;
+    if (!date || date > dataThrough) continue;
     const state = (row.state ?? row.State ?? "").toLowerCase();
     const practitioner = row.staff_member_name ?? row["Staff Member"] ?? row.Staff ?? "Unassigned";
     const service = row.treatment_name || row.Type || row.Session || "Unknown service";
@@ -457,8 +513,18 @@ function buildAnalyticsRows(
     };
     const hour = String(startValue).match(/[T ](\d{1,2}):/)?.[1]?.padStart(2, "0") ?? (Number.isFinite(start.getTime()) ? String(start.getUTCHours()).padStart(2, "0") : "Unknown");
     dimensions(date, update, [["practitioner", practitioner], ["service", service], ["booking_source", bookingSource], ["hour", hour]]);
-    if (patientId && ["arrived", "completed"].includes(state)) {
-      patientVisits.set(patientId, [...(patientVisits.get(patientId) ?? []), { date, practitioner, service, first: isFirst }]);
+    if (patientId && ["arrived", "completed", "no_show", "no show"].includes(state)) {
+      patientVisits.set(patientId, [
+        ...(patientVisits.get(patientId) ?? []),
+        {
+          date,
+          practitioner,
+          service,
+          // A no-show can satisfy AdminFlow's return-activity rule, but it
+          // cannot establish the patient's completed first-visit cohort.
+          first: ["arrived", "completed"].includes(state) && isFirst,
+        },
+      ]);
     }
     if (patientId && (state === "cancelled" || state === "no_show" || state === "no show")) missedAppointments.push({ date, patientId, practitioner });
   }
@@ -469,10 +535,17 @@ function buildAnalyticsRows(
 
   for (const row of salesRows) {
     const date = rowDate(row, COVERAGE_FIELDS.sales);
-    if (!date) continue;
+    if (!date || date > dataThrough) continue;
     const invoice = money(row.Total);
     const collected = money(row.Collected);
-    const update = { invoiced: invoice, collected, outstanding: money(row.Balance) };
+    const paid = (row.Status || "").toLowerCase() === "paid";
+    const update = {
+      invoiced: invoice,
+      collected,
+      outstanding: money(row.Balance),
+      completedTransactions: paid ? 1 : 0,
+      completedTransactionValue: paid ? collected : 0,
+    };
     dimensions(date, update, [
       ["practitioner", row["Staff Member"] || "Unassigned"],
       ["service", row.Item || row["Income Category"] || "Other"],
@@ -482,7 +555,7 @@ function buildAnalyticsRows(
 
   for (const row of compensationRows) {
     const date = rowDate(row, COVERAGE_FIELDS.compensation);
-    if (!date) continue;
+    if (!date || date > dataThrough) continue;
     const purchaseDate = isoDate(row["Purchase Date"]);
     const paymentDate = isoDate(row["Payment Date"]);
     const lag = purchaseDate && paymentDate ? daysApart(paymentDate, purchaseDate) : 0;
@@ -491,7 +564,7 @@ function buildAnalyticsRows(
 
   for (const row of paymentRows) {
     const date = rowDate(row, COVERAGE_FIELDS.payments);
-    if (!date) continue;
+    if (!date || date > dataThrough) continue;
     const method = row["Payment Method"] || "Other";
     const amount = money(row["Amount Paid to Clinic"] || row.Amount || row.Total);
     const transactions = money(row["Number of Transactions"] || "1");
@@ -545,6 +618,109 @@ function buildAnalyticsRows(
     return { cohortMonth, entity: entity as RetentionCohortRow["entity"], name, cohortSize: row.patientIds.size, eligible30: row.eligible30, retained30: row.retained30, eligible60: row.eligible60, retained60: row.retained60, eligible90: row.eligible90, retained90: row.retained90, repeatPatients: row.repeatPatients, visitGapDays: row.visitGapDays, visitGapSamples: row.visitGapSamples };
   }).sort((a, b) => a.cohortMonth.localeCompare(b.cohortMonth) || a.entity.localeCompare(b.entity) || a.name.localeCompare(b.name));
   return { analyticsRows, cohortRows };
+}
+
+function buildPrivateFacts(
+  appointmentRows: CsvRow[],
+  compensationRows: CsvRow[],
+  salesRows: CsvRow[],
+  paymentRows: CsvRow[],
+  dataThrough: string,
+): RefreshPrivateFacts {
+  const appointments = appointmentRows.flatMap((row) => {
+    const date = rowDate(row, COVERAGE_FIELDS.appointments);
+    if (!date || date > dataThrough) return [];
+    const startValue = row.start_at || row["Start At"] || row.Date || `${date}T00:00:00Z`;
+    const start = new Date(startValue);
+    const end = new Date(row.end_at || row["End At"] || row.Date || startValue);
+    const occurredAt = Number.isFinite(start.getTime()) ? start.toISOString() : `${date}T00:00:00.000Z`;
+    const durationMinutes = Number.isFinite(start.getTime()) && Number.isFinite(end.getTime())
+      ? Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000))
+      : 0;
+    const patientGuid = row.patient_guid || row["Patient Guid"] || "";
+    const service = row.treatment_name || row.Type || row.Session || "Unknown service";
+    const practitioner = row.staff_member_name || row["Staff Member"] || row.Staff || "Unassigned";
+    const state = (row.state || row.State || "unknown").toLowerCase();
+    if (["never booked", "never_booked", "deleted", "archived", "rescheduled"].includes(state)) return [];
+    return [{
+      recordKey: privateKey("appointment", row.id || [startValue, practitioner, service, patientGuid, state].join("|")),
+      occurredAt,
+      date,
+      service,
+      practitioner,
+      state,
+      durationMinutes,
+      bookingSource: String(row.booked_online ?? row["Booked Online"] ?? "").toLowerCase() === "true" ? "Online" : "Staff booked",
+      patientKey: patientGuid ? privateKey("patient", patientGuid) : null,
+      firstVisit: String(row.first_visit ?? row["First Visit"] ?? "").toLowerCase() === "true",
+      consultation: /consult/i.test(service),
+      recovered: false,
+    }];
+  });
+  const patientVisits = new Map<string, string[]>();
+  appointments.filter((row) => row.patientKey && ["arrived", "completed"].includes(row.state)).forEach((row) => {
+    patientVisits.set(row.patientKey!, [...(patientVisits.get(row.patientKey!) ?? []), row.date]);
+  });
+  appointments.forEach((row) => {
+    if (!row.patientKey || !["cancelled", "no_show", "no show"].includes(row.state)) return;
+    row.recovered = (patientVisits.get(row.patientKey) ?? []).some((date) => date > row.date);
+  });
+
+  const transactions = compensationRows.flatMap((row) => {
+    const date = rowDate(row, COVERAGE_FIELDS.compensation);
+    if (!date || date > dataThrough) return [];
+    const patientGuid = row.patient_guid || row["Patient Guid"] || "";
+    const basis = [
+      row["Invoice #"], row.Practitioner, row["Purchase Date"], row["Transaction Date"],
+      row["Payment Date"], row["Collected Total"], row["Commission Total"], row.Quantity,
+    ].join("|");
+    return [{
+      recordKey: privateKey("transaction", basis),
+      date,
+      practitioner: row.Practitioner || "Unassigned",
+      service: row["Income Category"] || "Treatment income",
+      revenue: money(row["Invoice Total"] || row["Collected Total"]),
+      collected: money(row["Collected Total"] || row["Collected Subtotal"]),
+      commission: money(row["Commission Total"]),
+      paymentMethod: row["Payment Method"] || "Other",
+      status: money(row["Collected Total"] || row["Collected Subtotal"]) > 0 ? "Collected" : "Uncollected",
+      patientKey: patientGuid ? privateKey("patient", patientGuid) : null,
+    }];
+  });
+  const sales = salesRows.flatMap((row) => {
+    const date = rowDate(row, COVERAGE_FIELDS.sales);
+    if (!date || date > dataThrough) return [];
+    const invoice = row["Invoice #"] || "";
+    const basis = [invoice, row.Item, row["Staff Member"], row.Total, row.Collected, row.Balance, row.Status].join("|");
+    return [{
+      recordKey: privateKey("sale", basis),
+      date,
+      invoiceKey: privateKey("invoice", invoice || basis),
+      item: row.Item || row["Income Category"] || "Other",
+      practitioner: row["Staff Member"] || "Unassigned",
+      payerCategory: safePayerCategory(row.Payer || "Patient / private pay"),
+      status: row.Status || (money(row.Balance) > 0 ? "Outstanding" : "Paid"),
+      subtotal: money(row.Subtotal || row.Total),
+      total: money(row.Total),
+      collected: money(row.Collected),
+      outstanding: money(row.Balance),
+    }];
+  });
+  const collections = paymentRows.flatMap((row) => {
+    const date = rowDate(row, COVERAGE_FIELDS.payments);
+    if (!date || date > dataThrough) return [];
+    const method = row["Payment Method"] || "Other";
+    const amount = money(row["Amount Paid to Clinic"] || row.Amount || row.Total);
+    const transactionCount = Math.max(0, Math.round(money(row["Number of Transactions"] || "1")));
+    return [{
+      recordKey: privateKey("collection", [date, method, amount, transactionCount, row.Payer, row["Applied To"]].join("|")),
+      date,
+      method,
+      amount,
+      transactionCount,
+    }];
+  });
+  return { appointments, transactions, sales, collections };
 }
 
 export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
@@ -862,6 +1038,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     funnel: { consultations, consultationPatients: consultationPatients.size, firstVisits, subsequentVisits, uniquePatients: allPatients.size },
   };
   const { analyticsRows, cohortRows } = buildAnalyticsRows(allAppointmentRows, allSalesRows, allCompensationRows, allPaymentRows, safePeriod.end);
+  const privateFacts = buildPrivateFacts(allAppointmentRows, allCompensationRows, allSalesRows, allPaymentRows, safePeriod.end);
   return {
     refreshId: randomUUID(),
     refreshType,
@@ -873,6 +1050,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     analytics,
     analyticsRows,
     cohortRows,
+    privateFacts,
     fileSummaries,
     sourceCoverage,
     coverageCalendar,

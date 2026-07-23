@@ -1,0 +1,2 @@
+-- Remote migration ledger marker.
+-- The temporary one-time historical aggregate transfer function was removed.

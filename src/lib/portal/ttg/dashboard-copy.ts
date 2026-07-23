@@ -176,7 +176,7 @@ export function getOwnerActions(data: TtgDashboardData, now = new Date()): Owner
   if (sourceHealth.gapDays > 0 || sourceHealth.isStale) {
     actions.push({
       tone: "attention",
-      title: sourceHealth.isStale ? "Refresh the reporting workbook" : "Align Jane and bank cutoffs",
+      title: sourceHealth.isStale ? "Refresh the reporting database" : "Align Jane and bank cutoffs",
       detail: `Jane is through ${formatDataThrough(data.source.janeDataThrough)}; bank data is through ${formatDataThrough(data.source.bankDataThrough)}.`,
     });
   }
@@ -274,25 +274,25 @@ export const gabbyMetricCoverage: Array<{ group: string; items: MetricCoverageIt
       { metric: "Total Appointments", status: "shown", source: "Therapist Monthly · Booked Appointments", use: "Capacity outcome card; explicitly labelled booked appointments" },
       { metric: "Average Days from Inquiry to First Appointment", status: "not-available", source: "CRM inquiry timestamp + Jane first appointment required", use: "Not present in current reporting tables" },
       { metric: "Average Days from Consultation to First Session", status: "not-available", source: "Consultation and first-session timestamps required", use: "Not present in current reporting tables" },
-      { metric: "Website Traffic", status: "not-available", source: "Google Analytics required", use: "Not connected to the current workbook" },
-      { metric: "Website Conversion Rate", status: "not-available", source: "Google Analytics conversion events required", use: "Not connected to the current workbook" },
-      { metric: "Leads by Marketing Channel", status: "not-available", source: "CRM + campaign attribution required", use: "Not connected to the current workbook" },
-      { metric: "Email List Growth", status: "not-available", source: "Email platform subscriber history required", use: "Not connected to the current workbook" },
-      { metric: "Email Open Rate", status: "not-available", source: "Email platform campaign data required", use: "Not connected to the current workbook" },
-      { metric: "Email Click-Through Rate", status: "not-available", source: "Email platform campaign data required", use: "Not connected to the current workbook" },
+      { metric: "Website Traffic", status: "not-available", source: "Google Analytics required", use: "Not connected to the current reporting database" },
+      { metric: "Website Conversion Rate", status: "not-available", source: "Google Analytics conversion events required", use: "Not connected to the current reporting database" },
+      { metric: "Leads by Marketing Channel", status: "not-available", source: "CRM + campaign attribution required", use: "Not connected to the current reporting database" },
+      { metric: "Email List Growth", status: "not-available", source: "Email platform subscriber history required", use: "Not connected to the current reporting database" },
+      { metric: "Email Open Rate", status: "not-available", source: "Email platform campaign data required", use: "Not connected to the current reporting database" },
+      { metric: "Email Click-Through Rate", status: "not-available", source: "Email platform campaign data required", use: "Not connected to the current reporting database" },
     ],
   },
 ];
 
 export const dashboardVisualIndex = [
-  { visual: "Source freshness strip", source: "Refresh Log + Checks", fields: "Refresh Timestamp, Refreshed By, source-date alignment, Bank Coverage", calculation: "Shows workbook refresh time and distinct Jane/bank data cutoffs; browser fetch time is not presented as source freshness." },
+  { visual: "Source freshness strip", source: "Import runs + quality checks", fields: "Refresh Timestamp, Refreshed By, source-date alignment, Bank Coverage", calculation: "Shows database refresh time and distinct Jane/bank data cutoffs; browser fetch time is not presented as source freshness." },
   { visual: "Owner review list", source: "Checks + Monthly Metrics + Therapist Monthly", fields: "Status, Uncategorized Expenses, Available Hours, source cutoffs", calculation: "Prioritizes failed controls, source alignment, classification cleanup, and the largest open-capacity opportunities." },
   { visual: "Practice outcome cards", source: "Monthly Metrics", fields: "Gross Revenue, Estimated Operating Profit, Estimated Profit Margin, Net Cash Flow", calculation: "Latest complete month; comparison uses the preceding complete month." },
-  { visual: "Revenue and profit chart", source: "Monthly Metrics", fields: "Period, Period Status, Gross Revenue, Estimated Operating Profit", calculation: "Complete months only; values are read from the workbook." },
+  { visual: "Revenue and profit chart", source: "Monthly Metrics", fields: "Period, Period Status, Gross Revenue, Estimated Operating Profit", calculation: "Complete months only; values are read from the reporting database." },
   { visual: "Net cash-flow chart", source: "Monthly Metrics", fields: "Period, Period Status, Data Through, Net Cash Flow", calculation: "All supplied periods; partial periods are visually labelled." },
-  { visual: "Operating pulse", source: "Monthly Metrics + Therapist Monthly", fields: "Collection Rate, Marketing Spend, Active Therapists, Owner Flag, Gross Revenue", calculation: "Collection and marketing ratios use workbook values; owner/team share is derived from owner-flagged therapist revenue." },
+  { visual: "Operating pulse", source: "Monthly Metrics + Therapist Monthly", fields: "Collection Rate, Marketing Spend, Active Therapists, Owner Flag, Gross Revenue", calculation: "Collection and marketing ratios use database values; owner/team share is derived from owner-flagged therapist revenue." },
   { visual: "Capacity cards and chart", source: "Therapist Monthly", fields: "Therapist, Scheduled Hours, Booked Hours, Available Hours, Utilization", calculation: "Weighted utilization = total booked hours / total scheduled hours." },
   { visual: "Therapist revenue contribution", source: "Therapist Monthly", fields: "Therapist, Owner Flag, Gross Revenue", calculation: "Practitioners sorted by gross revenue for the reporting period." },
   { visual: "Expense composition", source: "Expense Categories + Monthly Metrics", fields: "Category, Expense Amount, Expense Share, Operating Expenses", calculation: "Categories reconcile to the complete-month operating-expense total." },
-  { visual: "Close checklist", source: "Checks", fields: "Check, Status, Actual, Expected, Difference, Notes", calculation: "Workbook checks are displayed as Pass or Review without changing their status." },
+  { visual: "Close checklist", source: "Quality checks", fields: "Check, Status, Actual, Expected, Difference, Notes", calculation: "Database checks are displayed as Pass or Review without changing their status." },
 ];

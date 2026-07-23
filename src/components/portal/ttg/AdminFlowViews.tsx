@@ -92,6 +92,16 @@ function weightedRate(rows: RetentionCohortRow[], retained: "retained30" | "reta
   return denominator ? rows.reduce((total, row) => total + row[retained], 0) / denominator : 0;
 }
 
+function retentionCohortWindow(range: DashboardRange) {
+  const selectedStart = new Date(`${range.start}T12:00:00Z`);
+  const end = new Date(Date.UTC(selectedStart.getUTCFullYear(), selectedStart.getUTCMonth(), 0));
+  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - 5, 1));
+  return {
+    start: start.toISOString().slice(0, 7),
+    end: end.toISOString().slice(0, 7),
+  };
+}
+
 export function AdminFlowView({ data, view, tab = "overview", range }: { data: TtgDashboardData; view: string; tab?: string; range: DashboardRange }) {
   const rows = data.analyticsRows.filter((row) => rangeContains(row.date, range));
   const clinic = rows.filter((row) => row.entity === "clinic");
@@ -101,6 +111,8 @@ export function AdminFlowView({ data, view, tab = "overview", range }: { data: T
   const processed = sum(clinic, "processed");
   const outstanding = sum(clinic, "outstanding");
   const transactions = sum(clinic, "transactions");
+  const completedTransactions = sum(clinic, "completedTransactions");
+  const completedTransactionValue = sum(clinic, "completedTransactionValue");
   const appointments = sum(clinic, "appointments");
   const completed = sum(clinic, "completed");
   const cancelled = sum(clinic, "cancelled");
@@ -109,20 +121,23 @@ export function AdminFlowView({ data, view, tab = "overview", range }: { data: T
   const fees = sum(clinic, "fees");
   const completionRate = appointments ? completed / appointments : 0;
   const collectionRate = invoiced ? collected / invoiced : 0;
-  const averageTransaction = transactions ? processed / transactions : 0;
-  const selectedCohorts = data.cohortRows.filter((row) => row.cohortMonth >= range.start.slice(0, 7) && row.cohortMonth <= range.end.slice(0, 7));
+  const averageTransaction = completedTransactions ? completedTransactionValue / completedTransactions : 0;
+  const cohortWindow = retentionCohortWindow(range);
+  const selectedCohorts = data.cohortRows.filter((row) => row.cohortMonth >= cohortWindow.start && row.cohortMonth <= cohortWindow.end);
   const selectedClinicCohorts = selectedCohorts.filter((row) => row.entity === "clinic");
   const mature90 = selectedClinicCohorts.reduce((total, row) => total + row.eligible90, 0);
   const historyAvailable = data.cohortRows.length > 0;
-  const dataHref = queryFor(range, { view: "data", tab: "Analytics Daily" });
+  const appointmentsHref = queryFor(range, { view: "data", tab: "Appointments" });
+  const transactionsHref = queryFor(range, { view: "data", tab: "Transactions" });
+  const salesHref = queryFor(range, { view: "data", tab: "Sales" });
 
   if (view === "overview") {
     return <>
       <Cards items={[
-        { label: "Total invoiced", value: rows.length ? cad.format(invoiced) : "Refresh needed", detail: range.label, unavailable: !rows.length, href: dataHref },
-        { label: "Appointments", value: rows.length ? integer.format(appointments) : "Refresh needed", detail: rows.length ? `${pct(completionRate)} completed` : "Publish the historical Jane package", unavailable: !rows.length, href: dataHref },
-        { label: "Patient retention", value: mature90 ? pct(weightedRate(selectedClinicCohorts, "retained90", "eligible90")) : historyAvailable ? "Cohorts maturing" : "Needs history", detail: mature90 ? "90-day mature cohorts in this range" : historyAvailable ? "No 90-day-eligible cohort in this range" : "Historical appointments required", unavailable: !mature90, href: queryFor(range, { view: "retention", tab: "overview" }) },
-        { label: "Avg. transaction value", value: transactions ? cad.format(averageTransaction) : "Refresh needed", detail: transactions ? `${integer.format(transactions)} processed transactions` : "Payments & Refunds history required", unavailable: !transactions, href: dataHref },
+        { label: "Total invoiced", value: rows.length ? cad.format(invoiced) : "Refresh needed", detail: range.label, unavailable: !rows.length, href: salesHref },
+        { label: "Appointments", value: rows.length ? integer.format(appointments) : "Refresh needed", detail: rows.length ? `${pct(completionRate)} completed` : "Publish the historical Jane package", unavailable: !rows.length, href: appointmentsHref },
+        { label: "Patient retention", value: mature90 ? pct(weightedRate(selectedClinicCohorts, "retained90", "eligible90")) : historyAvailable ? "Cohorts maturing" : "Needs history", detail: mature90 ? `Six-month cohort ending ${cohortWindow.end}` : historyAvailable ? "No mature 90-day cohort is available" : "Historical appointments required", unavailable: !mature90, href: queryFor(range, { view: "retention", tab: "overview" }) },
+        { label: "Avg. transaction value", value: completedTransactions ? cad.format(averageTransaction) : "Refresh needed", detail: completedTransactions ? `Across ${integer.format(completedTransactions)} completed transactions` : "Sales history required", unavailable: !completedTransactions, href: salesHref },
       ]} />
       <div className="ttg-af-grid">
         <Panel title="Clinic performance" note="Invoiced and collected revenue across the selected range" action={<Link href={queryFor(range, { view: "financial", tab: "trends" })}>View financial trends</Link>}>
@@ -162,10 +177,10 @@ export function AdminFlowView({ data, view, tab = "overview", range }: { data: T
     });
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} />
       {tab === "overview" && <><Cards items={[
-        { label: "Total invoiced", value: cad.format(invoiced), detail: range.label, href: dataHref },
-        { label: "Collected", value: cad.format(collected), detail: `${pct(collectionRate)} of invoiced`, href: dataHref },
-        { label: "Outstanding", value: cad.format(outstanding), detail: "Current open balance on selected invoices", href: dataHref },
-        { label: "Avg. transaction", value: transactions ? cad.format(averageTransaction) : "—", detail: `${integer.format(transactions)} transactions`, href: dataHref },
+        { label: "Total invoiced", value: cad.format(invoiced), detail: range.label, href: salesHref },
+        { label: "Collected", value: cad.format(collected), detail: `${pct(collectionRate)} of invoiced`, href: salesHref },
+        { label: "Outstanding", value: cad.format(outstanding), detail: "Current open balance on selected invoices", href: salesHref },
+        { label: "Avg. transaction", value: completedTransactions ? cad.format(averageTransaction) : "—", detail: `${integer.format(completedTransactions)} completed transactions`, href: salesHref },
       ]} /><div className="ttg-af-grid"><Panel title="Revenue movement" note="Daily invoiced and collected totals"><InteractiveTrendChart currency data={trend} series={[{ key: "invoiced", label: "Invoiced", color: "#2f86ba" }, { key: "collected", label: "Collected", color: "#61b08b", type: "line" }]} /></Panel><Panel title="Collection health" note="Collected revenue divided by invoiced revenue"><strong className="ttg-af-big">{pct(collectionRate)}</strong><p>{cad.format(collected)} collected against {cad.format(invoiced)} invoiced.</p></Panel></div></>}
       {tab === "trends" && <Panel title="Financial trends" note="Hover for exact daily values"><InteractiveTrendChart currency data={trend} series={[{ key: "invoiced", label: "Invoiced", color: "#2f86ba" }, { key: "collected", label: "Collected", color: "#61b08b", type: "line" }, { key: "processed", label: "Payments processed", color: "#e2a256", type: "line", dashed: true }]} /></Panel>}
       {tab === "services" && <><Cards items={[{ label: "Services invoiced", value: cad.format(invoiced), detail: range.label }, { label: "Service lines", value: integer.format(services.length), detail: "Distinct Jane service labels" }, { label: "Top service", value: services[0]?.label ?? "—", detail: services[0] ? cad.format(services[0].value) : "No activity" }, { label: "Appointments", value: integer.format(appointments), detail: "Across all services" }]} /><Panel title="Revenue by service" note="Highest invoiced services first"><InteractiveBarChart currency data={services.slice(0, 12)} horizontal /></Panel></>}
@@ -237,7 +252,7 @@ export function AdminFlowView({ data, view, tab = "overview", range }: { data: T
     const dimension = tab === "by-practitioner" ? "practitioner" : "service";
     const breakdown = cohorts.filter((row) => row.entity === dimension).map((row) => ({ label: row.name, value: row.eligible90 ? row.retained90 / row.eligible90 * 100 : 0 })).filter((row) => row.value > 0).sort((a, b) => b.value - a.value);
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} />
-      {(tab === "overview" || tab === "patient-activity") && <><Cards items={[{ label: "Cohort patients", value: integer.format(cohortSize), detail: "First completed visits in selected cohort months" }, { label: "30-day retention", value: pct(rate30), detail: "Mature eligible cohorts" }, { label: "60-day retention", value: pct(rate60), detail: "Mature eligible cohorts" }, { label: "90-day retention", value: pct(rate90), detail: "Mature eligible cohorts" }]} /><Panel title={tab === "patient-activity" ? "New and repeat patient activity" : "Retention by cohort month"} note="Only mature patients enter each retention denominator">{tab === "patient-activity" ? <InteractiveStackedChart data={activity} series={[{ key: "cohort", label: "New cohort", color: "#2f86ba" }, { key: "repeat", label: "Repeat patients", color: "#61b08b" }]} /> : <InteractiveLineChart data={activity} series={[{ key: "retained30", label: "30 day", color: "#2f86ba" }, { key: "retained60", label: "60 day", color: "#61b08b" }, { key: "retained90", label: "90 day", color: "#e2a256" }]} />}</Panel></>}
+      {(tab === "overview" || tab === "patient-activity") && <><Cards items={[{ label: "Cohort patients", value: integer.format(cohortSize), detail: `${cohortWindow.start} to ${cohortWindow.end}` }, { label: "30-day retention", value: pct(rate30), detail: "Mature eligible cohorts" }, { label: "60-day retention", value: pct(rate60), detail: "Mature eligible cohorts" }, { label: "90-day retention", value: pct(rate90), detail: "Mature eligible cohorts" }]} /><Panel title={tab === "patient-activity" ? "New and repeat patient activity" : "Retention by cohort month"} note="Rolling six-month cohort; only mature patients enter each denominator">{tab === "patient-activity" ? <InteractiveStackedChart data={activity} series={[{ key: "cohort", label: "New cohort", color: "#2f86ba" }, { key: "repeat", label: "Repeat patients", color: "#61b08b" }]} /> : <InteractiveLineChart data={activity} series={[{ key: "retained30", label: "30 day", color: "#2f86ba" }, { key: "retained60", label: "60 day", color: "#61b08b" }, { key: "retained90", label: "90 day", color: "#e2a256" }]} />}</Panel></>}
       {(tab === "by-practitioner" || tab === "by-service") && <><Cards items={[{ label: "Selected cohorts", value: integer.format(cohortSize), detail: range.label }, { label: "Repeat patients", value: integer.format(repeat), detail: "Two or more completed visits" }, { label: "90-day retention", value: pct(rate90), detail: "Clinic weighted rate" }, { label: "Breakdown rows", value: integer.format(breakdown.length), detail: dimension === "practitioner" ? "Practitioners" : "Services" }]} /><Panel title={`90-day retention by ${dimension}`} note="Only rows with mature eligible cohorts are shown"><InteractiveBarChart data={breakdown.slice(0, 15)} horizontal /></Panel></>}
       {tab === "cohorts" && <Panel title="Retention cohorts" note="Privacy-safe monthly aggregates; no patient identities are stored"><DataTable rows={activity} columns={[
         { label: "Cohort", value: (row) => String(row.label) },
@@ -259,20 +274,71 @@ export function AdminFlowView({ data, view, tab = "overview", range }: { data: T
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} /><Cards items={[{ label: "Consultations", value: integer.format(consultations), detail: "Jane treatment labels containing consult" }, { label: "First visits", value: integer.format(firstVisits), detail: "First-visit flag excluding consultations" }, { label: "Subsequent visits", value: integer.format(subsequentVisits), detail: "Ongoing appointment activity" }, { label: "Total appointments", value: integer.format(appointments), detail: range.label }]} />{tab === "by-practitioner" ? <Panel title="Patient path by practitioner" note="This is an appointment-state path; Jane does not provide pre-booking inquiries"><InteractiveStackedChart data={practitionerFunnel} series={[{ key: "consultations", label: "Consultations", color: "#2f86ba" }, { key: "firstVisits", label: "First visits", color: "#61b08b" }, { key: "subsequentVisits", label: "Subsequent", color: "#e2a256" }]} /></Panel> : <Panel title="Jane appointment funnel" note="Inquiry-to-booking is intentionally excluded because no inquiry source is present"><InteractiveBarChart data={[{ label: "Consultations", value: consultations }, { label: "First visits", value: firstVisits }, { label: "Subsequent visits", value: subsequentVisits }]} horizontal /></Panel>}</>;
   }
 
+  if (view === "insights") {
+    const enoughDays = Math.max(0, Math.round((Date.parse(`${range.end}T12:00:00Z`) - Date.parse(`${range.start}T12:00:00Z`)) / 86_400_000)) >= 27;
+    if (!rows.length || !enoughDays) {
+      return <div className="ttg-af-empty"><strong>Not Enough Data for This Period</strong><p>Choose a longer date range after the historical imports mature. The dashboard will not substitute a different period or invent an insight.</p></div>;
+    }
+    const signals = [
+      { label: "Collection health", value: pct(collectionRate), detail: collectionRate >= 0.95 ? "Collections are keeping pace with invoicing." : "Outstanding balances merit review." },
+      { label: "Appointment completion", value: pct(completionRate), detail: `${integer.format(cancelled + noShows)} missed appointments in the selected range.` },
+      { label: "Revenue per appointment", value: appointments ? cad.format(invoiced / appointments) : "—", detail: "Invoiced revenue divided by total appointments." },
+      { label: "30-day retention", value: selectedClinicCohorts.some((row) => row.eligible30) ? pct(weightedRate(selectedClinicCohorts, "retained30", "eligible30")) : "Cohorts maturing", detail: "Only eligible patients enter the denominator." },
+    ];
+    return <><Cards items={signals} /><Panel title="Operating intelligence" note="Derived from the selected period and its mature historical cohorts"><div className="ttg-quality-list">{signals.map((signal) => <div className="ttg-quality-row" key={signal.label}><span className="is-pass">Signal</span><div><strong>{signal.label}: {signal.value}</strong><p>{signal.detail}</p></div></div>)}</div></Panel></>;
+  }
+
+  if (view === "marketing") {
+    const tabs = ["Performance", "Campaigns", "Trends"];
+    const marketingTab = tab === "overview" ? "performance" : tab;
+    const newPatients = sum(clinic, "newPatients");
+    const marketingSpend = 0;
+    const acquisitionRevenue = invoiced;
+    const cac = newPatients ? marketingSpend / newPatients : 0;
+    const roas = marketingSpend ? acquisitionRevenue / marketingSpend : 0;
+    const marketingTrend = daily(rows, ["newPatients", "invoiced"]).map((row) => ({ ...row, spend: 0 }));
+    return <><Tabs active={marketingTab} range={range} tabs={tabs} view={view} />
+      {marketingTab === "performance" && <><Cards items={[
+        { label: "Marketing spend", value: cad.format(marketingSpend), detail: "No manual campaign spend in the selected range", unavailable: !marketingSpend },
+        { label: "New patients", value: integer.format(newPatients), detail: "Jane first-visit activity" },
+        { label: "CAC", value: marketingSpend ? cad.format(cac) : "Needs spend", detail: "Marketing spend ÷ new patients", unavailable: !marketingSpend },
+        { label: "ROAS", value: marketingSpend ? `${roas.toFixed(2)}×` : "Needs spend", detail: "Invoiced revenue ÷ marketing spend", unavailable: !marketingSpend },
+      ]} /><Panel title="Marketing performance" note="Jane acquisition activity is live; campaign spend is maintained manually"><InteractiveTrendChart data={marketingTrend} series={[{ key: "newPatients", label: "New patients", color: "#2f86ba" }]} /></Panel></>}
+      {marketingTab === "campaigns" && <><Cards items={[
+        { label: "Active campaigns", value: "0", detail: "No campaign records in Supabase" },
+        { label: "Campaign spend", value: cad.format(0), detail: range.label },
+        { label: "New patients", value: integer.format(newPatients), detail: "Jane first visits" },
+        { label: "Confidence", value: "Needs mapping", detail: "Add campaign dates and spend to calculate attribution" },
+      ]} /><div className="ttg-af-empty"><strong>No campaigns in this period</strong><p>Add the same manual campaign inputs used in AdminFlow to calculate CAC, ROAS, and payback without changing the Jane importer.</p></div></>}
+      {marketingTab === "trends" && <Panel title="Acquisition trends" note="New patients from Jane; spend remains zero until campaigns are entered"><InteractiveLineChart data={marketingTrend} series={[{ key: "newPatients", label: "New patients", color: "#2f86ba" }]} /></Panel>}
+    </>;
+  }
+
+  if (view === "custom") {
+    const commission = sum(clinic, "commission");
+    const practitionerCount = groupRows(rows, "practitioner").size;
+    return <><div className="ttg-af-tabs"><strong>Main Sheets</strong></div><Cards items={[
+      { label: "Total Revenue", value: cad.format(invoiced), detail: range.label, href: salesHref },
+      { label: "Total Commission", value: cad.format(commission), detail: "Compensation detail", href: transactionsHref },
+      { label: "New KPI Card", value: "Not configured", detail: "Matches the saved AdminFlow widget", unavailable: true },
+      { label: "Avg Revenue per Practitioner", value: practitionerCount ? cad.format(invoiced / practitionerCount) : "—", detail: `${practitionerCount} active practitioners`, href: queryFor(range, { view: "team", tab: "revenue" }) },
+    ]} /><Panel title="Main Sheets" note="Saved custom dashboard · 1 of 10"><InteractiveBarChart currency horizontal data={ranked(rows, "practitioner", "invoiced").slice(0, 12)} /></Panel></>;
+  }
+
   if (view === "imports") {
     const coverageTable = data.dataTables?.find((table) => table.name === "Source Coverage");
     return <><Cards items={[
       { label: "Jane data through", value: data.source.janeDataThrough, detail: "Latest published Jane date" },
       { label: "Historical aggregates", value: data.analyticsRows.length ? integer.format(data.analyticsRows.length) : "Refresh needed", detail: "Privacy-safe daily rows", unavailable: !data.analyticsRows.length },
       { label: "Retention cohorts", value: data.cohortRows.length ? integer.format(data.cohortRows.length) : "Needs history", detail: "Privacy-safe cohort rows", unavailable: !data.cohortRows.length },
-      { label: "Refresh status", value: data.source.refreshStatus, detail: data.source.refreshNotes ?? "Latest workbook refresh" },
+      { label: "Refresh status", value: data.source.refreshStatus, detail: data.source.refreshNotes ?? "Latest database refresh" },
     ]} /><Panel title="Data imports" note="AdminFlow's four-report workflow, with historical overlap handled automatically"><div className="ttg-af-import"><div><strong>Appointments · Compensation · Sales · Payments & Refunds</strong><p>Upload one or several exports per report. The importer recognizes each structure, combines historical segments, removes repeated rows, and publishes Jane analytics without requiring bank files. Retention cohorts refresh only when the Appointments package includes at least 90 days of history, so a short incremental upload cannot erase mature cohorts.</p></div><Link href="/portal/ttg/refresh">Open data imports</Link></div>{coverageTable && <DataTable rows={coverageTable.rows.slice(0, 12)} columns={coverageTable.columns.slice(0, 5).map((column) => ({ label: column, value: (row) => String(row[column] ?? "") }))} />}</Panel></>;
   }
 
   if (view === "data") {
     const tables = data.dataTables ?? [];
     const selected = tables.find((table) => table.name === tab) ?? tables[0];
-    return <div className="ttg-af-data"><nav>{tables.map((table) => <Link className={selected?.name === table.name ? "is-active" : ""} href={queryFor(range, { view: "data", tab: table.name })} key={table.name}><strong>{table.name}</strong><span>{table.rows.length} rows</span></Link>)}</nav><Panel title={selected?.name ?? "My data"} note="Read-only aggregate values from the reporting workbook">{selected ? <div className="ttg-af-table-wrap"><table><thead><tr>{selected.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{selected.rows.slice(0, 250).map((row, index) => <tr key={index}>{selected.columns.map((column) => <td key={column}>{row[column]}</td>)}</tr>)}</tbody></table></div> : <div className="ttg-af-empty">No reporting tables are available.</div>}</Panel></div>;
+    return <div className="ttg-af-data"><nav>{tables.map((table) => <Link className={selected?.name === table.name ? "is-active" : ""} href={queryFor(range, { view: "data", tab: table.name })} key={table.name}><strong>{table.name}</strong><span>{table.rowCount ?? table.rows.length} rows</span></Link>)}</nav><Panel title={selected?.name ?? "My data"} note="Read-only privacy-safe values from the secure reporting database">{selected ? <div className="ttg-af-table-wrap"><table><thead><tr>{selected.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{selected.rows.slice(0, 250).map((row, index) => <tr key={index}>{selected.columns.map((column) => <td key={column}>{row[column]}</td>)}</tr>)}</tbody></table></div> : <div className="ttg-af-empty">No reporting tables are available.</div>}</Panel></div>;
   }
 
   return null;
