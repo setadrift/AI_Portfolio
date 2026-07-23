@@ -360,6 +360,19 @@ section {
 .ttg-af-cards strong { margin: 7px 0 4px; font-size: clamp(23px,2.5vw,34px); line-height: 1; letter-spacing: -.045em; font-weight: 560; }
 .ttg-af-cards small { margin-top: auto; color: #87908d; font-size: 9px; line-height: 1.4; }
 .ttg-af-cards .is-unavailable strong { color: #827a74; font-size: 19px; letter-spacing: -.02em; }
+.ttg-af-card-with-help { position: relative; }
+.ttg-af-card-with-help > a { display: contents; color: inherit; }
+.ttg-metric-help-trigger { position: absolute; top: 14px; right: 14px; z-index: 2; width: 24px; height: 24px; border: 1px solid #d6dedb; border-radius: 999px; background: #f8faf9; color: #63716d; font: 650 11px/1 var(--font-sans); cursor: pointer; }
+.ttg-metric-help-trigger:hover { border-color: #9aada6; color: var(--ttg-teal); }
+.ttg-metric-help-dialog { width: min(440px, calc(100vw - 32px)); padding: 26px; border: 0; border-radius: 14px; box-shadow: 0 24px 70px rgba(25,40,37,.24); color: var(--ttg-ink); }
+.ttg-metric-help-dialog::backdrop { background: rgba(20,32,30,.38); backdrop-filter: blur(2px); }
+.ttg-metric-help-dialog form { position: absolute; top: 12px; right: 12px; }
+.ttg-metric-help-dialog form button { width: 30px; height: 30px; border: 0; background: transparent; color: #71807b; font-size: 22px; cursor: pointer; }
+.ttg-metric-help-dialog h2 { margin: 0 34px 10px 0; font-family: var(--font-serif); font-size: 25px; font-weight: 500; }
+.ttg-metric-help-dialog p { margin: 0 0 18px; color: #5f6b67; font-size: 13px; line-height: 1.55; }
+.ttg-metric-help-dialog > span { display: block; margin-bottom: 7px; color: #84908c; font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.ttg-metric-help-dialog code { display: block; padding: 12px 14px; border-radius: 8px; background: #f3f6f5; color: #41504b; font: 500 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: normal; }
+.ttg-metric-help-dialog > small { display: block; margin-top: 14px; color: #4f7e68; font-size: 11px; }
 .ttg-af-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 18px; margin-bottom: 22px; }
 .ttg-af-panel { min-width: 0; margin-bottom: 22px; padding: 23px; border: 1px solid var(--ttg-line); border-radius: 10px; background: #fff; }
 .ttg-af-grid .ttg-af-panel { margin-bottom: 0; }
