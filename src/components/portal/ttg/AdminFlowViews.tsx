@@ -6,6 +6,11 @@ import {
   InteractiveStackedChart,
   InteractiveTrendChart,
 } from "@/components/portal/ttg/AdminFlowCharts";
+import {
+  AddCampaignButton,
+  AddWidgetButton,
+  NewDashboardButton,
+} from "@/components/portal/ttg/WorkspaceConfiguration";
 import type { AnalyticsDailyRow, RetentionCohortRow } from "@/lib/portal/ttg/dashboard-refresh";
 import type { TtgDashboardData } from "@/lib/portal/ttg/dashboard";
 import { rangeContains, type DashboardRange } from "@/lib/portal/ttg/dashboard-period";
@@ -15,6 +20,12 @@ const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD",
 const integer = new Intl.NumberFormat("en-CA", { maximumFractionDigits: 0 });
 const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
 const slug = (value: string) => value.toLowerCase().replace(/\s+/g, "-");
+const shortDate = (value: string) => new Intl.DateTimeFormat("en-CA", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+}).format(new Date(`${value}T12:00:00Z`));
 
 type NumericKey = Exclude<{
   [K in keyof AnalyticsDailyRow]: AnalyticsDailyRow[K] extends number ? K : never
@@ -129,7 +140,6 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   const mature90 = selectedClinicCohorts.reduce((total, row) => total + row.eligible90, 0);
   const historyAvailable = data.cohortRows.length > 0;
   const appointmentsHref = queryFor(range, { view: "data", tab: "Appointments" });
-  const transactionsHref = queryFor(range, { view: "data", tab: "Transactions" });
   const salesHref = queryFor(range, { view: "data", tab: "Sales" });
 
   if (view === "overview") {
@@ -292,38 +302,80 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   if (view === "marketing") {
     const tabs = ["Performance", "Campaigns", "Trends"];
     const marketingTab = tab === "overview" ? "performance" : tab;
-    const newPatients = sum(clinic, "newPatients");
-    const marketingSpend = 0;
+    const selectedNewClientRows = (data.marketingNewClients ?? []).filter((row) => rangeContains(row.date, range));
+    const newPatients = selectedNewClientRows.reduce((total, row) => total + row.clients, 0);
+    const campaigns = data.marketingCampaigns ?? [];
+    const selectedCampaigns = campaigns.filter((campaign) => campaign.startDate <= range.end && campaign.endDate >= range.start);
+    const marketingSpend = selectedCampaigns.reduce((total, campaign) => total + campaign.spend, 0);
     const acquisitionRevenue = invoiced;
     const cac = newPatients ? marketingSpend / newPatients : 0;
     const roas = marketingSpend ? acquisitionRevenue / marketingSpend : 0;
     const marketingTrend = daily(rows, ["newPatients", "invoiced"]).map((row) => ({ ...row, spend: 0 }));
+    const sourceRows = [...new Map(selectedNewClientRows.map((row) => [row.channel, selectedNewClientRows.filter((candidate) => candidate.channel === row.channel)]))].map(([label, values]) => ({
+      label: label || "organic",
+      spend: 0,
+      newPatients: values.reduce((total, row) => total + row.clients, 0),
+      revenue: acquisitionRevenue,
+    })).filter((row) => row.newPatients);
+    const attributedPatients = sourceRows.reduce((total, row) => total + row.newPatients, 0);
+    const confidence = newPatients ? Math.min(1, attributedPatients / newPatients) : 0;
     return <><Tabs active={marketingTab} range={range} tabs={tabs} view={view} />
-      {marketingTab === "performance" && <><Cards items={[
-        { label: "Marketing spend", value: cad.format(marketingSpend), detail: "No manual campaign spend in the selected range", unavailable: !marketingSpend },
-        { label: "New patients", value: integer.format(newPatients), detail: "Jane first-visit activity" },
-        { label: "CAC", value: marketingSpend ? cad.format(cac) : "Needs spend", detail: "Marketing spend ÷ new patients", unavailable: !marketingSpend },
-        { label: "ROAS", value: marketingSpend ? `${roas.toFixed(2)}×` : "Needs spend", detail: "Invoiced revenue ÷ marketing spend", unavailable: !marketingSpend },
-      ]} /><Panel title="Marketing performance" note="Jane acquisition activity is live; campaign spend is maintained manually"><InteractiveTrendChart data={marketingTrend} series={[{ key: "newPatients", label: "New patients", color: "#2f86ba" }]} /></Panel></>}
+      {marketingTab === "performance" && <><div className="ttg-af-configuration-alert"><div><strong>Ad accounts are not connected</strong><p>Manual campaigns remain the source for spend; Jane booking sources provide acquisition volume.</p></div><AddCampaignButton /></div><Cards items={[
+        { label: "Total Spend", value: cad.format(marketingSpend), detail: marketingSpend ? range.label : "No spend in the selected range", unavailable: !marketingSpend },
+        { label: "New Clients", value: integer.format(newPatients), detail: "Unique clients with a first qualifying appointment" },
+        { label: "New Client CAC", value: cad.format(cac), detail: "Spend ÷ new clients", unavailable: !marketingSpend },
+        { label: "Gross ROAS", value: marketingSpend ? `${roas.toFixed(2)}×` : "--", detail: "Invoiced revenue ÷ spend", unavailable: !marketingSpend },
+      ]} /><div className="ttg-af-grid"><Panel title="Top Channels" note="Highest spend channels">{sourceRows.length ? <div className="ttg-af-channel-list">{sourceRows.slice(0, 5).map((source) => <div key={source.label}><strong>{source.label}</strong><span>{cad.format(source.spend)}</span><small>{integer.format(source.newPatients)} new clients · {source.spend ? `${(source.revenue / source.spend).toFixed(2)}× ROAS` : "No ROAS"}</small></div>)}</div> : <p>No attributed channels in this period.</p>}</Panel><Panel title="Monthly Spend" note={marketingSpend ? range.label : "No spend data available for the selected period"}>{marketingSpend ? <InteractiveTrendChart currency data={marketingTrend} series={[{ key: "spend", label: "Spend", color: "#2f86ba" }]} /> : <p>No spend data available for the selected period.</p>}</Panel></div><Panel title="Channel Performance" note="Channel attribution is estimated from qualifying Jane appointments"><DataTable rows={sourceRows} columns={[
+        { label: "Channel", value: (row) => String(row.label) },
+        { label: "Spend", value: (row) => cad.format(Number(row.spend)) },
+        { label: "New Clients", value: (row) => integer.format(Number(row.newPatients)) },
+        { label: "CAC", value: (row) => Number(row.spend) ? cad.format(Number(row.spend) / Number(row.newPatients || 1)) : cad.format(0) },
+        { label: "Gross ROAS", value: (row) => Number(row.spend) ? `${(Number(row.revenue) / Number(row.spend)).toFixed(2)}×` : "-" },
+        { label: "CTR", value: () => "—" },
+        { label: "CPC", value: () => "—" },
+        { label: "First Visit Lag", value: () => "-" },
+        { label: "Confidence", value: () => `${Math.round(confidence * 100)}%` },
+      ]} /></Panel></>}
       {marketingTab === "campaigns" && <><Cards items={[
-        { label: "Active campaigns", value: "0", detail: "No campaign records in Supabase" },
-        { label: "Campaign spend", value: cad.format(0), detail: range.label },
-        { label: "New patients", value: integer.format(newPatients), detail: "Jane first visits" },
-        { label: "Confidence", value: "Needs mapping", detail: "Add campaign dates and spend to calculate attribution" },
-      ]} /><div className="ttg-af-empty"><strong>No campaigns in this period</strong><p>Add the same manual campaign inputs used in AdminFlow to calculate CAC, ROAS, and payback without changing the Jane importer.</p></div></>}
-      {marketingTab === "trends" && <Panel title="Acquisition trends" note="New patients from Jane; spend remains zero until campaigns are entered"><InteractiveLineChart data={marketingTrend} series={[{ key: "newPatients", label: "New patients", color: "#2f86ba" }]} /></Panel>}
+        { label: "Active Campaigns", value: String(selectedCampaigns.filter((campaign) => campaign.status.toLowerCase() === "active").length), detail: range.label },
+        { label: "Total Spend", value: cad.format(marketingSpend), detail: range.label },
+        { label: "New Clients", value: integer.format(newPatients), detail: "Jane first visits" },
+        { label: "Data Confidence", value: pct(confidence), detail: `${pct(confidence)} booking source coverage` },
+      ]} /><Panel title="Your Campaigns" note={`${campaigns.length} campaigns`} action={<AddCampaignButton />}><div className="ttg-af-campaign-list">{campaigns.map((campaign) => <article key={campaign.id}><div><h3>{campaign.name}</h3><span>{campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}</span></div><p>{campaign.channel} · {shortDate(campaign.startDate)} - {shortDate(campaign.endDate)}</p><strong>{cad.format(campaign.spend)}</strong><small>Total spend</small></article>)}</div></Panel></>}
+      {marketingTab === "trends" && <><Cards items={[
+        { label: "Gross ROAS", value: marketingSpend ? `${roas.toFixed(2)}×` : "--", detail: range.label, unavailable: !marketingSpend },
+        { label: "New Client CAC", value: cad.format(cac), detail: "Spend ÷ new clients", unavailable: !marketingSpend },
+        { label: "Payback Days", value: "--", detail: "No ad-platform conversion source", unavailable: true },
+        { label: "New Clients", value: integer.format(newPatients), detail: "Jane first visits" },
+      ]} /><div className="ttg-af-grid"><Panel title="Spend vs. New Clients" note="Weekly acquisition activity"><InteractiveTrendChart data={marketingTrend} series={[{ key: "newPatients", label: "New Clients", color: "#2f86ba" }, { key: "spend", label: "Spend", color: "#61b08b", type: "line" }]} /></Panel><Panel title="Gross ROAS Over Time" note="Appears when spend overlaps Jane revenue"><InteractiveLineChart data={marketingTrend.map((row) => ({ ...row, roas: 0 }))} series={[{ key: "roas", label: "Gross ROAS", color: "#2f86ba" }]} /></Panel></div><Panel title="New Client CAC Over Time" note="Weekly campaign spend divided by new clients"><InteractiveLineChart currency data={marketingTrend.map((row) => ({ ...row, cac: 0 }))} series={[{ key: "cac", label: "New Client CAC", color: "#e2a256" }]} /></Panel></>}
     </>;
   }
 
   if (view === "custom") {
+    const dashboards = data.customDashboards ?? [];
+    const dashboardId = tab.replace(/^(dashboard|edit)-/, "");
+    const selectedDashboard = dashboards.find((dashboard) => dashboard.id === dashboardId);
+    if (tab === "overview" || tab === "list") {
+      return <section className="ttg-af-workspace-list"><div className="ttg-af-workspace-heading"><div><h2>Custom Dashboards <span>{dashboards.length}/10</span></h2><p>Build and manage your own analytics views</p></div><div><Link href={queryFor(range, { view: "custom", tab: "trash" })}>View trash</Link><NewDashboardButton /></div></div>{dashboards.map((dashboard) => <article key={dashboard.id}><Link href={queryFor(range, { view: "custom", tab: `dashboard-${dashboard.id}` })}><h3>{dashboard.name}</h3>{dashboard.isDefault && <span>Default</span>}<p>{dashboard.description}</p><small>Updated {shortDate(dashboard.updatedAt.slice(0, 10))}</small></Link></article>)}</section>;
+    }
+    if (tab === "trash") {
+      return <><div className="ttg-af-workspace-heading"><div><h2>Deleted Dashboards</h2><p>Restore or permanently remove deleted dashboards.</p></div><Link href={queryFor(range, { view: "custom", tab: "list" })}>Back to dashboards</Link></div><div className="ttg-af-empty"><strong>Trash is empty</strong><p>No custom dashboards have been deleted.</p></div></>;
+    }
+    if (!selectedDashboard) {
+      return <div className="ttg-af-empty"><strong>Dashboard not found</strong><p>The saved dashboard may have been removed.</p><Link href={queryFor(range, { view: "custom", tab: "list" })}>Back to custom dashboards</Link></div>;
+    }
     const commission = sum(clinic, "commission");
     const practitionerCount = groupRows(rows, "practitioner").size;
-    return <><div className="ttg-af-tabs"><strong>Main Sheets</strong></div><Cards items={[
-      { label: "Total Revenue", value: cad.format(invoiced), detail: range.label, href: salesHref },
-      { label: "Total Commission", value: cad.format(commission), detail: "Compensation detail", href: transactionsHref },
-      { label: "New KPI Card", value: "Not configured", detail: "Matches the saved AdminFlow widget", unavailable: true },
-      { label: "Avg Revenue per Practitioner", value: practitionerCount ? cad.format(invoiced / practitionerCount) : "—", detail: `${practitionerCount} active practitioners`, href: queryFor(range, { view: "team", tab: "revenue" }) },
-    ]} /><Panel title="Main Sheets" note="Saved custom dashboard · 1 of 10"><InteractiveBarChart currency horizontal data={ranked(rows, "practitioner", "invoiced").slice(0, 12)} /></Panel></>;
+    const widgetValue = (metricKey?: string) => {
+      if (metricKey === "total_revenue") return cad.format(invoiced);
+      if (metricKey === "total_commission") return cad.format(commission);
+      if (metricKey === "avg_revenue_per_practitioner") return practitionerCount ? cad.format(invoiced / practitionerCount) : "—";
+      if (metricKey === "appointments") return integer.format(appointments);
+      if (metricKey === "new_patients") return integer.format(sum(clinic, "newPatients"));
+      return "";
+    };
+    const editing = tab.startsWith("edit-");
+    return <section className="ttg-af-custom-dashboard"><div className="ttg-af-workspace-heading"><div><Link href={queryFor(range, { view: "custom", tab: "list" })}>Custom Dashboards</Link><h2>{selectedDashboard.name}</h2><p>{selectedDashboard.description}</p></div><div>{editing ? <><Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `dashboard-${selectedDashboard.id}` })}>Done Editing</Link><AddWidgetButton dashboardId={selectedDashboard.id} /></> : <Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `edit-${selectedDashboard.id}` })}>Edit Dashboard</Link>}</div></div><div aria-label="Dashboard widgets" className={`ttg-af-custom-widgets ${editing ? "is-editing" : ""}`}>{selectedDashboard.widgets.map((widget) => <article key={widget.id}><div>{editing && <span aria-label="Drag to reorder">⋮⋮</span>}<h3>{widget.title}</h3>{editing && <button aria-label="Widget actions" disabled title="Edit and delete actions remain to be verified against AdminFlow" type="button">•••</button>}</div>{widget.metricKey ? <><small>{widget.title}</small><strong>{widgetValue(widget.metricKey)}</strong></> : <><p>No metric selected</p><small>Configure this widget to select a metric</small></>}</article>)}</div></section>;
   }
 
   if (view === "imports") {
