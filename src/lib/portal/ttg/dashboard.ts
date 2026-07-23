@@ -105,6 +105,7 @@ export type TtgDashboardData = {
   analyticsRows: AnalyticsDailyRow[];
   cohortRows: RetentionCohortRow[];
   marketingCampaigns?: MarketingCampaign[];
+  marketingNewClients?: Array<{ date: string; channel: string; clients: number }>;
   customDashboards?: CustomDashboard[];
   dataTables?: Array<{ name: string; columns: string[]; rows: SheetRow[]; rowCount?: number }>;
   summary: {

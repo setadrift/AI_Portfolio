@@ -319,6 +319,7 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     marketingDb,
     customDashboardDb,
     customWidgetDb,
+    marketingNewClientDb,
   ] = await Promise.all([
     allRows("analytics_daily_current", "date"),
     allRows("retention_cohorts_current", "cohort_month"),
@@ -334,6 +335,7 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     allRows("marketing_campaigns", "start_date"),
     allRows("custom_dashboards", "created_at"),
     allRows("custom_widgets", "position"),
+    allRows("marketing_new_clients_current", "date"),
   ]);
   const activeRuns = runsDb.filter((row) => !row.rolled_back_at);
   const latestRun = activeRuns.at(-1);
@@ -457,6 +459,11 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
         }))
         .sort((left, right) => left.position - right.position),
     }));
+  const marketingNewClients = marketingNewClientDb.map((row) => ({
+    date: text(row.date),
+    channel: text(row.channel),
+    clients: number(row.new_clients),
+  }));
 
   return {
     ...ttgDashboardFixture,
@@ -471,6 +478,7 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     analyticsRows,
     cohortRows,
     marketingCampaigns,
+    marketingNewClients,
     customDashboards,
     dataTables: [
       {

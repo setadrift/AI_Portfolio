@@ -302,7 +302,8 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   if (view === "marketing") {
     const tabs = ["Performance", "Campaigns", "Trends"];
     const marketingTab = tab === "overview" ? "performance" : tab;
-    const newPatients = sum(clinic, "newPatients");
+    const selectedNewClientRows = (data.marketingNewClients ?? []).filter((row) => rangeContains(row.date, range));
+    const newPatients = selectedNewClientRows.reduce((total, row) => total + row.clients, 0);
     const campaigns = data.marketingCampaigns ?? [];
     const selectedCampaigns = campaigns.filter((campaign) => campaign.startDate <= range.end && campaign.endDate >= range.start);
     const marketingSpend = selectedCampaigns.reduce((total, campaign) => total + campaign.spend, 0);
@@ -310,12 +311,12 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     const cac = newPatients ? marketingSpend / newPatients : 0;
     const roas = marketingSpend ? acquisitionRevenue / marketingSpend : 0;
     const marketingTrend = daily(rows, ["newPatients", "invoiced"]).map((row) => ({ ...row, spend: 0 }));
-    const sourceRows = [...groupRows(rows, "booking_source")].map(([label, values]) => ({
-      label: label || "Unattributed",
+    const sourceRows = [...new Map(selectedNewClientRows.map((row) => [row.channel, selectedNewClientRows.filter((candidate) => candidate.channel === row.channel)]))].map(([label, values]) => ({
+      label: label || "organic",
       spend: 0,
-      newPatients: sum(values, "newPatients"),
-      revenue: sum(values, "invoiced"),
-    })).filter((row) => row.newPatients || row.revenue);
+      newPatients: values.reduce((total, row) => total + row.clients, 0),
+      revenue: acquisitionRevenue,
+    })).filter((row) => row.newPatients);
     const attributedPatients = sourceRows.reduce((total, row) => total + row.newPatients, 0);
     const confidence = newPatients ? Math.min(1, attributedPatients / newPatients) : 0;
     return <><Tabs active={marketingTab} range={range} tabs={tabs} view={view} />
