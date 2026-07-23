@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { startDashboardNavigation } from "@/components/portal/ttg/DashboardNavigationProgress";
 import type { DashboardRange } from "@/lib/portal/ttg/dashboard-period";
 
 export function DashboardPeriodControl({ range, latestDate }: { range: DashboardRange; latestDate: string }) {
@@ -17,6 +18,7 @@ export function DashboardPeriodControl({ range, latestDate }: { range: Dashboard
       if (value === undefined) params.delete(key);
       else params.set(key, value);
     }
+    startDashboardNavigation();
     router.push(`?${params.toString()}`);
   };
   const choosePeriod = (period: "week" | "month" | "quarter") => update({ period, offset: "0", from: undefined, to: undefined });

@@ -12,8 +12,8 @@ const currency = (value: number, compact = true) =>
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 
 export function RevenueProfitChart({ months }: { months: MonthlyMetric[] }) {
-  const complete = months.filter((month) => month.status === "Complete");
-  const max = Math.max(...complete.map((month) => month.grossRevenue));
+  const complete = months.filter((month) => month.status === "Complete").slice(-6);
+  const max = Math.max(...complete.map((month) => month.grossRevenue), 1);
   return (
     <div className="ttg-chart" role="img" aria-label={complete.map((m) => `${m.period}: ${currency(m.grossRevenue, false)} gross revenue and ${currency(m.operatingProfit, false)} estimated operating profit`).join(". ")}>
       <div className="ttg-chart-legend"><span className="ttg-key ttg-key-revenue" />Gross revenue <span className="ttg-key ttg-key-profit" />Estimated profit</div>
@@ -34,7 +34,7 @@ export function RevenueProfitChart({ months }: { months: MonthlyMetric[] }) {
 }
 
 export function CashFlowChart({ months }: { months: MonthlyMetric[] }) {
-  const cash = months.map((month) => ({ period: periodLabel(month.period).replace(" MTD", ""), value: month.netCashFlow, status: month.status }));
+  const cash = months.slice(-6).map((month) => ({ period: periodLabel(month.period).replace(" MTD", ""), value: month.netCashFlow, status: month.status }));
   const max = Math.max(...cash.map((month) => Math.abs(month.value)), 1);
   return (
     <div className="ttg-cash-chart" style={{ gridTemplateColumns: `repeat(${Math.max(cash.length, 1)}, 1fr)` }} role="img" aria-label={cash.map((m) => `${m.period}: ${currency(m.value, false)} net cash flow${m.status === "Partial" ? ", partial" : ""}`).join(". ")}>

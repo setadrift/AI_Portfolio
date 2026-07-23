@@ -1,5 +1,6 @@
 import { CapacityChart, CashFlowChart, ExpenseChart, RevenueProfitChart, TherapistRevenueChart } from "@/components/portal/ttg/DashboardCharts";
 import { AdminFlowView } from "@/components/portal/ttg/AdminFlowViews";
+import { DashboardNavigationProgress } from "@/components/portal/ttg/DashboardNavigationProgress";
 import { DashboardPeriodControl } from "@/components/portal/ttg/DashboardPeriodControl";
 import { getTtgDashboardData } from "@/lib/portal/ttg/dashboard";
 import { dashboardVisualIndex, formatDataThrough, gabbyMetricCoverage, getDashboardCopy, getOwnerActions, getSourceHealth } from "@/lib/portal/ttg/dashboard-copy";
@@ -105,6 +106,7 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
 
   return (
     <div className="ttg-dashboard-shell">
+      <DashboardNavigationProgress navigationKey={`${activeView}:${tab}:${range.start}:${range.end}`} />
       <aside className="ttg-dashboard-nav" aria-label="Dashboard sections">
         <div><div className="ttg-nav-kicker">CEO dashboard</div><div className="ttg-nav-period">{range.label}</div></div>
         <nav>
