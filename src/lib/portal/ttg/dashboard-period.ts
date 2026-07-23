@@ -93,3 +93,9 @@ export function retentionCohortWindow(range: DashboardRange, days: 30 | 60 | 90)
 export function retentionDisplayWindow(range: DashboardRange) {
   return cohortMonthWindow(range, 1, 12);
 }
+
+export function adminFlowCohortMonth(appointmentMonth: string) {
+  const month = new Date(`${appointmentMonth}-01T12:00:00Z`);
+  if (Number.isNaN(month.getTime())) return appointmentMonth;
+  return iso(new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() - 1, 1, 12))).slice(0, 7);
+}
