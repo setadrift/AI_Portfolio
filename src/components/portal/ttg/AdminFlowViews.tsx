@@ -13,6 +13,7 @@ import {
   NewDashboardButton,
   WidgetActions,
 } from "@/components/portal/ttg/WorkspaceConfiguration";
+import { MetricHelp, type MetricHelpContent } from "@/components/portal/ttg/MetricHelp";
 import type { AnalyticsDailyRow, RetentionCohortRow } from "@/lib/portal/ttg/dashboard-refresh";
 import type { TtgDashboardData } from "@/lib/portal/ttg/dashboard";
 import {
@@ -75,11 +76,17 @@ function daily(rows: AnalyticsDailyRow[], keys: NumericKey[]) {
   }));
 }
 
-function Cards({ items }: { items: Array<{ label: string; value: string; detail: string; unavailable?: boolean; href?: string }> }) {
+function Cards({ items }: { items: Array<{ label: string; value: string; detail: string; unavailable?: boolean; href?: string; help?: MetricHelpContent }> }) {
   return (
     <div className="ttg-af-cards">
       {items.map((item) => {
         const content = <><span>{item.label}</span><strong>{item.value}</strong><small>{item.detail}</small></>;
+        if (item.help) {
+          return <div className={`ttg-af-card-with-help${item.unavailable ? " is-unavailable" : ""}`} key={item.label}>
+            {item.href ? <Link href={item.href}>{content}</Link> : content}
+            <MetricHelp help={item.help} />
+          </div>;
+        }
         return item.href
           ? <Link className={item.unavailable ? "is-unavailable" : ""} href={item.href} key={item.label}>{content}</Link>
           : <div className={item.unavailable ? "is-unavailable" : ""} key={item.label}>{content}</div>;
@@ -155,10 +162,10 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   if (view === "overview") {
     return <>
       <Cards items={[
-        { label: "Total invoiced", value: rows.length ? cad.format(invoiced) : "Refresh needed", detail: range.label, unavailable: !rows.length, href: salesHref },
-        { label: "Appointments", value: rows.length ? integer.format(appointments) : "Refresh needed", detail: rows.length ? `${pct(completionRate)} completed` : "Publish the historical Jane package", unavailable: !rows.length, href: appointmentsHref },
-        { label: "Patient retention", value: mature90 ? pct(weightedRate(selectedClinicCohorts90, "retained90", "eligible90")) : historyAvailable ? "Cohorts maturing" : "Needs history", detail: mature90 ? `Six mature cohorts ending ${cohortWindow90.end}` : historyAvailable ? "No mature 90-day cohort is available" : "Historical appointments required", unavailable: !mature90, href: queryFor(range, { view: "retention", tab: "overview" }) },
-        { label: "Avg. transaction value", value: completedTransactions ? cad.format(averageTransaction) : "Refresh needed", detail: completedTransactions ? `Across ${integer.format(completedTransactions)} completed transactions` : "Sales history required", unavailable: !completedTransactions, href: salesHref },
+        { label: "Total invoiced", value: rows.length ? cad.format(invoiced) : "Refresh needed", detail: range.label, unavailable: !rows.length, href: salesHref, help: { title: "Total Invoiced", description: "Total amount invoiced across all invoices in the period, including taxes. Matches the Total Invoiced line on the Jane Sales Report for the same date range.", calculation: "SUM(invoice total) across all invoice states WHERE purchase_date BETWEEN start_date AND end_date", benchmark: "Good: consistent growth month-over-month" } },
+        { label: "Appointments", value: rows.length ? integer.format(appointments) : "Refresh needed", detail: rows.length ? `${pct(completionRate)} completed` : "Publish the historical Jane package", unavailable: !rows.length, href: appointmentsHref, help: { title: "Total Appointments", description: "Number of appointments scheduled in the selected period, regardless of status.", calculation: "COUNT(clinic_appointments) WHERE date BETWEEN start_date AND end_date" } },
+        { label: "Patient retention", value: mature90 ? pct(weightedRate(selectedClinicCohorts90, "retained90", "eligible90")) : historyAvailable ? "Cohorts maturing" : "Needs history", detail: mature90 ? `Six mature cohorts ending ${cohortWindow90.end}` : historyAvailable ? "No mature 90-day cohort is available" : "Historical appointments required", unavailable: !mature90, href: queryFor(range, { view: "retention", tab: "overview" }), help: { title: "Patient Retention", description: "Percentage of new patients who return for follow-up appointments within a specified timeframe.", calculation: "COUNT(returned patients in cohort) / COUNT(total new patients in cohort) × 100", benchmark: "Good: 70%+ indicates good patient retention" } },
+        { label: "Avg. transaction value", value: completedTransactions ? cad.format(averageTransaction) : "Refresh needed", detail: completedTransactions ? `Across ${integer.format(completedTransactions)} completed transactions` : "Sales history required", unavailable: !completedTransactions, href: salesHref, help: { title: "Average Transaction Value", description: "Average revenue per completed transaction. This is per transaction, not per appointment.", calculation: "SUM(clinic_transactions.amount WHERE status = completed) / COUNT(completed transactions)" } },
       ]} />
       <div className="ttg-af-grid">
         <Panel title="Clinic performance" note="Invoiced and collected revenue across the selected range" action={<Link href={queryFor(range, { view: "financial", tab: "trends" })}>View financial trends</Link>}>
@@ -224,7 +231,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     const dayRows = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => ({ label, value: days.get(label) ?? 0 }));
     const hours = ranked(rows, "hour", "appointments").sort((a, b) => a.label.localeCompare(b.label)).map((row) => ({ ...row, label: `${row.label}:00` }));
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} />
-      {tab === "overview" && <><Cards items={[{ label: "Appointments", value: integer.format(appointments), detail: range.label }, { label: "Completed", value: integer.format(completed), detail: pct(completionRate) }, { label: "Cancelled", value: integer.format(cancelled), detail: appointments ? pct(cancelled / appointments) : "—" }, { label: "No shows", value: integer.format(noShows), detail: appointments ? pct(noShows / appointments) : "—" }]} /><Panel title="Appointment volume and outcomes" note="Hover for exact daily counts"><InteractiveStackedChart data={trend} href={appointmentsHref} series={[{ key: "completed", label: "Completed", color: "#55b88b" }, { key: "cancelled", label: "Cancelled", color: "#efaa59" }, { key: "noShows", label: "No show", color: "#df6d76" }]} /></Panel></>}
+      {tab === "overview" && <><Cards items={[{ label: "Appointments", value: integer.format(appointments), detail: range.label, help: { title: "Total Appointments", description: "Number of appointments scheduled in the selected period, regardless of status.", calculation: "COUNT(clinic_appointments) WHERE date BETWEEN start_date AND end_date" } }, { label: "Completed", value: integer.format(completed), detail: pct(completionRate), help: { title: "Completion Rate", description: "Percentage of appointments that were completed, including completed, arrived, and in-progress appointments.", calculation: "(Completed + Arrived + In-Progress) / Total × 100" } }, { label: "Cancelled", value: integer.format(cancelled), detail: appointments ? pct(cancelled / appointments) : "—" }, { label: "No shows", value: integer.format(noShows), detail: appointments ? pct(noShows / appointments) : "—" }]} /><Panel title="Appointment volume and outcomes" note="Hover for exact daily counts"><InteractiveStackedChart data={trend} href={appointmentsHref} series={[{ key: "completed", label: "Completed", color: "#55b88b" }, { key: "cancelled", label: "Cancelled", color: "#efaa59" }, { key: "noShows", label: "No show", color: "#df6d76" }]} /></Panel></>}
       {tab === "revenue-impact" && <><Cards items={[{ label: "Missed visits", value: integer.format(missed), detail: "Cancelled + no-show" }, { label: "Estimated missed value", value: cad.format(estimatedMissedValue), detail: "Missed visits × average invoiced appointment" }, { label: "Later appointments", value: integer.format(recovered), detail: "Patients seen again after a missed visit" }, { label: "Recovery rate", value: missed ? pct(recovered / missed) : "—", detail: "Later appointment ÷ missed visits" }]} /><Panel title="Missed and recovered appointments" note="Recovery means a later completed appointment exists in the supplied history"><InteractiveBarChart data={[{ label: "Cancelled", value: cancelled }, { label: "No show", value: noShows }, { label: "Later appointment", value: recovered }]} href={appointmentsHref} /></Panel></>}
       {tab === "scheduling" && <div className="ttg-af-grid"><Panel title="Appointments by weekday" note="Selected date range"><InteractiveBarChart data={dayRows} href={appointmentsHref} /></Panel><Panel title="Appointments by start hour" note="Jane appointment start time"><InteractiveBarChart data={hours} href={appointmentsHref} /></Panel></div>}
     </>;
