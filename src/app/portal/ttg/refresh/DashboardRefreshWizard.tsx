@@ -129,7 +129,7 @@ export default function DashboardRefreshWizard() {
               <span className="ttg-upload-mark">↑</span><strong>{busy === "preview" ? "Checking the package…" : "Choose all CSVs or drop them here"}</strong><small>{files.length ? `${files.length} files selected. The portal is checking names, structures, overlaps and date coverage.` : "Required: 4 core Jane reports. Optional: Hours, Payouts, and all 5 bank exports. Keep the original filenames."}</small>
             </label>
             {files.length > 0 && <div className="ttg-selected-files">{files.map((file) => <span key={`${file.name}-${file.size}`}>{file.name}<small>{Math.ceil(file.size / 1024)} KB</small></span>)}</div>}
-            <div className="ttg-privacy-note"><strong>Privacy boundary</strong><p>Sales and Compensation exports can contain patient details. Patient names and raw CSVs are never stored, logged, or returned to this screen. Only reporting fields and one-way pseudonymous patient keys are kept in the private database for retention calculations.</p></div>
+            <div className="ttg-privacy-note"><strong>Privacy boundary</strong><p>Client names and contact fields are removed in memory as soon as each Jane report is recognized—before the database preview is created. Raw CSVs are never stored or logged. Only reporting fields and one-way pseudonymous patient keys are kept for retention calculations.</p></div>
           </section>}
 
           {preview && !receipt && <section className="ttg-refresh-card ttg-review-card" id="ttg-refresh-review">

@@ -42,6 +42,22 @@ test("TTG refresh aggregates the proven Jane and bank schemas without retaining 
   assert.doesNotMatch(JSON.stringify(payload), /Secret Patient|secret-guid|\b123\b/);
 });
 
+test("TTG upload removes direct client identifiers before creating the database payload", () => {
+  const sensitiveSales = {
+    ...files[1],
+    name: "Secret Patient July Sales.csv",
+    text: files[1].text
+      .replace("Balance\n", "Balance,Client Email,Client Phone\n")
+      .replace("175,0\n", "175,0,secret.patient@example.com,555-555-0199\n"),
+  };
+  const payload = buildRefreshPayload([files[0], sensitiveSales, files[3], files[4]]);
+  const serialized = JSON.stringify(payload);
+
+  assert.doesNotMatch(serialized, /Secret Patient July Sales|Secret Patient|secret\.patient@example\.com|555-555-0199|secret-guid/);
+  assert.equal(payload.fileSummaries.some((file) => file.name.includes("Secret")), false);
+  assert.match(payload.privateFacts?.appointments[0].patientKey ?? "", /^[a-f0-9]{64}$/);
+});
+
 test("TTG refresh de-duplicates overlapping historical report rows", () => {
   const payload = buildRefreshPayload([...files, files[0]]);
   assert.equal(payload.issues.some((issue) => issue.status === "WARNING" && issue.title.includes("de-duplicated")), true);

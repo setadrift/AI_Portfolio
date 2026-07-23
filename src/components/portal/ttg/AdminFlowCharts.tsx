@@ -55,16 +55,39 @@ export function InteractiveTrendChart({ data, series, currency = false, href }: 
 
 export function InteractiveBarChart({ data, valueKey = "value", currency = false, color = "#3b9fd7", horizontal = false, href }: { data: Row[]; valueKey?: string; currency?: boolean; color?: string; horizontal?: boolean; href?: string }) {
   if (!data.length) return <EmptyChart />;
+  if (horizontal) {
+    const maximum = Math.max(...data.map((row) => Number(row[valueKey]) || 0), 1);
+    const formattedValue = (value: number) => currency
+      ? money.format(value)
+      : value.toLocaleString("en-CA", { maximumFractionDigits: 1 });
+    return (
+      <ChartSurface href={href}>
+        <div className="ttg-horizontal-bars" role="img" aria-label={data.map((row) => `${row.label}: ${formattedValue(Number(row[valueKey]) || 0)}`).join(". ")}>
+          {data.map((row) => {
+            const value = Number(row[valueKey]) || 0;
+            return (
+              <div className="ttg-horizontal-bar-row" key={String(row.label)}>
+                <span className="ttg-horizontal-bar-label">{row.label}</span>
+                <span className="ttg-horizontal-bar-track" aria-hidden="true">
+                  <i style={{ background: color, width: `${Math.max(value > 0 ? 2 : 0, value / maximum * 100)}%` }} />
+                </span>
+                <strong>{formattedValue(value)}</strong>
+              </div>
+            );
+          })}
+        </div>
+      </ChartSurface>
+    );
+  }
   return (
-    <ChartSurface href={href}><div className={`ttg-rechart ${horizontal ? "is-horizontal" : ""}`}>
+    <ChartSurface href={href}><div className="ttg-rechart">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={horizontal ? { top: 4, right: 24, bottom: 4, left: 26 } : { top: 10, right: 8, left: currency ? 8 : -12, bottom: 4 }}>
-          <CartesianGrid stroke="#edf1ef" horizontal={!horizontal} vertical={horizontal} />
-          {horizontal
-            ? <><XAxis axisLine={false} fontSize={10} tickFormatter={(value) => currency ? `$${compact.format(value)}` : compact.format(value)} tickLine={false} type="number" /><YAxis axisLine={false} dataKey="label" fontSize={10} tickLine={false} type="category" width={118} /></>
-            : <><XAxis axisLine={false} dataKey="label" fontSize={10} tickLine={false} tickMargin={9} /><YAxis axisLine={false} fontSize={10} tickFormatter={(value) => currency ? `$${compact.format(value)}` : compact.format(value)} tickLine={false} width={currency ? 54 : 38} /></>}
+        <BarChart data={data} margin={{ top: 10, right: 8, left: currency ? 8 : -12, bottom: 4 }}>
+          <CartesianGrid stroke="#edf1ef" vertical={false} />
+          <XAxis axisLine={false} dataKey="label" fontSize={10} tickLine={false} tickMargin={9} />
+          <YAxis axisLine={false} fontSize={10} tickFormatter={(value) => currency ? `$${compact.format(value)}` : compact.format(value)} tickLine={false} width={currency ? 54 : 38} />
           <Tooltip contentStyle={tooltipStyle} formatter={(value) => currency ? money.format(Number(value)) : Number(value).toLocaleString("en-CA")} />
-          <Bar dataKey={valueKey} fill={color} radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} />
+          <Bar dataKey={valueKey} fill={color} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div></ChartSurface>
