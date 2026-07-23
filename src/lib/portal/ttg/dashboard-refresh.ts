@@ -764,18 +764,40 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
       classification,
     };
   });
+  const seenBankFiles = new Set<string>();
+  const duplicateBankIndexes = new Set<number>();
+  identified.forEach((file) => {
+    if (file.classification.source !== "Bank") return;
+    const fingerprint = createHash("sha256")
+      .update(`${file.classification.kind}\u0000${file.text.replace(/\r\n/g, "\n").trim()}`)
+      .digest("hex");
+    if (seenBankFiles.has(fingerprint)) duplicateBankIndexes.add(file.uploadIndex);
+    else seenBankFiles.add(fingerprint);
+  });
+  const processingFiles = identified.filter((file) => !duplicateBankIndexes.has(file.uploadIndex));
   const fileSummaries: ImportFileSummary[] = identified.map((file) => ({
     name: file.safeName,
     source: file.classification.source,
     kind: file.classification.kind,
     label: file.classification.label,
     rows: Math.max(0, file.rows.length - 1),
-    status: file.classification.source === "Unknown" ? "blocked" : "ready",
-    note: file.classification.source === "Unknown" ? "This structure is not supported; export the named Jane report as CSV." : "Recognized structure",
+    status: file.classification.source === "Unknown" ? "blocked" : duplicateBankIndexes.has(file.uploadIndex) ? "warning" : "ready",
+    note: file.classification.source === "Unknown"
+      ? "This structure is not supported; export the named Jane report as CSV."
+      : duplicateBankIndexes.has(file.uploadIndex)
+        ? "Exact duplicate bank export ignored; it will not be counted twice."
+        : "Recognized structure",
   }));
   const issues: RefreshIssue[] = [];
+  if (duplicateBankIndexes.size) {
+    issues.push({
+      status: "WARNING",
+      title: "Exact duplicate bank exports were ignored",
+      detail: `${duplicateBankIndexes.size} byte-for-byte duplicate ${duplicateBankIndexes.size === 1 ? "file was" : "files were"} removed before reconciliation. Similar-looking transactions are not removed until Gabby supplies the practice's bank rules.`,
+    });
+  }
   const byKind = new Map<string, typeof identified>();
-  for (const file of identified) byKind.set(file.classification.kind, [...(byKind.get(file.classification.kind) ?? []), file]);
+  for (const file of processingFiles) byKind.set(file.classification.kind, [...(byKind.get(file.classification.kind) ?? []), file]);
   for (const kind of CORE_JANE_REPORTS) {
     const count = byKind.get(kind)?.length ?? 0;
     if (!count) issues.push({ status: "FAIL", title: `Missing Jane ${kind} report`, detail: "Upload at least one CSV for each of the four AdminFlow core reports." });

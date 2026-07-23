@@ -90,6 +90,7 @@ export const ttgDashboardFixture: TtgDashboardData = {
   ],
   analyticsRows: [],
   cohortRows: [],
+  appointmentJourneyFacts: [],
   summary: {
     activeTherapists: 20,
     weightedUtilization: 0.3546552,
