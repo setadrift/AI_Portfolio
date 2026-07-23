@@ -867,8 +867,9 @@ section {
   .sprint-moves h3, .sprint-moves p { grid-column: 2; }
   .sprint-moves h3 { margin-top: .25rem; }
   .proof-copy .proof-type { margin-top: 3rem; }
-  .ttg-editorial-artifact { min-height: 35rem; padding: 1.25rem; box-shadow: .8rem .8rem 0 var(--editorial-red); transform: none; }
+  .ttg-editorial-artifact { min-height: auto; padding: 1.25rem; box-shadow: .8rem .8rem 0 var(--editorial-red); transform: none; }
   .ttg-artifact-chart { height: 10rem; gap: .5rem; }
+  .ttg-editorial-artifact > p { position: static; margin-top: 1.5rem; font-size: 1rem; line-height: 1.25; }
   .case-story-grid { gap: 3rem; }
   .operations-artifact, .dispute-artifact { min-height: 30rem; }
   .dispute-index strong { font-size: 4.5rem; }
