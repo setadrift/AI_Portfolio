@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const stage = await verifyRefreshStage(body.token);
     if (stage.preparedBy !== auth.session.sub) return NextResponse.json({ error: "This preview belongs to another portal session. Review the files again." }, { status: 403 });
     const result = await publishStagedRefresh(stage, auth.session.sub, Boolean(body.acknowledgeWarnings));
-    revalidateTag("ttg-dashboard", "max");
+    revalidateTag("ttg-dashboard", { expire: 0 });
     revalidatePath("/portal/ttg/dashboard");
     return NextResponse.json(result);
   } catch (error) {

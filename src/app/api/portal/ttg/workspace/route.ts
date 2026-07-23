@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     } else {
       return NextResponse.json({ error: "Unsupported workspace action." }, { status: 400 });
     }
-    revalidateTag("ttg-dashboard", "max");
+    revalidateTag("ttg-dashboard", { expire: 0 });
     revalidatePath("/portal/ttg/dashboard");
     return NextResponse.json({ ok: true });
   } catch (error) {
