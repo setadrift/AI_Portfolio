@@ -2,6 +2,8 @@ import { createSign } from "node:crypto";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { ttgDashboardFixture } from "./dashboard-fixture";
 import type { AnalyticsDailyRow, RefreshPayload, RetentionCohortRow } from "./dashboard-refresh";
+import { fetchSupabaseDashboard } from "./supabase-dashboard";
+import { hasTtgReportingDatabase } from "./ttg-reporting-db";
 
 export type MonthlyMetric = {
   period: string;
@@ -70,7 +72,7 @@ export type TtgDashboardData = {
   analytics?: NonNullable<RefreshPayload["analytics"]>;
   analyticsRows: AnalyticsDailyRow[];
   cohortRows: RetentionCohortRow[];
-  dataTables?: Array<{ name: string; columns: string[]; rows: SheetRow[] }>;
+  dataTables?: Array<{ name: string; columns: string[]; rows: SheetRow[]; rowCount?: number }>;
   summary: {
     activeTherapists: number;
     weightedUtilization: number;
@@ -406,6 +408,8 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
     outstanding: optionalNumeric(row.Outstanding),
     commission: optionalNumeric(row.Commission),
     transactions: optionalNumeric(row.Transactions),
+    completedTransactions: optionalNumeric(row["Completed Transactions"]),
+    completedTransactionValue: optionalNumeric(row["Completed Transaction Value"]),
     fees: optionalNumeric(row.Fees),
     refunds: optionalNumeric(row.Refunds),
     patients: optionalNumeric(row.Patients),
@@ -505,6 +509,7 @@ export function selectReportingMonth(months: MonthlyMetric[]) {
 }
 
 export async function getTtgDashboardData(): Promise<TtgDashboardData> {
+  if (hasTtgReportingDatabase()) return fetchSupabaseDashboard();
   const hasStaticKeyConfig = Boolean(process.env.TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
   const hasKeylessConfig = Boolean(
     process.env.TTG_GCP_PROJECT_NUMBER
@@ -517,6 +522,6 @@ export async function getTtgDashboardData(): Promise<TtgDashboardData> {
       && (hasStaticKeyConfig || hasKeylessConfig),
   );
   if (hasLiveConfig) return fetchLiveDashboard();
-  if (process.env.NODE_ENV === "production") throw new Error("TTG dashboard Google Sheets access is not configured");
+  if (process.env.NODE_ENV === "production") throw new Error("TTG dashboard reporting access is not configured");
   return validateDashboardData(ttgDashboardFixture);
 }

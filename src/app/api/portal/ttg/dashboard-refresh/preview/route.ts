@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireTtgPortalSession } from "@/lib/portal/ttg/auth";
 import { buildRefreshPayload } from "@/lib/portal/ttg/dashboard-refresh";
-import { getWorkbookFingerprint } from "@/lib/portal/ttg/google-sheets-refresh";
 import { signRefreshStage } from "@/lib/portal/ttg/refresh-stage";
+import { stageRefresh } from "@/lib/portal/ttg/ttg-reporting-db";
 
 export const runtime = "nodejs";
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -20,9 +20,11 @@ export async function POST(request: Request) {
     if (files.some((file) => !file.name.toLowerCase().endsWith(".csv"))) return NextResponse.json({ error: "Use CSV exports. Excel files are not accepted for this refresh." }, { status: 400 });
     if (files.some((file) => file.size > MAX_FILE_BYTES) || files.reduce((sum, file) => sum + file.size, 0) > MAX_BATCH_BYTES) return NextResponse.json({ error: "The upload is too large. Keep each CSV under 5 MB and the batch under 50 MB." }, { status: 413 });
     const payload = buildRefreshPayload(await Promise.all(files.map(async (file) => ({ name: file.name, text: await file.text() }))));
-    const workbookFingerprint = await getWorkbookFingerprint();
-    const token = await signRefreshStage({ payload, workbookFingerprint, preparedBy: auth.session.sub });
-    return NextResponse.json({ payload, token });
+    const stored = await stageRefresh(payload, auth.session.sub);
+    const token = await signRefreshStage({ ...stored, preparedBy: auth.session.sub });
+    const safePreview = { ...payload };
+    delete safePreview.privateFacts;
+    return NextResponse.json({ payload: safePreview, token });
   } catch (error) {
     console.error("TTG dashboard refresh preview failed", error instanceof Error ? error.message : error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not inspect these files." }, { status: 400 });

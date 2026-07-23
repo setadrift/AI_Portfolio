@@ -43,7 +43,7 @@ const TABS = ["Monthly Metrics", "Therapist Monthly", "Expense Categories", "Jan
 const OPERATIONAL_TABS = {
   "Source Coverage": ["Report", "Role", "Coverage Start", "Coverage End", "Status", "Last Refresh ID", "Notes"],
   "Import History": ["Refresh ID", "Published At", "Refreshed By", "Period", "Status", "Active", "Payload JSON", "Superseded By"],
-  "Analytics Daily": ["Date", "Entity", "Name", "Appointments", "Completed", "Cancelled", "No Shows", "Pending", "Invoiced", "Collected", "Processed", "Outstanding", "Commission", "Transactions", "Fees", "Refunds", "Patients", "New Patients", "Consultations", "First Visits", "Subsequent Visits", "Booked Minutes", "Recovered", "Payment Lag Days", "Payment Lag Samples", "Refresh ID"],
+  "Analytics Daily": ["Date", "Entity", "Name", "Appointments", "Completed", "Cancelled", "No Shows", "Pending", "Invoiced", "Collected", "Processed", "Outstanding", "Commission", "Transactions", "Completed Transactions", "Completed Transaction Value", "Fees", "Refunds", "Patients", "New Patients", "Consultations", "First Visits", "Subsequent Visits", "Booked Minutes", "Recovered", "Payment Lag Days", "Payment Lag Samples", "Refresh ID"],
   "Retention Cohorts": ["Cohort Month", "Entity", "Name", "Cohort Size", "Eligible 30", "Retained 30", "Eligible 60", "Retained 60", "Eligible 90", "Retained 90", "Repeat Patients", "Visit Gap Days", "Visit Gap Samples", "Refresh ID"],
 } as const;
 
@@ -295,7 +295,7 @@ export async function publishRefresh(payload: RefreshPayload, refreshedBy: strin
     "Date",
     analyticsDates[0] ?? payload.periodStart,
     analyticsDates.at(-1) ?? payload.periodEnd,
-    payload.analyticsRows.map((row) => [row.date, row.entity, row.name, row.appointments, row.completed, row.cancelled, row.noShows, row.pending, row.invoiced, row.collected, row.processed, row.outstanding, row.commission, row.transactions, row.fees, row.refunds, row.patients, row.newPatients, row.consultations, row.firstVisits, row.subsequentVisits, row.bookedMinutes, row.recovered, row.paymentLagDays, row.paymentLagSamples, payload.refreshId]),
+    payload.analyticsRows.map((row) => [row.date, row.entity, row.name, row.appointments, row.completed, row.cancelled, row.noShows, row.pending, row.invoiced, row.collected, row.processed, row.outstanding, row.commission, row.transactions, row.completedTransactions, row.completedTransactionValue, row.fees, row.refunds, row.patients, row.newPatients, row.consultations, row.firstVisits, row.subsequentVisits, row.bookedMinutes, row.recovered, row.paymentLagDays, row.paymentLagSamples, payload.refreshId]),
   );
   const cohortMonths = payload.cohortRows.map((row) => row.cohortMonth).sort();
   const retentionCohorts = replaceDateRange(
