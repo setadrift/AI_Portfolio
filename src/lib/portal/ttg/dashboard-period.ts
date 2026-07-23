@@ -72,3 +72,24 @@ export function resolveDashboardRange(params: PeriodParams, latestDate: string):
 export function rangeContains(date: string, range: DashboardRange) {
   return date >= range.start && date <= range.end;
 }
+
+function cohortMonthWindow(range: DashboardRange, endOffset: number, months: number) {
+  const selectedStart = utc(range.start);
+  const end = new Date(Date.UTC(selectedStart.getUTCFullYear(), selectedStart.getUTCMonth() - endOffset, 1, 12));
+  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - (months - 1), 1, 12));
+  return {
+    start: iso(start).slice(0, 7),
+    end: iso(end).slice(0, 7),
+  };
+}
+
+export function retentionCohortWindow(range: DashboardRange, days: 30 | 60 | 90) {
+  // AdminFlow compares six complete cohorts that have fully matured for the
+  // selected retention horizon. For a July range, those windows end in May,
+  // April, and March for 30-, 60-, and 90-day retention respectively.
+  return cohortMonthWindow(range, (days / 30) + 1, 6);
+}
+
+export function retentionDisplayWindow(range: DashboardRange) {
+  return cohortMonthWindow(range, 1, 12);
+}
