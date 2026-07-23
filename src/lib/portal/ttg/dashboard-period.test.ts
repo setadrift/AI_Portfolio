@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  adminFlowCohortMonth,
   rangeContains,
   resolveDashboardRange,
   retentionCohortWindow,
@@ -40,4 +41,9 @@ test("retention uses AdminFlow's six fully mature cohort windows", () => {
   assert.deepEqual(retentionCohortWindow(range, 60), { start: "2025-11", end: "2026-04" });
   assert.deepEqual(retentionCohortWindow(range, 90), { start: "2025-10", end: "2026-03" });
   assert.deepEqual(retentionDisplayWindow(range), { start: "2025-07", end: "2026-06" });
+});
+
+test("AdminFlow presents Jane first-visit cohorts one calendar month earlier", () => {
+  assert.equal(adminFlowCohortMonth("2026-01"), "2025-12");
+  assert.equal(adminFlowCohortMonth("2026-07"), "2026-06");
 });

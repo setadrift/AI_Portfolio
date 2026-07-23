@@ -16,6 +16,7 @@ import {
 import type { AnalyticsDailyRow, RetentionCohortRow } from "@/lib/portal/ttg/dashboard-refresh";
 import type { TtgDashboardData } from "@/lib/portal/ttg/dashboard";
 import {
+  adminFlowCohortMonth,
   rangeContains,
   retentionCohortWindow,
   retentionDisplayWindow,
@@ -135,7 +136,11 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   const cohortWindow60 = retentionCohortWindow(range, 60);
   const cohortWindow90 = retentionCohortWindow(range, 90);
   const displayWindow = retentionDisplayWindow(range);
-  const cohortsIn = (window: { start: string; end: string }) => data.cohortRows.filter((row) => row.cohortMonth >= window.start && row.cohortMonth <= window.end);
+  const adminFlowCohortRows = data.cohortRows.map((row) => ({
+    ...row,
+    cohortMonth: adminFlowCohortMonth(row.cohortMonth),
+  }));
+  const cohortsIn = (window: { start: string; end: string }) => adminFlowCohortRows.filter((row) => row.cohortMonth >= window.start && row.cohortMonth <= window.end);
   const selectedCohorts30 = cohortsIn(cohortWindow30);
   const selectedCohorts60 = cohortsIn(cohortWindow60);
   const selectedCohorts90 = cohortsIn(cohortWindow90);
