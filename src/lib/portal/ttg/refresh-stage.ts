@@ -1,3 +1,4 @@
+import { deflateRawSync, inflateRawSync } from "node:zlib";
 import { SignJWT, jwtVerify } from "jose";
 import type { RefreshPayload } from "./dashboard-refresh";
 
@@ -14,7 +15,8 @@ function stageSecret() {
 }
 
 export async function signRefreshStage(stage: RefreshStage) {
-  return new SignJWT({ stage, purpose: "ttg-dashboard-refresh" })
+  const compressedStage = deflateRawSync(Buffer.from(JSON.stringify(stage))).toString("base64url");
+  return new SignJWT({ compressedStage, purpose: "ttg-dashboard-refresh", version: 2 })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30m")
@@ -23,6 +25,14 @@ export async function signRefreshStage(stage: RefreshStage) {
 
 export async function verifyRefreshStage(token: string): Promise<RefreshStage> {
   const { payload } = await jwtVerify(token, stageSecret(), { algorithms: ["HS256"] });
-  if (payload.purpose !== "ttg-dashboard-refresh" || !payload.stage || typeof payload.stage !== "object") throw new Error("Invalid refresh preview");
+  if (payload.purpose !== "ttg-dashboard-refresh") throw new Error("Invalid refresh preview");
+  if (typeof payload.compressedStage === "string") {
+    try {
+      return JSON.parse(inflateRawSync(Buffer.from(payload.compressedStage, "base64url")).toString("utf8")) as RefreshStage;
+    } catch {
+      throw new Error("Invalid refresh preview");
+    }
+  }
+  if (!payload.stage || typeof payload.stage !== "object") throw new Error("Invalid refresh preview");
   return payload.stage as RefreshStage;
 }
