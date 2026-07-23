@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   Area,
   AreaChart,
@@ -25,10 +26,16 @@ const compact = new Intl.NumberFormat("en-CA", { notation: "compact", maximumFra
 const money = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
 const tooltipStyle = { border: "1px solid #dfe5e3", borderRadius: 8, boxShadow: "0 12px 30px rgba(26, 42, 40, .12)", fontSize: 12 };
 
-export function InteractiveTrendChart({ data, series, currency = false }: { data: Row[]; series: Series[]; currency?: boolean }) {
+function ChartSurface({ href, children }: { href?: string; children: React.ReactNode }) {
+  return href
+    ? <Link aria-label="Open the source data for this chart" className="ttg-chart-link" href={href}>{children}</Link>
+    : children;
+}
+
+export function InteractiveTrendChart({ data, series, currency = false, href }: { data: Row[]; series: Series[]; currency?: boolean; href?: string }) {
   if (!data.length) return <EmptyChart />;
   return (
-    <div className="ttg-rechart">
+    <ChartSurface href={href}><div className="ttg-rechart">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 12, right: 12, left: currency ? 8 : -14, bottom: 0 }}>
           <defs>{series.map((item) => <linearGradient id={`fill-${item.key}`} key={item.key} x1="0" x2="0" y1="0" y2="1"><stop offset="5%" stopColor={item.color} stopOpacity={0.22} /><stop offset="95%" stopColor={item.color} stopOpacity={0.01} /></linearGradient>)}</defs>
@@ -42,14 +49,14 @@ export function InteractiveTrendChart({ data, series, currency = false }: { data
             : <Area dataKey={item.key} fill={`url(#fill-${item.key})`} key={item.key} name={item.label} stroke={item.color} strokeWidth={2.5} type="monotone" />)}
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </div></ChartSurface>
   );
 }
 
-export function InteractiveBarChart({ data, valueKey = "value", currency = false, color = "#3b9fd7", horizontal = false }: { data: Row[]; valueKey?: string; currency?: boolean; color?: string; horizontal?: boolean }) {
+export function InteractiveBarChart({ data, valueKey = "value", currency = false, color = "#3b9fd7", horizontal = false, href }: { data: Row[]; valueKey?: string; currency?: boolean; color?: string; horizontal?: boolean; href?: string }) {
   if (!data.length) return <EmptyChart />;
   return (
-    <div className={`ttg-rechart ${horizontal ? "is-horizontal" : ""}`}>
+    <ChartSurface href={href}><div className={`ttg-rechart ${horizontal ? "is-horizontal" : ""}`}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout={horizontal ? "vertical" : "horizontal"} margin={horizontal ? { top: 4, right: 24, bottom: 4, left: 26 } : { top: 10, right: 8, left: currency ? 8 : -12, bottom: 4 }}>
           <CartesianGrid stroke="#edf1ef" horizontal={!horizontal} vertical={horizontal} />
@@ -60,14 +67,14 @@ export function InteractiveBarChart({ data, valueKey = "value", currency = false
           <Bar dataKey={valueKey} fill={color} radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </div></ChartSurface>
   );
 }
 
-export function InteractiveStackedChart({ data, series }: { data: Row[]; series: Array<{ key: string; label: string; color: string }> }) {
+export function InteractiveStackedChart({ data, series, href }: { data: Row[]; series: Array<{ key: string; label: string; color: string }>; href?: string }) {
   if (!data.length) return <EmptyChart />;
   return (
-    <div className="ttg-rechart">
+    <ChartSurface href={href}><div className="ttg-rechart">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 8, left: -12, bottom: 4 }}>
           <CartesianGrid stroke="#edf1ef" vertical={false} />
@@ -78,16 +85,16 @@ export function InteractiveStackedChart({ data, series }: { data: Row[]; series:
           {series.map((item, index) => <Bar dataKey={item.key} fill={item.color} key={item.key} name={item.label} radius={index === series.length - 1 ? [4, 4, 0, 0] : 0} stackId="appointments" />)}
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </div></ChartSurface>
   );
 }
 
 const PIE_COLORS = ["#3b9fd7", "#55b88b", "#efaa59", "#df6d76", "#866fc6", "#8aa2ae", "#d7c56c"];
 
-export function InteractiveDonut({ data, currency = false }: { data: Array<{ label: string; value: number }>; currency?: boolean }) {
+export function InteractiveDonut({ data, currency = false, href }: { data: Array<{ label: string; value: number }>; currency?: boolean; href?: string }) {
   if (!data.length) return <EmptyChart />;
   return (
-    <div className="ttg-donut-layout">
+    <ChartSurface href={href}><div className="ttg-donut-layout">
       <div className="ttg-donut-chart">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -99,14 +106,14 @@ export function InteractiveDonut({ data, currency = false }: { data: Array<{ lab
         </ResponsiveContainer>
       </div>
       <div className="ttg-donut-legend">{data.slice(0, 7).map((item, index) => <div key={item.label}><i style={{ background: PIE_COLORS[index % PIE_COLORS.length] }} /><span>{item.label}</span><strong>{currency ? money.format(item.value) : item.value.toLocaleString("en-CA")}</strong></div>)}</div>
-    </div>
+    </div></ChartSurface>
   );
 }
 
-export function InteractiveLineChart({ data, series, currency = false }: { data: Row[]; series: Series[]; currency?: boolean }) {
+export function InteractiveLineChart({ data, series, currency = false, href }: { data: Row[]; series: Series[]; currency?: boolean; href?: string }) {
   if (!data.length) return <EmptyChart />;
   return (
-    <div className="ttg-rechart">
+    <ChartSurface href={href}><div className="ttg-rechart">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 12, left: currency ? 8 : -14, bottom: 0 }}>
           <CartesianGrid stroke="#edf1ef" vertical={false} />
@@ -117,7 +124,7 @@ export function InteractiveLineChart({ data, series, currency = false }: { data:
           {series.map((item) => <Line dataKey={item.key} dot={false} key={item.key} name={item.label} stroke={item.color} strokeDasharray={item.dashed ? "5 5" : undefined} strokeWidth={2.5} type="monotone" />)}
         </LineChart>
       </ResponsiveContainer>
-    </div>
+    </div></ChartSurface>
   );
 }
 

@@ -381,6 +381,7 @@ section {
 .ttg-chart-empty span { color: var(--ttg-muted); font-size: 9px; }
 .ttg-af-big { margin-top: 23px; display: block; font-size: 54px; line-height: 1; letter-spacing: -.06em; font-weight: 520; }
 .ttg-af-panel > p { margin-top: 9px; color: var(--ttg-muted); font-size: 11px; }
+.ttg-chart-link { display: block; border-radius: 8px; color: inherit; outline: 2px solid transparent; outline-offset: 3px; transition: outline-color .15s ease, background .15s ease; }.ttg-chart-link:hover { background: #fbfcfb; outline-color: #dbe4e0; }.ttg-chart-link:focus-visible { outline-color: var(--ttg-teal); }
 .ttg-af-empty { margin-top: 18px; padding: 28px; border: 1px dashed #bcc6c1; border-radius: 8px; background: #f7f8f5; text-align: center; }
 .ttg-af-empty strong { display: block; font-size: 14px; }.ttg-af-empty p { max-width: 540px; margin: 7px auto 15px; color: var(--ttg-muted); font-size: 10px; line-height: 1.5; }.ttg-af-empty a { color: var(--ttg-teal); font-size: 10px; font-weight: 750; }
 .ttg-af-table-wrap { max-width: 100%; margin-top: 18px; overflow: auto; border: 1px solid var(--ttg-line); border-radius: 7px; }
