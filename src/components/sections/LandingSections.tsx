@@ -28,13 +28,13 @@ const copy = {
       signals: ["Reporting period visible", "Source coverage traced", "Open questions held"],
       footer: "Decision support without hiding the gaps",
     },
-    property: {
-      type: "Property operations · Client delivery",
-      heading: "Field notes become a clean owner review—not a risky database update.",
-      body: "Repair notes, receipts, photos, and contractor handoffs move through a phone-friendly review path before anything reaches the live Airtable record.",
+    operations: {
+      type: "The Lineup · Governed AI operations",
+      heading: "Four AI workers monitor the business—but they cannot quietly change production.",
+      body: "Recurring work across data, models, growth, and executive oversight moves through one visible control plane with findings, blocked states, approvals, and outcome evidence.",
       link: "Read the case study",
-      inputs: ["Voice note", "Receipt", "Site photo", "Contractor update"],
-      output: "Owner review",
+      lanes: [["Data + pricing", "Monitoring"], ["Models", "Finding"], ["User growth", "Scheduled"], ["Executive", "Needs approval"]],
+      output: "One selected action / proof required",
     },
     dispute: {
       type: "Travel operations · Confidential enterprise work",
@@ -88,13 +88,13 @@ const copy = {
       signals: ["Période visible", "Couverture des sources tracée", "Questions ouvertes retenues"],
       footer: "Soutien décisionnel sans cacher les lacunes",
     },
-    property: {
-      type: "Opérations immobilières · Livraison client",
-      heading: "Les notes terrain deviennent une révision claire, pas une mise à jour risquée.",
-      body: "Notes, reçus, photos et transferts aux entrepreneurs passent par une révision mobile avant d’atteindre le dossier Airtable réel.",
+    operations: {
+      type: "The Lineup · Opérations IA gouvernées",
+      heading: "Quatre agents d'IA surveillent l'entreprise—sans pouvoir modifier silencieusement la production.",
+      body: "Le travail récurrent sur les données, les modèles, la croissance et la supervision passe par un seul centre de contrôle avec constats, blocages, approbations et preuves de résultat.",
       link: "Lire l’étude de cas",
-      inputs: ["Note vocale", "Reçu", "Photo du site", "Mise à jour entrepreneur"],
-      output: "Révision propriétaire",
+      lanes: [["Données + prix", "Surveillance"], ["Modèles", "Constat"], ["Croissance", "Planifié"], ["Direction", "Approbation requise"]],
+      output: "Une action sélectionnée / preuve requise",
     },
     dispute: {
       type: "Opérations voyage · Travail d’entreprise confidentiel",
@@ -142,11 +142,20 @@ function TTGArtifact({ t }: { t: (typeof copy)["en"]["ttg"] }) {
   );
 }
 
-function PropertyArtifact({ t }: { t: (typeof copy)["en"]["property"] }) {
+function OperationsArtifact({ t }: { t: (typeof copy)["en"]["operations"] }) {
   return (
-    <div className="property-artifact" aria-label={`${t.inputs.join(", ")} — ${t.output}`}>
-      {t.inputs.map((input, index) => <span className={`property-slip property-slip-${index + 1}`} key={input}><i>0{index + 1}</i>{input}</span>)}
-      <strong>{t.output}<b aria-hidden="true">→</b></strong>
+    <div className="operations-artifact" aria-label={`${t.lanes.map(([lane]) => lane).join(", ")} — ${t.output}`}>
+      <div className="operations-artifact-head"><span>AI OPERATIONS</span><span>CONTROL PLANE</span></div>
+      <ol>
+        {t.lanes.map(([lane, state], index) => (
+          <li key={lane}>
+            <span>0{index + 1}</span>
+            <strong>{lane}</strong>
+            <i className={index === 1 || index === 3 ? "is-review" : ""}>{state}</i>
+          </li>
+        ))}
+      </ol>
+      <p>{t.output}<b aria-hidden="true">→</b></p>
     </div>
   );
 }
@@ -193,14 +202,14 @@ export default function LandingSections() {
         </div>
       </section>
 
-      <section className="case-story case-story-property" aria-labelledby="property-heading">
+      <section className="case-story case-story-operations" aria-labelledby="operations-heading">
         <div className="editorial-shell case-story-grid">
-          <PropertyArtifact t={t.property} />
+          <OperationsArtifact t={t.operations} />
           <div className="case-copy">
-            <p className="proof-type">{t.property.type}</p>
-            <h2 id="property-heading">{t.property.heading}</h2>
-            <p>{t.property.body}</p>
-            <Link href="/projects/alex-parker-property-ops">{t.property.link}<span aria-hidden="true">↗</span></Link>
+            <p className="proof-type">{t.operations.type}</p>
+            <h2 id="operations-heading">{t.operations.heading}</h2>
+            <p>{t.operations.body}</p>
+            <Link href="/projects/the-lineup-ai-operations">{t.operations.link}<span aria-hidden="true">↗</span></Link>
           </div>
         </div>
       </section>

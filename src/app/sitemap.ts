@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { SITE, PROJECTS } from "@/lib/constants";
+import { SITE } from "@/lib/constants";
 import { WORKFLOW_VERTICALS } from "@/lib/ai-workflow-verticals";
 import { FEATURED_PORTFOLIO } from "@/lib/portfolio";
 
@@ -61,9 +61,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
       }
     }
 
-    for (const project of PROJECTS.filter((item) => publicProjectSlugs.has(item.slug))) {
+    for (const slug of publicProjectSlugs) {
       pages.push({
-        url: `${SITE.url}${prefix}/projects/${project.slug}`,
+        url: `${SITE.url}${prefix}/projects/${slug}`,
         lastModified: new Date(),
         changeFrequency: "monthly",
         priority: 0.8,

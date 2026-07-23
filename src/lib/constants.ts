@@ -97,22 +97,6 @@ export const PROJECTS: Project[] = [
     tech: ["Python", "FastAPI", "Next.js", "LightGBM", "PostgreSQL", "Redis", "Stripe", "RevenueCat"],
   },
   {
-    slug: "alex-parker-property-ops",
-    clientType: "Property Operations",
-    title: "Alex Parker Property Ops Portal",
-    challenge:
-      "A rental operator needed a better way to capture turn-repair notes, receipt details, contractor handoffs, and Gmail follow-up without letting messy field work corrupt the live Airtable base.",
-    result:
-      "Built a private review-first portal with turn-repair capture, phone-friendly work views, contractor sharing, receipt extraction, and Gmail sweep setup.",
-    problem:
-      "The operating work lived across Airtable, field notes, repair photos, receipts, and Gmail. Airtable was still the right source of truth, but it was not the right surface for helpers on phones, contractor-ready summaries, or uncertain AI extraction. A useful system had to make field capture faster while keeping Alex in control before anything touched live records.",
-    solution:
-      "I built a private property operations portal around the existing Airtable workflow. The turn-repair command center supports capture sessions, staged review queues, phone-friendly material and contractor views, schedule-risk views, contractor share previews, and helper uploads. The receipt workflow extracts vendor, date, amount, property, and work description into an Airtable-ready review object. The Gmail sweep area packages a review-first workflow that can be adapted to Alex's own Gmail and Airtable connector setup.",
-    outcome:
-      "The prototype turned scattered repair and receipt work into a clear approval path. Alex can review structured outputs before promotion, use cleaner field workflows without giving every helper Airtable access, and evaluate which pieces are worth moving into live operations.",
-    tech: ["Next.js", "TypeScript", "Airtable", "AI Extraction", "Workflow Design"],
-  },
-  {
     slug: "trauma-therapy-group-publisher",
     clientType: "Healthcare Content Operations",
     title: "Trauma Therapy Group Publisher",
