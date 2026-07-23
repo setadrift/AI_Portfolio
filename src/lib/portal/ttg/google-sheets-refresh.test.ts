@@ -41,6 +41,20 @@ test("core Jane publishing retains supplemental capacity until an Hours export i
   assert.match(String(row[therapistHeader.indexOf("Notes")]), /retained/);
 });
 
+test("therapist publishing supports the live workbook's legacy column aliases", () => {
+  const therapistHeader = ["Period Start", "Period Status", "Therapist", "Invoices", "Total Invoiced", "Collected In Period", "Collected As Of Today", "Outstanding", "Available Hours", "Scheduled Hours", "Booked Hours", "Utilization", "Total Bookings", "Compensation", "Owner Flag", "Revenue per Booked Hour", "Notes"];
+  const next = payload("jane");
+  next.sourceCoverage = [{ kind: "hours", label: "Hours Scheduled / Booked", role: "supplemental", start: "2026-07-01", end: "2026-07-21", status: "complete", note: "Supplied" }];
+  next.therapists = [{ name: "Therapist A", invoices: 12, invoiced: 1_800, collected: 1_600, scheduledHours: 80, bookedHours: 52, bookings: 12, compensation: 900, owner: false }];
+  const [row] = buildTherapistPublishRows([therapistHeader], next);
+  assert.equal(row[therapistHeader.indexOf("Total Invoiced")], 1_800);
+  assert.equal(row[therapistHeader.indexOf("Collected In Period")], 1_600);
+  assert.equal(row[therapistHeader.indexOf("Collected As Of Today")], 1_600);
+  assert.equal(row[therapistHeader.indexOf("Available Hours")], 80);
+  assert.equal(row[therapistHeader.indexOf("Total Bookings")], 12);
+  assert.equal(row[therapistHeader.indexOf("Compensation")], 900);
+});
+
 test("incremental appointment uploads cannot replace mature retention cohorts", () => {
   const next = payload("jane");
   next.cohortRows = [{ cohortMonth: "2026-07", entity: "clinic", name: "Clinic", cohortSize: 1, eligible30: 0, retained30: 0, eligible60: 0, retained60: 0, eligible90: 0, retained90: 0, repeatPatients: 0, visitGapDays: 0, visitGapSamples: 0 }];
