@@ -1,4 +1,3 @@
-import NextLink from "next/link";
 import { CapacityChart, CashFlowChart, ExpenseChart, RevenueProfitChart, TherapistRevenueChart } from "@/components/portal/ttg/DashboardCharts";
 import { AdminFlowView } from "@/components/portal/ttg/AdminFlowViews";
 import { DashboardPeriodControl } from "@/components/portal/ttg/DashboardPeriodControl";
@@ -7,7 +6,7 @@ import { dashboardVisualIndex, formatDataThrough, gabbyMetricCoverage, getDashbo
 import { resolveDashboardRange } from "@/lib/portal/ttg/dashboard-period";
 import { fetchSupabaseDataPage } from "@/lib/portal/ttg/supabase-dashboard";
 
-const Link = (props: React.ComponentProps<typeof NextLink>) => <NextLink {...props} prefetch={false} />;
+const Link = (props: React.ComponentProps<"a">) => <a {...props} />;
 const money = (value: number, digits = 1) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", notation: "compact", maximumFractionDigits: digits }).format(value);
 const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
 const delta = (current: number, prior: number) => prior === 0 ? 0 : (current - prior) / Math.abs(prior);

@@ -1,4 +1,3 @@
-import NextLink from "next/link";
 import {
   InteractiveBarChart,
   InteractiveDonut,
@@ -25,7 +24,7 @@ import {
 } from "@/lib/portal/ttg/dashboard-period";
 import type { SupabaseDataPage } from "@/lib/portal/ttg/supabase-dashboard";
 
-const Link = (props: React.ComponentProps<typeof NextLink>) => <NextLink {...props} prefetch={false} />;
+const Link = (props: React.ComponentProps<"a">) => <a {...props} />;
 const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
 const integer = new Intl.NumberFormat("en-CA", { maximumFractionDigits: 0 });
 const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
