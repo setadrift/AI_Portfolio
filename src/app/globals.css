@@ -615,6 +615,16 @@ section {
 .ambient-orbit { position: absolute; width: 1rem; height: 1rem; border-radius: 50%; background: var(--editorial-red); }
 .ambient-orbit-one { top: 50%; left: 50%; transform-origin: -7rem 0; animation: ambient-orbit 12s linear infinite; }
 .ambient-orbit-two { top: 50%; left: 50%; background: var(--editorial-blue); transform-origin: 8rem 0; animation: ambient-orbit 15s linear infinite reverse; }
+
+@media (min-width: 1352px) {
+  .editorial-hero-grid {
+    width: calc(50% + 41rem);
+    margin-left: calc((100% - 82rem) / 2);
+    margin-right: 0;
+    grid-template-columns: minmax(0, 53.75rem) minmax(20rem, 1fr);
+  }
+}
+
 .editorial-runner { overflow: hidden; border-block: 1px solid var(--editorial-ink); background: var(--editorial-red); color: white; }
 .editorial-runner > div { width: max-content; display: flex; animation: editorial-runner 24s linear infinite; }
 .editorial-runner span { display: flex; align-items: center; gap: 2rem; padding: .9rem 1.25rem; font-size: .71rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; white-space: nowrap; }
