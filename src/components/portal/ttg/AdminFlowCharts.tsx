@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import NextLink from "next/link";
 import {
   Area,
   AreaChart,
@@ -22,6 +22,7 @@ import {
 type Row = Record<string, string | number>;
 type Series = { key: string; label: string; color: string; type?: "area" | "line"; dashed?: boolean };
 
+const Link = (props: React.ComponentProps<typeof NextLink>) => <NextLink {...props} prefetch={false} />;
 const compact = new Intl.NumberFormat("en-CA", { notation: "compact", maximumFractionDigits: 1 });
 const money = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
 const tooltipStyle = { border: "1px solid #dfe5e3", borderRadius: 8, boxShadow: "0 12px 30px rgba(26, 42, 40, .12)", fontSize: 12 };
