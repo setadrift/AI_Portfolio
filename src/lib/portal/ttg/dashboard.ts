@@ -76,6 +76,15 @@ export type CustomDashboard = {
   widgets: CustomWidget[];
 };
 
+export type AppointmentJourneyFact = {
+  date: string;
+  practitioner: string;
+  state: string;
+  patientKey: string;
+  consultation: boolean;
+  firstVisit: boolean;
+};
+
 export type QualityStatus = "PASS" | "WARNING" | "FAIL";
 
 export type DashboardSource = {
@@ -111,6 +120,7 @@ export type TtgDashboardData = {
   analytics?: NonNullable<RefreshPayload["analytics"]>;
   analyticsRows: AnalyticsDailyRow[];
   cohortRows: RetentionCohortRow[];
+  appointmentJourneyFacts: AppointmentJourneyFact[];
   marketingCampaigns?: MarketingCampaign[];
   marketingNewClients?: Array<{ date: string; channel: string; clients: number }>;
   customDashboards?: CustomDashboard[];
@@ -291,6 +301,8 @@ async function getKeylessGoogleAccessToken(email: string) {
   return required(impersonation.accessToken, "Google service account access token");
 }
 
+// Retained only for historical migration reference; the dashboard runtime is Supabase-only.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function fetchLiveDashboard(): Promise<TtgDashboardData> {
   const spreadsheetId = required(process.env.TTG_DASHBOARD_SPREADSHEET_ID, "spreadsheet ID");
   const email = required(process.env.TTG_GOOGLE_SERVICE_ACCOUNT_EMAIL, "service account email");
@@ -511,6 +523,7 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
     analytics,
     analyticsRows,
     cohortRows,
+    appointmentJourneyFacts: [],
     dataTables,
     summary: {
       activeTherapists: therapists.length,
@@ -552,18 +565,6 @@ export function selectReportingMonth(months: MonthlyMetric[]) {
 
 export async function getTtgDashboardData(): Promise<TtgDashboardData> {
   if (hasTtgReportingDatabase()) return fetchCachedSupabaseDashboard();
-  const hasStaticKeyConfig = Boolean(process.env.TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
-  const hasKeylessConfig = Boolean(
-    process.env.TTG_GCP_PROJECT_NUMBER
-      && process.env.TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_ID
-      && process.env.TTG_GOOGLE_WORKLOAD_IDENTITY_POOL_PROVIDER_ID,
-  );
-  const hasLiveConfig = Boolean(
-    process.env.TTG_DASHBOARD_SPREADSHEET_ID
-      && process.env.TTG_GOOGLE_SERVICE_ACCOUNT_EMAIL
-      && (hasStaticKeyConfig || hasKeylessConfig),
-  );
-  if (hasLiveConfig) return fetchLiveDashboard();
   if (process.env.NODE_ENV === "production") throw new Error("TTG dashboard reporting access is not configured");
   return validateDashboardData(ttgDashboardFixture);
 }

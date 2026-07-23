@@ -1,4 +1,5 @@
 import type {
+  AppointmentJourneyFact,
   CustomDashboard,
   DashboardSource,
   ExpenseMetric,
@@ -193,12 +194,12 @@ export async function fetchSupabaseDataPage(input: {
   };
 }
 
-async function allRows(table: string, order: string) {
+async function allRows(table: string, order: string, select = "*") {
   const rows: DbRow[] = [];
   for (let from = 0; ; from += 1000) {
     const read = () => ttgReportingClient()
       .from(table)
-      .select("*")
+      .select(select)
       .order(order, { ascending: true })
       .range(from, from + 999) as unknown as PromiseLike<SupabaseReadResult>;
     let { data, error } = await read();
@@ -335,6 +336,7 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     customDashboardDb,
     customWidgetDb,
     marketingNewClientDb,
+    appointmentJourneyDb,
   ] = await Promise.all([
     allRows("analytics_daily_current", "date"),
     allRows("retention_cohorts_current", "cohort_month"),
@@ -351,6 +353,11 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     allRows("custom_dashboards", "created_at"),
     allRows("custom_widgets", "position"),
     allRows("marketing_new_clients_current", "date"),
+    allRows(
+      "appointment_facts_current",
+      "date",
+      "date,practitioner,state,patient_key,consultation,first_visit",
+    ),
   ]);
   const activeRuns = runsDb.filter((row) => !row.rolled_back_at);
   const latestRun = activeRuns.at(-1);
@@ -479,6 +486,16 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     channel: text(row.channel),
     clients: number(row.new_clients),
   }));
+  const appointmentJourneyFacts: AppointmentJourneyFact[] = appointmentJourneyDb
+    .filter((row) => text(row.patient_key))
+    .map((row) => ({
+      date: text(row.date),
+      practitioner: text(row.practitioner),
+      state: text(row.state),
+      patientKey: text(row.patient_key),
+      consultation: Boolean(row.consultation),
+      firstVisit: Boolean(row.first_visit),
+    }));
 
   return {
     ...ttgDashboardFixture,
@@ -492,6 +509,7 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     analytics,
     analyticsRows,
     cohortRows,
+    appointmentJourneyFacts,
     marketingCampaigns,
     marketingNewClients,
     customDashboards,

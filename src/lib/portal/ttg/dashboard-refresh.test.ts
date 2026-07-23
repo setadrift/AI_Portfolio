@@ -92,6 +92,27 @@ test("TTG refresh rejects an incomplete bank package instead of zeroing missing 
   assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("Incomplete bank package")), true);
 });
 
+test("TTG refresh ignores an exact duplicate bank export without double counting it", () => {
+  const duplicateChequing = { ...files[6], name: "07-2026 Chequing Account (1).csv" };
+  const payload = buildRefreshPayload([...files, duplicateChequing]);
+
+  assert.equal(payload.refreshType, "full");
+  assert.equal(payload.bankRows, 3);
+  assert.equal(payload.issues.some((issue) => issue.status === "WARNING" && issue.title.includes("duplicate bank exports")), true);
+  assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("Incomplete bank package: chequing")), false);
+});
+
+test("TTG refresh does not guess how to merge two different exports for the same bank account", () => {
+  const overlappingChequing = {
+    ...files[6],
+    name: "07-2026 Chequing Account additional.csv",
+    text: `${files[6].text}Chequing,123,7/5/2026,,,Additional transaction,-25,\n`,
+  };
+  const payload = buildRefreshPayload([...files, overlappingChequing]);
+
+  assert.equal(payload.issues.some((issue) => issue.status === "FAIL" && issue.title.includes("Incomplete bank package: chequing")), true);
+});
+
 test("TTG refresh accepts a one-day Jane package and anchors it to the latest month", () => {
   const oneDay = files.slice(0, 6).map((file) => file.name.startsWith("Sales_") ? { ...file, name: "Sales_20260722_20260722.csv" } : file);
   const payload = buildRefreshPayload(oneDay);

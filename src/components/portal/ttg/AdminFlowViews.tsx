@@ -14,7 +14,7 @@ import {
 } from "@/components/portal/ttg/WorkspaceConfiguration";
 import { MetricHelp, type MetricHelpContent } from "@/components/portal/ttg/MetricHelp";
 import type { AnalyticsDailyRow, RetentionCohortRow } from "@/lib/portal/ttg/dashboard-refresh";
-import type { TtgDashboardData } from "@/lib/portal/ttg/dashboard";
+import type { AppointmentJourneyFact, TtgDashboardData } from "@/lib/portal/ttg/dashboard";
 import {
   adminFlowCohortMonth,
   rangeContains,
@@ -119,6 +119,99 @@ function weightedRate(rows: RetentionCohortRow[], retained: "retained30" | "reta
   return denominator ? rows.reduce((total, row) => total + row[retained], 0) / denominator : 0;
 }
 
+const COMPLETED_APPOINTMENT_STATES = new Set(["arrived", "completed", "in-progress", "in progress"]);
+const MISSED_APPOINTMENT_STATES = new Set(["cancelled", "canceled", "no_show", "no show"]);
+
+export function patientJourneyMetrics(facts: AppointmentJourneyFact[], range: DashboardRange) {
+  const selected = facts.filter((fact) => rangeContains(fact.date, range));
+  const consultationAppointments = selected.filter((fact) => fact.consultation);
+  const completedConsultations = consultationAppointments.filter((fact) => COMPLETED_APPOINTMENT_STATES.has(fact.state));
+  const consultDateByPatient = new Map<string, string>();
+  completedConsultations.forEach((fact) => {
+    const existing = consultDateByPatient.get(fact.patientKey);
+    if (!existing || fact.date < existing) consultDateByPatient.set(fact.patientKey, fact.date);
+  });
+
+  const convertedByPatient = new Map<string, { booked: boolean; attended: boolean }>();
+  consultDateByPatient.forEach((consultDate, patientKey) => {
+    const laterTherapy = facts.filter((fact) => (
+      fact.patientKey === patientKey
+      && !fact.consultation
+      && fact.date >= consultDate
+    ));
+    convertedByPatient.set(patientKey, {
+      booked: laterTherapy.some((fact) => !MISSED_APPOINTMENT_STATES.has(fact.state)),
+      attended: laterTherapy.some((fact) => COMPLETED_APPOINTMENT_STATES.has(fact.state)),
+    });
+  });
+
+  const byPractitioner = new Map<string, {
+    label: string;
+    clients: Set<string>;
+    sessions: number;
+    repeatClients: number;
+    consultClients: Set<string>;
+    convertedClients: Set<string>;
+  }>();
+  const practitionerRow = (label: string) => {
+    const current = byPractitioner.get(label);
+    if (current) return current;
+    const created = {
+      label,
+      clients: new Set<string>(),
+      sessions: 0,
+      repeatClients: 0,
+      consultClients: new Set<string>(),
+      convertedClients: new Set<string>(),
+    };
+    byPractitioner.set(label, created);
+    return created;
+  };
+
+  const completedTherapy = selected.filter((fact) => !fact.consultation && COMPLETED_APPOINTMENT_STATES.has(fact.state));
+  const sessionCounts = new Map<string, number>();
+  const clientSessionCounts = new Map<string, number>();
+  completedTherapy.forEach((fact) => {
+    const practitioner = practitionerRow(fact.practitioner);
+    practitioner.clients.add(fact.patientKey);
+    practitioner.sessions += 1;
+    const key = `${fact.practitioner}\u0000${fact.patientKey}`;
+    sessionCounts.set(key, (sessionCounts.get(key) ?? 0) + 1);
+    clientSessionCounts.set(fact.patientKey, (clientSessionCounts.get(fact.patientKey) ?? 0) + 1);
+  });
+  sessionCounts.forEach((count, key) => {
+    if (count < 2) return;
+    practitionerRow(key.split("\u0000")[0]).repeatClients += 1;
+  });
+  completedConsultations.forEach((fact) => {
+    const practitioner = practitionerRow(fact.practitioner);
+    practitioner.consultClients.add(fact.patientKey);
+    if (convertedByPatient.get(fact.patientKey)?.attended) practitioner.convertedClients.add(fact.patientKey);
+  });
+
+  return {
+    consultationAppointments: consultationAppointments.length,
+    completedConsultations: completedConsultations.length,
+    consultClients: consultDateByPatient.size,
+    bookedTherapyClients: [...convertedByPatient.values()].filter((value) => value.booked).length,
+    attendedTherapyClients: [...convertedByPatient.values()].filter((value) => value.attended).length,
+    therapyClients: clientSessionCounts.size,
+    therapySessions: completedTherapy.length,
+    repeatTherapyClients: [...clientSessionCounts.values()].filter((count) => count >= 2).length,
+    practitioners: [...byPractitioner.values()].map((row) => ({
+      label: row.label,
+      clients: row.clients.size,
+      sessions: row.sessions,
+      averageSessions: row.clients.size ? row.sessions / row.clients.size : 0,
+      repeatClients: row.repeatClients,
+      repeatRate: row.clients.size ? row.repeatClients / row.clients.size : 0,
+      consultClients: row.consultClients.size,
+      convertedClients: row.convertedClients.size,
+      consultConversion: row.consultClients.size ? row.convertedClients.size / row.consultClients.size : 0,
+    })),
+  };
+}
+
 export function AdminFlowView({ data, dataPage, view, tab = "overview", range }: { data: TtgDashboardData; dataPage?: SupabaseDataPage; view: string; tab?: string; range: DashboardRange }) {
   const rows = data.analyticsRows.filter((row) => rangeContains(row.date, range));
   const clinic = rows.filter((row) => row.entity === "clinic");
@@ -156,6 +249,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   const selectedClinicCohorts90 = selectedCohorts90.filter((row) => row.entity === "clinic");
   const mature90 = selectedClinicCohorts90.reduce((total, row) => total + row.eligible90, 0);
   const historyAvailable = data.cohortRows.length > 0;
+  const journey = patientJourneyMetrics(data.appointmentJourneyFacts ?? [], range);
   const appointmentsHref = queryFor(range, { view: "data", tab: "Appointments" });
   const salesHref = queryFor(range, { view: "data", tab: "Sales" });
 
@@ -239,25 +333,49 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
 
   if (view === "team") {
     const tabs = ["Overview", "Efficiency", "Revenue", "Cancellations", "Details"];
-    const practitioners = [...groupRows(rows, "practitioner")].map(([label, values]) => ({
-      label,
-      appointments: sum(values, "appointments"),
-      completed: sum(values, "completed"),
-      cancelled: sum(values, "cancelled"),
-      noShows: sum(values, "noShows"),
-      invoiced: sum(values, "invoiced"),
-      collected: sum(values, "collected"),
-      commission: sum(values, "commission"),
-      bookedMinutes: sum(values, "bookedMinutes"),
-    })).filter((row) => row.appointments || row.invoiced || row.commission).sort((a, b) => b.invoiced - a.invoiced);
+    const journeyByPractitioner = new Map(journey.practitioners.map((row) => [row.label, row]));
+    const practitioners = [...groupRows(rows, "practitioner")].map(([label, values]) => {
+      const patientMetrics = journeyByPractitioner.get(label);
+      return {
+        label,
+        appointments: sum(values, "appointments"),
+        completed: sum(values, "completed"),
+        cancelled: sum(values, "cancelled"),
+        noShows: sum(values, "noShows"),
+        invoiced: sum(values, "invoiced"),
+        collected: sum(values, "collected"),
+        commission: sum(values, "commission"),
+        bookedMinutes: sum(values, "bookedMinutes"),
+        clients: patientMetrics?.clients ?? 0,
+        averageSessions: patientMetrics?.averageSessions ?? 0,
+        repeatRate: patientMetrics?.repeatRate ?? 0,
+        consultClients: patientMetrics?.consultClients ?? 0,
+        convertedClients: patientMetrics?.convertedClients ?? 0,
+        consultConversion: patientMetrics?.consultConversion ?? 0,
+      };
+    }).filter((row) => row.appointments || row.invoiced || row.commission).sort((a, b) => b.invoiced - a.invoiced);
     const active = practitioners.length;
+    const teamClients = journey.therapyClients;
+    const teamSessions = journey.therapySessions;
+    const repeatClients = journey.repeatTherapyClients;
+    const convertedConsultClients = journey.attendedTherapyClients;
     const chartKey = tab === "cancellations" ? "missed" : tab === "efficiency" ? "completion" : "invoiced";
     const chartRows = practitioners.map((row) => ({ label: row.label, invoiced: row.invoiced, missed: row.cancelled + row.noShows, completion: row.appointments ? row.completed / row.appointments * 100 : 0 }));
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} /><Cards items={[{ label: "Active practitioners", value: integer.format(active), detail: range.label }, { label: "Avg. invoiced / practitioner", value: active ? cad.format(invoiced / active) : "—", detail: "Jane Sales" }, { label: "Team completion", value: pct(completionRate), detail: `${integer.format(completed)} completed` }, { label: "Missed appointments", value: integer.format(cancelled + noShows), detail: "Cancelled + no-show" }]} />
+      {(tab === "overview" || tab === "efficiency" || tab === "details") && <Cards items={[
+        { label: "Therapy clients", value: integer.format(teamClients), detail: "Unique clients with a completed therapy visit" },
+        { label: "Avg. sessions / client", value: teamClients ? (teamSessions / teamClients).toFixed(1) : "—", detail: "Completed therapy sessions in the selected period" },
+        { label: "Repeat-client rate", value: teamClients ? pct(repeatClients / teamClients) : "—", detail: "Clients with two or more completed sessions" },
+        { label: "Consult conversion", value: journey.consultClients ? pct(convertedConsultClients / journey.consultClients) : "—", detail: `${integer.format(convertedConsultClients)} of ${integer.format(journey.consultClients)} consult clients attended therapy` },
+      ]} />}
       {tab === "details" ? <Panel title="Practitioner details" note="Sortable presentation follows the same selected range"><DataTable rows={practitioners} columns={[
         { label: "Practitioner", value: (row) => String(row.label) },
         { label: "Appointments", value: (row) => integer.format(Number(row.appointments)) },
         { label: "Completion", value: (row) => Number(row.appointments) ? pct(Number(row.completed) / Number(row.appointments)) : "—" },
+        { label: "Clients", value: (row) => integer.format(Number(row.clients)) },
+        { label: "Avg. sessions", value: (row) => Number(row.clients) ? Number(row.averageSessions).toFixed(1) : "—" },
+        { label: "Repeat-client rate", value: (row) => Number(row.clients) ? pct(Number(row.repeatRate)) : "—" },
+        { label: "Consult conversion", value: (row) => Number(row.consultClients) ? `${integer.format(Number(row.convertedClients))} / ${integer.format(Number(row.consultClients))} (${pct(Number(row.consultConversion))})` : "—" },
         { label: "Invoiced", value: (row) => cad.format(Number(row.invoiced)) },
         { label: "Collected", value: (row) => cad.format(Number(row.collected)) },
         { label: "Commission", value: (row) => cad.format(Number(row.commission)) },
@@ -278,10 +396,37 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     const repeat = clinicCohorts.reduce((total, row) => total + row.repeatPatients, 0);
     const activity = clinicCohorts.map((row) => ({ label: row.cohortMonth, cohort: row.cohortSize, repeat: row.repeatPatients, retained30: row.eligible30 ? row.retained30 / row.eligible30 * 100 : 0, retained60: row.eligible60 ? row.retained60 / row.eligible60 * 100 : 0, retained90: row.eligible90 ? row.retained90 / row.eligible90 * 100 : 0 }));
     const dimension = tab === "by-practitioner" ? "practitioner" : "service";
-    const breakdown = selectedCohorts90.filter((row) => row.entity === dimension).map((row) => ({ label: row.name, value: row.eligible90 ? row.retained90 / row.eligible90 * 100 : 0 })).filter((row) => row.value > 0).sort((a, b) => b.value - a.value);
+    const breakdownGroups = new Map<string, RetentionCohortRow[]>();
+    selectedCohorts90.filter((row) => row.entity === dimension).forEach((row) => {
+      breakdownGroups.set(row.name, [...(breakdownGroups.get(row.name) ?? []), row]);
+    });
+    const breakdown = [...breakdownGroups].map(([label, values]) => ({
+      label,
+      value: weightedRate(values, "retained90", "eligible90") * 100,
+      eligible: values.reduce((total, row) => total + row.eligible90, 0),
+    })).filter((row) => row.eligible > 0).sort((a, b) => b.value - a.value);
+    const retentionByPractitioner = breakdown.map((row) => {
+      const sessions = journey.practitioners.find((practitioner) => practitioner.label === row.label);
+      return {
+        ...row,
+        clients: sessions?.clients ?? 0,
+        sessions: sessions?.sessions ?? 0,
+        averageSessions: sessions?.averageSessions ?? 0,
+        repeatRate: sessions?.repeatRate ?? 0,
+      };
+    });
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} />
       {(tab === "overview" || tab === "patient-activity") && <><Cards items={[{ label: "Cohort patients", value: integer.format(cohortSize), detail: `${displayWindow.start} to ${displayWindow.end}` }, { label: "30-day retention", value: pct(rate30), detail: `Six mature cohorts ending ${cohortWindow30.end}` }, { label: "60-day retention", value: pct(rate60), detail: `Six mature cohorts ending ${cohortWindow60.end}` }, { label: "90-day retention", value: pct(rate90), detail: `Six mature cohorts ending ${cohortWindow90.end}` }]} /><Panel title={tab === "patient-activity" ? "New and repeat patient activity" : "Retention by cohort month"} note="Rolling twelve-month cohort view; each headline rate uses its six fully mature cohorts">{tab === "patient-activity" ? <InteractiveStackedChart data={activity} href={appointmentsHref} series={[{ key: "cohort", label: "New cohort", color: "#2f86ba" }, { key: "repeat", label: "Repeat patients", color: "#61b08b" }]} /> : <InteractiveLineChart data={activity} href={appointmentsHref} series={[{ key: "retained30", label: "30 day", color: "#2f86ba" }, { key: "retained60", label: "60 day", color: "#61b08b" }, { key: "retained90", label: "90 day", color: "#e2a256" }]} />}</Panel></>}
-      {(tab === "by-practitioner" || tab === "by-service") && <><Cards items={[{ label: "Selected cohorts", value: integer.format(cohortSize), detail: range.label }, { label: "Repeat patients", value: integer.format(repeat), detail: "Two or more completed visits" }, { label: "90-day retention", value: pct(rate90), detail: "Clinic weighted rate" }, { label: "Breakdown rows", value: integer.format(breakdown.length), detail: dimension === "practitioner" ? "Practitioners" : "Services" }]} /><Panel title={`90-day retention by ${dimension}`} note="Only rows with mature eligible cohorts are shown"><InteractiveBarChart data={breakdown.slice(0, 15)} horizontal href={appointmentsHref} /></Panel></>}
+      {(tab === "by-practitioner" || tab === "by-service") && <><Cards items={[{ label: "Selected cohorts", value: integer.format(cohortSize), detail: range.label }, { label: "Repeat patients", value: integer.format(repeat), detail: "Two or more completed visits" }, { label: "90-day retention", value: pct(rate90), detail: "Clinic weighted rate" }, { label: "Breakdown rows", value: integer.format(breakdown.length), detail: dimension === "practitioner" ? "Practitioners" : "Services" }]} /><Panel title={`90-day retention by ${dimension}`} note="Only rows with mature eligible cohorts are shown"><InteractiveBarChart data={breakdown} horizontal href={appointmentsHref} /></Panel>
+      {tab === "by-practitioner" && <Panel title="Practitioner retention and session depth" note="Retention uses mature cohorts; session depth follows the selected date range"><DataTable rows={retentionByPractitioner} columns={[
+        { label: "Practitioner", value: (row) => String(row.label) },
+        { label: "90-day retention", value: (row) => `${Number(row.value).toFixed(1)}%` },
+        { label: "Eligible cohort", value: (row) => integer.format(Number(row.eligible)) },
+        { label: "Therapy clients", value: (row) => integer.format(Number(row.clients)) },
+        { label: "Completed sessions", value: (row) => integer.format(Number(row.sessions)) },
+        { label: "Avg. sessions / client", value: (row) => Number(row.clients) ? Number(row.averageSessions).toFixed(1) : "—" },
+        { label: "Repeat-client rate", value: (row) => Number(row.clients) ? pct(Number(row.repeatRate)) : "—" },
+      ]} /></Panel>}</>}
       {tab === "cohorts" && <Panel title="Retention cohorts" note="Privacy-safe monthly aggregates; no patient identities are stored"><DataTable rows={activity} columns={[
         { label: "Cohort", value: (row) => String(row.label) },
         { label: "Patients", value: (row) => integer.format(Number(row.cohort)) },
@@ -295,11 +440,30 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
 
   if (view === "funnel") {
     const tabs = ["Overview", "By Practitioner"];
-    const consultations = sum(clinic, "consultations");
-    const firstVisits = sum(clinic, "firstVisits");
-    const subsequentVisits = sum(clinic, "subsequentVisits");
-    const practitionerFunnel = [...groupRows(rows, "practitioner")].map(([label, values]) => ({ label, consultations: sum(values, "consultations"), firstVisits: sum(values, "firstVisits"), subsequentVisits: sum(values, "subsequentVisits") })).filter((row) => row.consultations || row.firstVisits || row.subsequentVisits);
-    return <><Tabs active={tab} range={range} tabs={tabs} view={view} /><Cards items={[{ label: "Consultations", value: integer.format(consultations), detail: "Jane treatment labels containing consult" }, { label: "First visits", value: integer.format(firstVisits), detail: "First-visit flag excluding consultations" }, { label: "Subsequent visits", value: integer.format(subsequentVisits), detail: "Ongoing appointment activity" }, { label: "Total appointments", value: integer.format(appointments), detail: range.label }]} />{tab === "by-practitioner" ? <Panel title="Patient path by practitioner" note="This is an appointment-state path; Jane does not provide pre-booking inquiries"><InteractiveStackedChart data={practitionerFunnel} href={appointmentsHref} series={[{ key: "consultations", label: "Consultations", color: "#2f86ba" }, { key: "firstVisits", label: "First visits", color: "#61b08b" }, { key: "subsequentVisits", label: "Subsequent", color: "#e2a256" }]} /></Panel> : <Panel title="Jane appointment funnel" note="Inquiry-to-booking is intentionally excluded because no inquiry source is present"><InteractiveBarChart data={[{ label: "Consultations", value: consultations }, { label: "First visits", value: firstVisits }, { label: "Subsequent visits", value: subsequentVisits }]} horizontal href={appointmentsHref} /></Panel>}</>;
+    const practitionerFunnel = journey.practitioners
+      .filter((row) => row.consultClients)
+      .map((row) => ({
+        label: row.label,
+        consultClients: row.consultClients,
+        convertedClients: row.convertedClients,
+      }))
+      .sort((left, right) => right.consultClients - left.consultClients);
+    const conversionRate = journey.consultClients ? journey.attendedTherapyClients / journey.consultClients : 0;
+    return <><Tabs active={tab} range={range} tabs={tabs} view={view} /><Cards items={[
+      { label: "Consult appointments", value: integer.format(journey.consultationAppointments), detail: "All Jane appointments with a consult service label" },
+      { label: "Completed consults", value: integer.format(journey.completedConsultations), detail: `${integer.format(journey.consultClients)} unique consult clients` },
+      { label: "Booked therapy clients", value: integer.format(journey.bookedTherapyClients), detail: "Later non-consult appointment booked" },
+      { label: "Attended therapy clients", value: integer.format(journey.attendedTherapyClients), detail: journey.consultClients ? `${pct(conversionRate)} of completed consult clients` : "No completed consult clients in range" },
+    ]} />{tab === "by-practitioner" ? <><Panel title="Consult conversion by practitioner" note="The practitioner is the clinician who completed the consult; follow-up is observed through the latest Jane data"><InteractiveStackedChart data={practitionerFunnel} href={appointmentsHref} series={[{ key: "consultClients", label: "Consult clients", color: "#2f86ba" }, { key: "convertedClients", label: "Attended therapy", color: "#61b08b" }]} /></Panel><Panel title="Practitioner consult detail" note="No client identities are stored or displayed"><DataTable rows={journey.practitioners.filter((row) => row.consultClients).sort((left, right) => right.consultClients - left.consultClients)} columns={[
+        { label: "Practitioner", value: (row) => String(row.label) },
+        { label: "Consult clients", value: (row) => integer.format(Number(row.consultClients)) },
+        { label: "Attended therapy", value: (row) => integer.format(Number(row.convertedClients)) },
+        { label: "Conversion rate", value: (row) => pct(Number(row.consultConversion)) },
+      ]} /></Panel></> : <Panel title="Consult-to-therapy funnel" note="Conversion starts with a completed Jane consult. “Attended therapy” means a later non-consult appointment marked arrived, completed, or in progress; it does not claim that payment was collected."><InteractiveBarChart data={[
+        { label: "Completed consult clients", value: journey.consultClients },
+        { label: "Booked therapy", value: journey.bookedTherapyClients },
+        { label: "Attended therapy", value: journey.attendedTherapyClients },
+      ]} horizontal href={appointmentsHref} /></Panel>}</>;
   }
 
   if (view === "insights") {
