@@ -12,6 +12,11 @@ import { ttgDashboardFixture } from "./dashboard-fixture";
 import { ttgReportingClient } from "./ttg-reporting-db";
 
 type DbRow = Record<string, unknown>;
+type SupabaseReadResult = {
+  data: unknown[] | null;
+  error: { message: string } | null;
+  count?: number | null;
+};
 
 export type SupabaseDataPage = {
   name: string;
@@ -191,11 +196,16 @@ export async function fetchSupabaseDataPage(input: {
 async function allRows(table: string, order: string) {
   const rows: DbRow[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await ttgReportingClient()
+    const read = () => ttgReportingClient()
       .from(table)
       .select("*")
       .order(order, { ascending: true })
-      .range(from, from + 999);
+      .range(from, from + 999) as unknown as PromiseLike<SupabaseReadResult>;
+    let { data, error } = await read();
+    if (error) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      ({ data, error } = await read());
+    }
     if (error) throw new Error(`TTG ${table} read failed: ${error.message}`);
     rows.push(...((data ?? []) as DbRow[]));
     if ((data ?? []).length < 1000) return rows;
@@ -203,11 +213,16 @@ async function allRows(table: string, order: string) {
 }
 
 async function previewRows(table: string, order: string) {
-  const { data, error, count } = await ttgReportingClient()
+  const read = () => ttgReportingClient()
     .from(table)
     .select("*", { count: "exact" })
     .order(order, { ascending: false })
-    .limit(250);
+    .limit(250) as unknown as PromiseLike<SupabaseReadResult>;
+  let { data, error, count } = await read();
+  if (error) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    ({ data, error, count } = await read());
+  }
   if (error) throw new Error(`TTG ${table} preview failed: ${error.message}`);
   return { rows: (data ?? []) as DbRow[], count: count ?? (data ?? []).length };
 }
