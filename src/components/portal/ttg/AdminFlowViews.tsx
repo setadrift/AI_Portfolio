@@ -354,7 +354,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     const firstRow = page?.rowCount ? (page.page - 1) * page.pageSize + 1 : 0;
     const lastRow = page ? Math.min(page.page * page.pageSize, page.rowCount) : displayRows.length;
     return <div className="ttg-af-data">
-      <nav>{tables.map((table) => <Link className={selected?.name === table.name ? "is-active" : ""} href={queryFor(range, { view: "data", tab: table.name })} key={table.name}><strong>{table.name}</strong><span>{table.rowCount ?? table.rows.length} rows</span></Link>)}</nav>
+      <nav>{tables.map((table) => <Link className={selected?.name === table.name ? "is-active" : ""} href={queryFor(range, { view: "data", tab: table.name })} key={table.name}><strong>{table.name}</strong><span>{page?.tableCounts[table.name] ?? table.rowCount ?? table.rows.length} rows</span></Link>)}</nav>
       <Panel title={selected?.name ?? "My data"} note="Read-only privacy-safe values from the secure reporting database">
         {page && <form className="ttg-af-table-controls" method="get">
           <input name="view" type="hidden" value="data" />

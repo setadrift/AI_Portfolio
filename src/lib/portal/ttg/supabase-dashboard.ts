@@ -16,6 +16,7 @@ export type SupabaseDataPage = {
   columns: string[];
   rows: Array<Record<string, string>>;
   rowCount: number;
+  tableCounts: Record<string, number>;
   page: number;
   pageSize: number;
   pageCount: number;
@@ -161,11 +162,21 @@ export async function fetchSupabaseDataPage(input: {
         : text(raw);
     return [column.label, value];
   })));
+  const tableCounts = Object.fromEntries(await Promise.all(Object.entries(DATA_PAGE_CONFIG).map(async ([tableName, tableConfig]) => {
+    let countQuery = ttgReportingClient()
+      .from(tableConfig.table)
+      .select(tableConfig.columns[0].field, { count: "exact", head: true });
+    if (tableConfig.dateColumn) countQuery = countQuery.gte(tableConfig.dateColumn, input.start).lte(tableConfig.dateColumn, input.end);
+    const { error: countError, count: tableCount } = await countQuery;
+    if (countError) throw new Error(`TTG ${tableName} count failed: ${countError.message}`);
+    return [tableName, tableCount ?? 0];
+  })));
   return {
     name,
     columns: config.columns.map((column) => column.label),
     rows,
     rowCount,
+    tableCounts,
     page,
     pageSize,
     pageCount,
