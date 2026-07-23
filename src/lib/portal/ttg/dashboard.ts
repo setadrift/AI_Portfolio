@@ -1,9 +1,16 @@
 import { createSign } from "node:crypto";
 import { getVercelOidcToken } from "@vercel/oidc";
+import { unstable_cache } from "next/cache";
 import { ttgDashboardFixture } from "./dashboard-fixture";
 import type { AnalyticsDailyRow, RefreshPayload, RetentionCohortRow } from "./dashboard-refresh";
 import { fetchSupabaseDashboard } from "./supabase-dashboard";
 import { hasTtgReportingDatabase } from "./ttg-reporting-db";
+
+const fetchCachedSupabaseDashboard = unstable_cache(
+  fetchSupabaseDashboard,
+  ["ttg-dashboard-data-v1"],
+  { tags: ["ttg-dashboard"] },
+);
 
 export type MonthlyMetric = {
   period: string;
@@ -544,7 +551,7 @@ export function selectReportingMonth(months: MonthlyMetric[]) {
 }
 
 export async function getTtgDashboardData(): Promise<TtgDashboardData> {
-  if (hasTtgReportingDatabase()) return fetchSupabaseDashboard();
+  if (hasTtgReportingDatabase()) return fetchCachedSupabaseDashboard();
   const hasStaticKeyConfig = Boolean(process.env.TTG_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
   const hasKeylessConfig = Boolean(
     process.env.TTG_GCP_PROJECT_NUMBER

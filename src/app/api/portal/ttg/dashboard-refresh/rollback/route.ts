@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as { refreshId?: string; confirmation?: string };
     if (!body.refreshId || body.confirmation !== "RESTORE") return NextResponse.json({ error: "Confirm the restore before continuing." }, { status: 400 });
     const result = await rollbackSupabaseRefresh(body.refreshId, auth.session.sub);
-    revalidateTag("ttg-dashboard", "max");
+    revalidateTag("ttg-dashboard", { expire: 0 });
     revalidatePath("/portal/ttg/dashboard");
     return NextResponse.json(result);
   } catch (error) {
