@@ -1,49 +1,37 @@
-import Image from "next/image";
 import type { PortfolioVisual } from "@/lib/portfolio";
 
 type VisualLocale = "en" | "fr";
 
 const visualCopy = {
   en: {
-    frame: "Operational proof", evidenceView: "Evidence view", currentProduct: "Current iOS product", live: "Live",
+    frame: "Operational proof", evidenceView: "Evidence view", currentProduct: "Live decision product", live: "Live",
+    decisionLoop: "One decision, full context", productSteps: [["01", "Live inputs", "Current market context"], ["02", "Model view", "Projection and confidence"], ["03", "Recorded result", "Automatically graded"]],
+    accountability: "Accountability loop", accountabilityRows: [["Price", "Timestamped"], ["Model context", "Attached"], ["Final result", "Recorded"]],
+    aiOperations: "AI operations control plane", operatingLanes: "Four operating lanes", selectedAction: "Selected action", actionTitle: "Freshness exception requires review",
+    operationRows: [["Data and pricing", "Monitoring"], ["Models and forecasts", "Finding"], ["User growth", "Scheduled"], ["Executive oversight", "Needs approval"]],
+    actionSteps: [["01", "Finding recorded"], ["02", "One action selected"], ["03", "Production change held"]], approvalRequired: "Human approval required",
     case: "Case 02491", service: "Service provided", review: "Review", sources: ["Booking record", "Payment history", "Customer communication"],
     records: "records", package: "Evidence package", readyReview: "Ready for operator review", linked: "Sources linked", missing: "Missing evidence",
     none: "None detected", approval: "A person approves the final response. Source records remain attached to the case.",
-    repairDesk: "Turn repair desk", fieldView: "Field view · 3 active items", shopping: "Shopping", walkthrough: "Walkthrough",
-    room: "Room", work: "Work", status: "Status", due: "Due", propertyRows: [["Kitchen", "Replace faucet", "Materials ready", "Today"], ["Bedroom 2", "Patch + paint", "Contractor assigned", "Tue"], ["Exterior", "Gutter repair", "Needs review", "—"]],
-    fieldNotes: "Field notes staged", promote: "Ready to promote", ownerReview: "Needs owner review",
     source: "Google Doc", approved: "Approved source", seoReview: "SEO + image", wordpress: "WordPress", draftOnly: "Draft only",
     articleDraft: "Article draft", articleTitle: "When anxiety does not feel temporary", draft: "Draft", formatting: "Formatting", ready: "Ready",
     seoFields: "SEO fields", needsApproval: "Needs approval", image: "Featured image", selected: "Selected", publication: "Publication remains a human action inside WordPress.",
   },
   fr: {
-    frame: "Preuve opérationnelle", evidenceView: "Vue des preuves", currentProduct: "Produit iOS actuel", live: "En ligne",
+    frame: "Preuve opérationnelle", evidenceView: "Vue des preuves", currentProduct: "Produit décisionnel en ligne", live: "En ligne",
+    decisionLoop: "Une décision, tout le contexte", productSteps: [["01", "Données en direct", "Contexte actuel du marché"], ["02", "Vue du modèle", "Projection et confiance"], ["03", "Résultat consigné", "Classé automatiquement"]],
+    accountability: "Boucle de responsabilité", accountabilityRows: [["Prix", "Horodaté"], ["Contexte du modèle", "Joint"], ["Résultat final", "Consigné"]],
+    aiOperations: "Centre de contrôle des opérations IA", operatingLanes: "Quatre fonctions opérationnelles", selectedAction: "Action sélectionnée", actionTitle: "Une exception de fraîcheur exige une révision",
+    operationRows: [["Données et prix", "Surveillance"], ["Modèles et prévisions", "Constat"], ["Croissance", "Planifié"], ["Supervision", "Approbation requise"]],
+    actionSteps: [["01", "Constat consigné"], ["02", "Une action sélectionnée"], ["03", "Changement retenu"]], approvalRequired: "Approbation humaine requise",
     case: "Dossier 02491", service: "Service fourni", review: "Révision", sources: ["Dossier de réservation", "Historique de paiement", "Communication client"],
     records: "dossiers", package: "Dossier de preuves", readyReview: "Prêt pour révision", linked: "Sources liées", missing: "Preuves manquantes",
     none: "Aucune détectée", approval: "Une personne approuve la réponse finale. Les dossiers sources restent liés au cas.",
-    repairDesk: "Centre de réparations", fieldView: "Vue terrain · 3 éléments actifs", shopping: "Achats", walkthrough: "Inspection",
-    room: "Pièce", work: "Travail", status: "Statut", due: "Échéance", propertyRows: [["Cuisine", "Remplacer le robinet", "Matériaux prêts", "Aujourd'hui"], ["Chambre 2", "Réparer et peindre", "Entrepreneur assigné", "Mar."], ["Extérieur", "Réparer la gouttière", "À réviser", "—"]],
-    fieldNotes: "Notes terrain en attente", promote: "Prêtes à confirmer", ownerReview: "Révision requise",
     source: "Google Doc", approved: "Source approuvée", seoReview: "SEO et image", wordpress: "WordPress", draftOnly: "Brouillon seulement",
     articleDraft: "Brouillon d'article", articleTitle: "Quand l'anxiété ne semble pas temporaire", draft: "Brouillon", formatting: "Formatage", ready: "Prêt",
     seoFields: "Champs SEO", needsApproval: "Approbation requise", image: "Image en vedette", selected: "Sélectionnée", publication: "La publication demeure une action humaine dans WordPress.",
   },
 };
-
-const lineupScreens = [
-  {
-    src: "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/4c/00/eb/4c00eb9e-7290-9d20-c066-4ad687cc4923/02-best-bets.png/600x1300bb.webp",
-    alt: "The Lineup best bets screen",
-  },
-  {
-    src: "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/c6/50/1b/c6501bde-dcb0-1cdf-219d-365559307de7/04-projections.png/600x1300bb.webp",
-    alt: "The Lineup projections screen",
-  },
-  {
-    src: "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/1b/fe/6f/1bfe6fdc-7530-4893-2137-0379c72cc5c7/01-results.png/600x1300bb.webp",
-    alt: "The Lineup results screen",
-  },
-];
 
 export default function PortfolioProofVisual({
   visual,
@@ -62,8 +50,8 @@ export default function PortfolioProofVisual({
     return <DisputesVisual compact={compact} locale={locale} />;
   }
 
-  if (visual === "property") {
-    return <PropertyVisual compact={compact} locale={locale} />;
+  if (visual === "operations") {
+    return <OperationsVisual compact={compact} locale={locale} />;
   }
 
   return <PublisherVisual compact={compact} locale={locale} />;
@@ -93,8 +81,8 @@ function LineupVisual({ compact, locale }: { compact: boolean; locale: VisualLoc
   const copy = visualCopy[locale];
   return (
     <Frame compact={compact} locale={locale}>
-      <div className={`relative overflow-hidden ${compact ? "h-[17rem]" : "h-[32rem]"}`}>
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between px-5 py-4 text-white">
+      <div className={`p-4 text-white ${compact ? "" : "p-6"}`}>
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">The Lineup</p>
             <p className="mt-1 text-sm font-semibold">{copy.currentProduct}</p>
@@ -103,23 +91,49 @@ function LineupVisual({ compact, locale }: { compact: boolean; locale: VisualLoc
             {copy.live}
           </span>
         </div>
-        <div className={`absolute inset-x-0 flex justify-center gap-3 px-4 ${compact ? "top-16" : "top-20"}`}>
-          {lineupScreens.map((screen, index) => (
-            <div
-              className={`relative overflow-hidden rounded-[1.25rem] border border-white/15 bg-black shadow-2xl ${
-                compact ? "h-56 w-[6.45rem]" : "h-[27rem] w-[12.5rem]"
-              } ${index === 1 ? "-translate-y-2" : "translate-y-3"}`}
-              key={screen.src}
-            >
-              <Image
-                alt={screen.alt}
-                className="object-cover object-top"
-                fill
-                sizes={compact ? "110px" : "210px"}
-                src={screen.src}
-              />
+
+        <div className={`mt-4 grid gap-px overflow-hidden border border-white/10 bg-white/10 ${compact ? "grid-cols-3" : "sm:grid-cols-3"}`}>
+          {copy.productSteps.map(([number, label, detail]) => (
+            <div className="bg-slate-950 p-3 sm:p-4" key={number}>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-300">{number}</p>
+              <p className="mt-2 text-xs font-semibold sm:text-sm">{label}</p>
+              <p className="mt-1 text-[10px] leading-4 text-slate-400">{detail}</p>
             </div>
           ))}
+        </div>
+
+        <div className={`mt-4 grid gap-4 ${compact ? "grid-cols-[1.15fr_0.85fr]" : "md:grid-cols-[1.2fr_0.8fr]"}`}>
+          <div className="border border-white/10 bg-white p-4 text-slate-950">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">{copy.decisionLoop}</p>
+            <div className="mt-4 grid grid-cols-[auto_1fr] items-center gap-4 border-y border-slate-200 py-4">
+              <div className="grid h-12 w-12 place-items-center rounded-full bg-slate-950 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
+                ML
+              </div>
+              <div>
+                <div className="h-2 w-full bg-slate-200" />
+                <div className="mt-2 h-2 w-3/4 bg-slate-100" />
+              </div>
+            </div>
+            {!compact ? (
+              <p className="mt-4 border-l-2 border-emerald-500 pl-3 text-[11px] leading-5 text-slate-600">
+                {locale === "fr"
+                  ? "Le contexte reste lié à la décision jusqu'au résultat final."
+                  : "The context stays attached to the decision through the final result."}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="border border-white/10 bg-white/[0.04] p-4">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">{copy.accountability}</p>
+            <div className="mt-3">
+              {copy.accountabilityRows.map(([label, value]) => (
+                <div className="flex items-center justify-between border-t border-white/10 py-2.5 text-[10px] sm:text-xs" key={label}>
+                  <span className="text-slate-400">{label}</span>
+                  <span className="text-emerald-300">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </Frame>
@@ -192,55 +206,53 @@ function EvidenceLine({ width }: { width: string }) {
   );
 }
 
-function PropertyVisual({ compact, locale }: { compact: boolean; locale: VisualLocale }) {
+function OperationsVisual({ compact, locale }: { compact: boolean; locale: VisualLocale }) {
   const copy = visualCopy[locale];
-  const rows = copy.propertyRows;
 
   return (
     <Frame compact={compact} locale={locale}>
       <div className={`p-4 text-slate-100 ${compact ? "" : "p-6"}`}>
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{copy.repairDesk}</p>
-            <p className="mt-2 text-xl font-semibold">Cedar House</p>
-            <p className="mt-1 text-xs text-slate-400">{copy.fieldView}</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">The Lineup</p>
+            <p className="mt-2 text-lg font-semibold sm:text-xl">{copy.aiOperations}</p>
           </div>
-          <div className="flex gap-2 text-[10px] font-semibold uppercase tracking-[0.14em]">
-            <span className="border border-white/10 px-2.5 py-1.5 text-slate-300">{copy.shopping}</span>
-            <span className="bg-white px-2.5 py-1.5 text-slate-950">{copy.walkthrough}</span>
-          </div>
+          <span className="border border-white/10 px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-300">
+            {copy.operatingLanes}
+          </span>
         </div>
 
-        <div className="mt-5 overflow-hidden border border-white/10 bg-white text-slate-950">
-          <div className="hidden grid-cols-[0.8fr_1.4fr_1.2fr_0.5fr] gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400 sm:grid">
-            <span>{copy.room}</span><span>{copy.work}</span><span>{copy.status}</span><span>{copy.due}</span>
+        <div className={`mt-4 grid gap-4 ${compact ? "grid-cols-[0.9fr_1.1fr]" : "md:grid-cols-[0.82fr_1.18fr]"}`}>
+          <div className="border border-white/10 bg-white/[0.04]">
+            {copy.operationRows.map(([label, status], index) => (
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3 py-3 last:border-0" key={label}>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${index === 1 || index === 3 ? "bg-amber-300" : index === 2 ? "bg-blue-300" : "bg-emerald-300"}`} />
+                  <span className="truncate text-[10px] font-semibold sm:text-xs">{label}</span>
+                </div>
+                <span className={`hidden text-[9px] uppercase tracking-[0.08em] sm:block ${index === 1 || index === 3 ? "text-amber-300" : "text-slate-400"}`}>{status}</span>
+              </div>
+            ))}
           </div>
-          {rows.map((row, index) => (
-            <div className="grid gap-1 border-b border-slate-100 px-4 py-3 text-xs last:border-0 sm:grid-cols-[0.8fr_1.4fr_1.2fr_0.5fr] sm:items-center sm:gap-2" key={row[1]}>
-              <span className="font-semibold">{row[0]}</span>
-              <span className="text-slate-600">{row[1]}</span>
-              <span className={index === 2 ? "text-amber-700" : "text-emerald-700"}>{row[2]}</span>
-              <span className="text-slate-400">{row[3]}</span>
+
+          <div className="border border-white/10 bg-white p-4 text-slate-950">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">{copy.selectedAction}</p>
+            <p className="mt-2 text-sm font-semibold leading-5">{copy.actionTitle}</p>
+            <div className="mt-4">
+              {copy.actionSteps.map(([number, label]) => (
+                <div className="grid grid-cols-[2rem_1fr] gap-2 border-t border-slate-200 py-2 text-[10px]" key={number}>
+                  <span className="font-semibold text-slate-400">{number}</span>
+                  <span>{label}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <SmallStatus label={copy.fieldNotes} value="4" />
-          <SmallStatus label={copy.promote} value="2" />
-          <SmallStatus label={copy.ownerReview} value="1" attention />
+            <div className="mt-2 border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-950">
+              {copy.approvalRequired}
+            </div>
+          </div>
         </div>
       </div>
     </Frame>
-  );
-}
-
-function SmallStatus({ label, value, attention = false }: { label: string; value: string; attention?: boolean }) {
-  return (
-    <div className="border border-white/10 bg-white/[0.04] p-3">
-      <p className="text-[10px] text-slate-500">{label}</p>
-      <p className={`mt-1 text-lg font-semibold ${attention ? "text-amber-300" : "text-white"}`}>{value}</p>
-    </div>
   );
 }
 

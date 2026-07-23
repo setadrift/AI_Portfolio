@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import BookingConversionLink from "@/components/ads/BookingConversionLink";
+import PortfolioProofVisual from "@/components/portfolio/PortfolioProofVisual";
 import { BOOKING_URL, PROJECTS, SITE } from "@/lib/constants";
 import { FEATURED_PORTFOLIO, getPortfolioProject, localize } from "@/lib/portfolio";
 import { routing } from "@/i18n/routing";
@@ -12,7 +13,6 @@ const SLUG_TO_KEY: Record<string, string> = {
   "dispute-defender": "disputeDefender",
   "deal-engine": "dealEngine",
   "the-lineup": "theLineup",
-  "alex-parker-property-ops": "alexParkerPropertyOps",
   "trauma-therapy-group-publisher": "traumaTherapyGroupPublisher",
 };
 
@@ -48,8 +48,13 @@ const pageCopy = {
 };
 
 export function generateStaticParams() {
+  const slugs = new Set([
+    ...PROJECTS.map((project) => project.slug),
+    ...FEATURED_PORTFOLIO.map((project) => project.slug),
+  ]);
+
   return routing.locales.flatMap((locale) =>
-    PROJECTS.map((project) => ({ locale, slug: project.slug })),
+    [...slugs].map((slug) => ({ locale, slug })),
   );
 }
 
@@ -133,7 +138,7 @@ function ProofLedProject({
 
       <section className="editorial-case-hero">
         <div className="editorial-shell">
-          <Link className="editorial-case-back" href="/#projects">
+          <Link className="editorial-case-back" href="/work-samples">
             <span aria-hidden="true">←</span> {copy.back}
           </Link>
 
@@ -164,6 +169,9 @@ function ProofLedProject({
                 <li key={localize(item, locale)}><span>0{index + 1}</span>{localize(item, locale)}</li>
               ))}
             </ol>
+          </div>
+          <div className="editorial-case-proof-visual">
+            <PortfolioProofVisual locale={locale} visual={project.visual} />
           </div>
           <p className="editorial-case-proof-note">{localize(project.visualNote, locale)}</p>
         </div>

@@ -1,6 +1,6 @@
 export type PortfolioLocale = "en" | "fr";
 
-export type PortfolioVisual = "lineup" | "disputes" | "property" | "publisher";
+export type PortfolioVisual = "lineup" | "operations" | "disputes" | "publisher";
 
 type Localized = {
   en: string;
@@ -82,12 +82,69 @@ export const FEATURED_PORTFOLIO: PortfolioProject[] = [
       "Model output is not presented as truth without consequence. Prices, timestamps, grading, and result history create an inspectable loop around every decision.",
       "La sortie d'un modèle n'est pas présentée comme vérité sans conséquence. Prix, horodatages, classement et historique créent une boucle vérifiable autour de chaque décision.",
     ),
-    visualNote: l("Current App Store product screens", "Écrans actuels du produit sur l'App Store"),
+    visualNote: l(
+      "Faithful reconstruction of the live product's accountability loop",
+      "Reconstruction fidèle de la boucle de responsabilité du produit en ligne",
+    ),
     tech: ["Python", "FastAPI", "Next.js", "PostgreSQL", "Redis", "LightGBM", "Stripe", "RevenueCat"],
     external: [
       { label: l("Open the live product", "Ouvrir le produit"), href: "https://www.thelineup.pro/" },
       { label: l("View on the App Store", "Voir sur l'App Store"), href: "https://apps.apple.com/app/the-lineup-pro/id6756733266" },
     ],
+  },
+  {
+    slug: "the-lineup-ai-operations",
+    visual: "operations",
+    status: l("Production operations system", "Système opérationnel en production"),
+    role: l("Founder, system designer, and operator", "Fondateur, concepteur du système et opérateur"),
+    clientType: l("Governed AI operations", "Opérations d'IA gouvernées"),
+    title: l("The Lineup AI Operations", "Opérations IA de The Lineup"),
+    headline: l(
+      "Four specialized AI workers monitor the business—but they cannot quietly change production.",
+      "Quatre agents d'IA spécialisés surveillent l'entreprise—sans pouvoir modifier silencieusement la production.",
+    ),
+    summary: l(
+      "I built an internal control plane that schedules recurring work across data, predictive models, user growth, and executive oversight—then records findings, proposed actions, approvals, and outcome evidence.",
+      "J'ai construit un centre de contrôle interne qui planifie le travail récurrent sur les données, les modèles prédictifs, la croissance et la supervision—puis consigne les constats, actions proposées, approbations et preuves de résultat.",
+    ),
+    result: l(
+      "Recurring AI work became a visible operating process with clear owners, blocked states, approval boundaries, and durable proof.",
+      "Le travail récurrent de l'IA est devenu un processus opérationnel visible avec des responsables, des blocages, des limites d'approbation et des preuves durables.",
+    ),
+    whatChanged: l(
+      "Instead of treating an agent run as proof of useful work, the control plane follows an inspectable sequence: request, finding, one selected action, approval when required, and evidence of what actually happened.",
+      "Au lieu de traiter l'exécution d'un agent comme preuve de travail utile, le centre de contrôle suit une séquence vérifiable : demande, constat, une action sélectionnée, approbation au besoin et preuve du résultat réel.",
+    ),
+    before: [
+      l("Recurring monitoring lived across scripts, dashboards, and operator memory.", "La surveillance récurrente était répartie entre scripts, tableaux de bord et mémoire de l'opérateur."),
+      l("A completed agent run did not prove that an action was delivered or resolved.", "Une exécution terminée ne prouvait pas qu'une action avait été livrée ou résolue."),
+      l("Risky writes needed a reliable stop before production systems changed.", "Les écritures risquées exigeaient un arrêt fiable avant toute modification en production."),
+    ],
+    after: [
+      l("Four domain-specific operating lanes can run on schedules or explicit requests.", "Quatre fonctions opérationnelles spécialisées peuvent s'exécuter selon un horaire ou une demande explicite."),
+      l("Material findings and actions move through a durable, visible lifecycle.", "Les constats et actions importants suivent un cycle de vie durable et visible."),
+      l("Protected changes stop for approval, while delivery claims require verifiable evidence.", "Les changements protégés attendent une approbation et les livraisons exigent une preuve vérifiable."),
+    ],
+    responsibilities: [
+      l("Control-plane architecture and durable action model", "Architecture du centre de contrôle et modèle d'action durable"),
+      l("Data, model, growth, and executive operating loops", "Boucles opérationnelles de données, modèles, croissance et direction"),
+      l("Approval gates, blocked states, and fail-closed behavior", "Portes d'approbation, états bloqués et arrêts sécurisés"),
+      l("Operator dashboard, reliability checks, and automated tests", "Tableau de bord opérateur, vérifications de fiabilité et tests automatisés"),
+    ],
+    proof: [
+      l("Four specialized operating lanes in one control plane", "Quatre fonctions spécialisées dans un seul centre de contrôle"),
+      l("Scheduled and manual requests with durable run and action records", "Demandes planifiées et manuelles avec dossiers durables"),
+      l("Approval and reliability checks expose incomplete or blocked work", "Les contrôles d'approbation et de fiabilité exposent le travail incomplet ou bloqué"),
+    ],
+    trust: l(
+      "Runs are not presented as outcomes. The system separates monitoring, proposed action, completed work, and verified evidence. Consequential changes remain approval-gated.",
+      "Les exécutions ne sont pas présentées comme des résultats. Le système distingue surveillance, action proposée, travail terminé et preuve vérifiée. Les changements importants restent soumis à approbation.",
+    ),
+    visualNote: l(
+      "Faithful reconstruction of a private operations dashboard · no production data shown",
+      "Reconstruction fidèle d'un tableau de bord privé · aucune donnée de production affichée",
+    ),
+    tech: ["Python", "Next.js", "PostgreSQL", "Supabase", "Automation orchestration", "Approval workflows", "Reliability gates"],
   },
   {
     slug: "dispute-defender",
@@ -142,57 +199,6 @@ export const FEATURED_PORTFOLIO: PortfolioProject[] = [
     ),
     visualNote: l("Representative workflow · identifying data removed", "Workflow représentatif · données identifiantes retirées"),
     tech: ["Python", "Machine learning", "REST APIs", "Data pipelines"],
-  },
-  {
-    slug: "alex-parker-property-ops",
-    visual: "property",
-    status: l("Client delivery", "Livraison client"),
-    role: l("Workflow designer and implementation consultant", "Concepteur de workflow et consultant en implémentation"),
-    clientType: l("Property operations", "Opérations immobilières"),
-    title: l("Turn-season property operations", "Opérations immobilières de rotation"),
-    headline: l(
-      "Keep field work fast without turning the source of truth into a mess.",
-      "Accélérer le travail terrain sans désorganiser la source de vérité.",
-    ),
-    summary: l(
-      "A private operating layer for repair capture, review, materials, contractor handoff, and receipts—built around an existing Airtable system rather than replacing it.",
-      "Une couche opérationnelle privée pour la saisie des réparations, la révision, les matériaux, les entrepreneurs et les reçus—construite autour d'Airtable plutôt que pour le remplacer.",
-    ),
-    result: l(
-      "Field updates gained clearer mobile paths and review points while Airtable remained the permanent operational record.",
-      "Les mises à jour terrain ont gagné des parcours mobiles et des points de révision clairs tandis qu'Airtable demeurait le dossier permanent.",
-    ),
-    whatChanged: l(
-      "The engagement separated quick field capture from permanent record keeping. Photos, notes, materials, and contractor views could move quickly without allowing uncertain information to overwrite trusted records.",
-      "Le mandat a séparé la saisie rapide sur le terrain de la tenue permanente des dossiers. Photos, notes, matériaux et vues entrepreneurs pouvaient avancer sans écraser les données fiables.",
-    ),
-    before: [
-      l("Repair work was split across Airtable, photos, notes, receipts, and email.", "Les réparations étaient réparties entre Airtable, photos, notes, reçus et courriels."),
-      l("The mobile database interface did not match field work well.", "L'interface mobile de la base ne correspondait pas bien au travail terrain."),
-      l("Helpers and contractors needed useful views without broad database access.", "Helpers et entrepreneurs avaient besoin de vues utiles sans accès large à la base."),
-    ],
-    after: [
-      l("Field capture and permanent records are separate steps.", "La saisie terrain et les dossiers permanents sont des étapes séparées."),
-      l("Review queues expose uncertain information before promotion.", "Les files de révision montrent l'information incertaine avant promotion."),
-      l("Contractor and shopping views show only the work needed in the moment.", "Les vues entrepreneurs et magasinage montrent seulement le travail utile au moment présent."),
-    ],
-    responsibilities: [
-      l("Workflow mapping around the existing Airtable base", "Cartographie du workflow autour de la base Airtable existante"),
-      l("Mobile field capture and review surfaces", "Interfaces mobiles de saisie et de révision"),
-      l("Contractor handoff and helper access paths", "Parcours de transfert aux entrepreneurs et d'accès helpers"),
-      l("Receipt extraction and approval boundaries", "Extraction de reçus et limites d'approbation"),
-    ],
-    proof: [
-      l("Completed client phase", "Phase client terminée"),
-      l("Built around an existing source of truth", "Construit autour d'une source de vérité existante"),
-      l("Mobile, review, and handoff workflows", "Workflows mobiles, de révision et de transfert"),
-    ],
-    trust: l(
-      "The system does not let uncertain extraction or field notes silently become permanent records. Review is a deliberate step, and live write access remains constrained.",
-      "Le système n'autorise pas l'extraction incertaine ou les notes terrain à devenir silencieusement des dossiers permanents. La révision est une étape délibérée et l'écriture en direct reste limitée.",
-    ),
-    visualNote: l("Representative view · client data anonymized", "Vue représentative · données client anonymisées"),
-    tech: ["Airtable", "Next.js", "TypeScript", "Document extraction", "Review workflows"],
   },
   {
     slug: "trauma-therapy-group-publisher",
@@ -260,6 +266,7 @@ export function getPortfolioProject(slug: string) {
 
 export function portfolioStatusClass(project: PortfolioProject) {
   if (project.visual === "lineup") return "bg-emerald-100 text-emerald-900";
+  if (project.visual === "operations") return "bg-amber-100 text-amber-950";
   if (project.visual === "disputes") return "bg-slate-200 text-slate-800";
   return "bg-blue-100 text-blue-900";
 }

@@ -58,7 +58,7 @@ const rescueStack = [
 ];
 
 const proofSlugs = new Set([
-  "alex-parker-property-ops",
+  "the-lineup-ai-operations",
   "trauma-therapy-group-publisher",
   "the-lineup",
 ]);
