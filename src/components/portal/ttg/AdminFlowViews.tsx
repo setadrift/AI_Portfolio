@@ -15,7 +15,12 @@ import {
 } from "@/components/portal/ttg/WorkspaceConfiguration";
 import type { AnalyticsDailyRow, RetentionCohortRow } from "@/lib/portal/ttg/dashboard-refresh";
 import type { TtgDashboardData } from "@/lib/portal/ttg/dashboard";
-import { rangeContains, type DashboardRange } from "@/lib/portal/ttg/dashboard-period";
+import {
+  rangeContains,
+  retentionCohortWindow,
+  retentionDisplayWindow,
+  type DashboardRange,
+} from "@/lib/portal/ttg/dashboard-period";
 import type { SupabaseDataPage } from "@/lib/portal/ttg/supabase-dashboard";
 
 const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
@@ -106,16 +111,6 @@ function weightedRate(rows: RetentionCohortRow[], retained: "retained30" | "reta
   return denominator ? rows.reduce((total, row) => total + row[retained], 0) / denominator : 0;
 }
 
-function retentionCohortWindow(range: DashboardRange) {
-  const selectedStart = new Date(`${range.start}T12:00:00Z`);
-  const end = new Date(Date.UTC(selectedStart.getUTCFullYear(), selectedStart.getUTCMonth(), 0));
-  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - 5, 1));
-  return {
-    start: start.toISOString().slice(0, 7),
-    end: end.toISOString().slice(0, 7),
-  };
-}
-
 export function AdminFlowView({ data, dataPage, view, tab = "overview", range }: { data: TtgDashboardData; dataPage?: SupabaseDataPage; view: string; tab?: string; range: DashboardRange }) {
   const rows = data.analyticsRows.filter((row) => rangeContains(row.date, range));
   const clinic = rows.filter((row) => row.entity === "clinic");
@@ -136,10 +131,18 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   const completionRate = appointments ? completed / appointments : 0;
   const collectionRate = invoiced ? collected / invoiced : 0;
   const averageTransaction = completedTransactions ? completedTransactionValue / completedTransactions : 0;
-  const cohortWindow = retentionCohortWindow(range);
-  const selectedCohorts = data.cohortRows.filter((row) => row.cohortMonth >= cohortWindow.start && row.cohortMonth <= cohortWindow.end);
-  const selectedClinicCohorts = selectedCohorts.filter((row) => row.entity === "clinic");
-  const mature90 = selectedClinicCohorts.reduce((total, row) => total + row.eligible90, 0);
+  const cohortWindow30 = retentionCohortWindow(range, 30);
+  const cohortWindow60 = retentionCohortWindow(range, 60);
+  const cohortWindow90 = retentionCohortWindow(range, 90);
+  const displayWindow = retentionDisplayWindow(range);
+  const cohortsIn = (window: { start: string; end: string }) => data.cohortRows.filter((row) => row.cohortMonth >= window.start && row.cohortMonth <= window.end);
+  const selectedCohorts30 = cohortsIn(cohortWindow30);
+  const selectedCohorts60 = cohortsIn(cohortWindow60);
+  const selectedCohorts90 = cohortsIn(cohortWindow90);
+  const selectedClinicCohorts30 = selectedCohorts30.filter((row) => row.entity === "clinic");
+  const selectedClinicCohorts60 = selectedCohorts60.filter((row) => row.entity === "clinic");
+  const selectedClinicCohorts90 = selectedCohorts90.filter((row) => row.entity === "clinic");
+  const mature90 = selectedClinicCohorts90.reduce((total, row) => total + row.eligible90, 0);
   const historyAvailable = data.cohortRows.length > 0;
   const appointmentsHref = queryFor(range, { view: "data", tab: "Appointments" });
   const salesHref = queryFor(range, { view: "data", tab: "Sales" });
@@ -149,7 +152,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
       <Cards items={[
         { label: "Total invoiced", value: rows.length ? cad.format(invoiced) : "Refresh needed", detail: range.label, unavailable: !rows.length, href: salesHref },
         { label: "Appointments", value: rows.length ? integer.format(appointments) : "Refresh needed", detail: rows.length ? `${pct(completionRate)} completed` : "Publish the historical Jane package", unavailable: !rows.length, href: appointmentsHref },
-        { label: "Patient retention", value: mature90 ? pct(weightedRate(selectedClinicCohorts, "retained90", "eligible90")) : historyAvailable ? "Cohorts maturing" : "Needs history", detail: mature90 ? `Six-month cohort ending ${cohortWindow.end}` : historyAvailable ? "No mature 90-day cohort is available" : "Historical appointments required", unavailable: !mature90, href: queryFor(range, { view: "retention", tab: "overview" }) },
+        { label: "Patient retention", value: mature90 ? pct(weightedRate(selectedClinicCohorts90, "retained90", "eligible90")) : historyAvailable ? "Cohorts maturing" : "Needs history", detail: mature90 ? `Six mature cohorts ending ${cohortWindow90.end}` : historyAvailable ? "No mature 90-day cohort is available" : "Historical appointments required", unavailable: !mature90, href: queryFor(range, { view: "retention", tab: "overview" }) },
         { label: "Avg. transaction value", value: completedTransactions ? cad.format(averageTransaction) : "Refresh needed", detail: completedTransactions ? `Across ${integer.format(completedTransactions)} completed transactions` : "Sales history required", unavailable: !completedTransactions, href: salesHref },
       ]} />
       <div className="ttg-af-grid">
@@ -253,19 +256,19 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
 
   if (view === "retention") {
     const tabs = ["Overview", "Patient Activity", "By Practitioner", "By Service", "Cohorts"];
-    const cohorts = selectedCohorts;
+    const cohorts = cohortsIn(displayWindow);
     const clinicCohorts = cohorts.filter((row) => row.entity === "clinic");
     if (!historyAvailable) return <><Tabs active={tab} range={range} tabs={tabs} view={view} /><EmptyHistory /></>;
-    const rate30 = weightedRate(clinicCohorts, "retained30", "eligible30");
-    const rate60 = weightedRate(clinicCohorts, "retained60", "eligible60");
-    const rate90 = weightedRate(clinicCohorts, "retained90", "eligible90");
+    const rate30 = weightedRate(selectedClinicCohorts30, "retained30", "eligible30");
+    const rate60 = weightedRate(selectedClinicCohorts60, "retained60", "eligible60");
+    const rate90 = weightedRate(selectedClinicCohorts90, "retained90", "eligible90");
     const cohortSize = clinicCohorts.reduce((total, row) => total + row.cohortSize, 0);
     const repeat = clinicCohorts.reduce((total, row) => total + row.repeatPatients, 0);
     const activity = clinicCohorts.map((row) => ({ label: row.cohortMonth, cohort: row.cohortSize, repeat: row.repeatPatients, retained30: row.eligible30 ? row.retained30 / row.eligible30 * 100 : 0, retained60: row.eligible60 ? row.retained60 / row.eligible60 * 100 : 0, retained90: row.eligible90 ? row.retained90 / row.eligible90 * 100 : 0 }));
     const dimension = tab === "by-practitioner" ? "practitioner" : "service";
-    const breakdown = cohorts.filter((row) => row.entity === dimension).map((row) => ({ label: row.name, value: row.eligible90 ? row.retained90 / row.eligible90 * 100 : 0 })).filter((row) => row.value > 0).sort((a, b) => b.value - a.value);
+    const breakdown = selectedCohorts90.filter((row) => row.entity === dimension).map((row) => ({ label: row.name, value: row.eligible90 ? row.retained90 / row.eligible90 * 100 : 0 })).filter((row) => row.value > 0).sort((a, b) => b.value - a.value);
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} />
-      {(tab === "overview" || tab === "patient-activity") && <><Cards items={[{ label: "Cohort patients", value: integer.format(cohortSize), detail: `${cohortWindow.start} to ${cohortWindow.end}` }, { label: "30-day retention", value: pct(rate30), detail: "Mature eligible cohorts" }, { label: "60-day retention", value: pct(rate60), detail: "Mature eligible cohorts" }, { label: "90-day retention", value: pct(rate90), detail: "Mature eligible cohorts" }]} /><Panel title={tab === "patient-activity" ? "New and repeat patient activity" : "Retention by cohort month"} note="Rolling six-month cohort; only mature patients enter each denominator">{tab === "patient-activity" ? <InteractiveStackedChart data={activity} href={appointmentsHref} series={[{ key: "cohort", label: "New cohort", color: "#2f86ba" }, { key: "repeat", label: "Repeat patients", color: "#61b08b" }]} /> : <InteractiveLineChart data={activity} href={appointmentsHref} series={[{ key: "retained30", label: "30 day", color: "#2f86ba" }, { key: "retained60", label: "60 day", color: "#61b08b" }, { key: "retained90", label: "90 day", color: "#e2a256" }]} />}</Panel></>}
+      {(tab === "overview" || tab === "patient-activity") && <><Cards items={[{ label: "Cohort patients", value: integer.format(cohortSize), detail: `${displayWindow.start} to ${displayWindow.end}` }, { label: "30-day retention", value: pct(rate30), detail: `Six mature cohorts ending ${cohortWindow30.end}` }, { label: "60-day retention", value: pct(rate60), detail: `Six mature cohorts ending ${cohortWindow60.end}` }, { label: "90-day retention", value: pct(rate90), detail: `Six mature cohorts ending ${cohortWindow90.end}` }]} /><Panel title={tab === "patient-activity" ? "New and repeat patient activity" : "Retention by cohort month"} note="Rolling twelve-month cohort view; each headline rate uses its six fully mature cohorts">{tab === "patient-activity" ? <InteractiveStackedChart data={activity} href={appointmentsHref} series={[{ key: "cohort", label: "New cohort", color: "#2f86ba" }, { key: "repeat", label: "Repeat patients", color: "#61b08b" }]} /> : <InteractiveLineChart data={activity} href={appointmentsHref} series={[{ key: "retained30", label: "30 day", color: "#2f86ba" }, { key: "retained60", label: "60 day", color: "#61b08b" }, { key: "retained90", label: "90 day", color: "#e2a256" }]} />}</Panel></>}
       {(tab === "by-practitioner" || tab === "by-service") && <><Cards items={[{ label: "Selected cohorts", value: integer.format(cohortSize), detail: range.label }, { label: "Repeat patients", value: integer.format(repeat), detail: "Two or more completed visits" }, { label: "90-day retention", value: pct(rate90), detail: "Clinic weighted rate" }, { label: "Breakdown rows", value: integer.format(breakdown.length), detail: dimension === "practitioner" ? "Practitioners" : "Services" }]} /><Panel title={`90-day retention by ${dimension}`} note="Only rows with mature eligible cohorts are shown"><InteractiveBarChart data={breakdown.slice(0, 15)} horizontal href={appointmentsHref} /></Panel></>}
       {tab === "cohorts" && <Panel title="Retention cohorts" note="Privacy-safe monthly aggregates; no patient identities are stored"><DataTable rows={activity} columns={[
         { label: "Cohort", value: (row) => String(row.label) },
@@ -296,7 +299,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
       { label: "Collection health", value: pct(collectionRate), detail: collectionRate >= 0.95 ? "Collections are keeping pace with invoicing." : "Outstanding balances merit review." },
       { label: "Appointment completion", value: pct(completionRate), detail: `${integer.format(cancelled + noShows)} missed appointments in the selected range.` },
       { label: "Revenue per appointment", value: appointments ? cad.format(invoiced / appointments) : "—", detail: "Invoiced revenue divided by total appointments." },
-      { label: "30-day retention", value: selectedClinicCohorts.some((row) => row.eligible30) ? pct(weightedRate(selectedClinicCohorts, "retained30", "eligible30")) : "Cohorts maturing", detail: "Only eligible patients enter the denominator." },
+      { label: "30-day retention", value: selectedClinicCohorts30.some((row) => row.eligible30) ? pct(weightedRate(selectedClinicCohorts30, "retained30", "eligible30")) : "Cohorts maturing", detail: "Only patients in the six fully mature cohorts enter the denominator." },
     ];
     return <><Cards items={signals} /><Panel title="Operating intelligence" note="Derived from the selected period and its mature historical cohorts"><div className="ttg-quality-list">{signals.map((signal) => <div className="ttg-quality-row" key={signal.label}><span className="is-pass">Signal</span><div><strong>{signal.label}: {signal.value}</strong><p>{signal.detail}</p></div></div>)}</div></Panel></>;
   }

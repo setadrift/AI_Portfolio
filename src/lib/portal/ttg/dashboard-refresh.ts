@@ -500,10 +500,10 @@ function buildAnalyticsRows(
     const bookedMinutes = Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) ? Math.max(0, (end.getTime() - start.getTime()) / 60_000) : 0;
     const update = {
       appointments: 1,
-      completed: ["arrived", "completed"].includes(state) ? 1 : 0,
+      completed: ["arrived", "completed", "in-progress", "in_progress", "in progress"].includes(state) ? 1 : 0,
       cancelled: state === "cancelled" ? 1 : 0,
       noShows: ["no_show", "no show"].includes(state) ? 1 : 0,
-      pending: ["arrived", "completed", "cancelled", "no_show", "no show"].includes(state) ? 0 : 1,
+      pending: ["arrived", "completed", "in-progress", "in_progress", "in progress", "cancelled", "no_show", "no show"].includes(state) ? 0 : 1,
       consultations: isConsultation ? 1 : 0,
       firstVisits: !isConsultation && isFirst ? 1 : 0,
       subsequentVisits: !isConsultation && !isFirst ? 1 : 0,
@@ -956,7 +956,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   const monthName = new Intl.DateTimeFormat("en-CA", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${safePeriod.start}T12:00:00Z`));
 
   const stateCount = (state: string) => activeAppointmentRows.filter((row) => (row.state ?? row.State ?? "").toLowerCase() === state).length;
-  const completedAppointments = stateCount("arrived") + stateCount("completed");
+  const completedAppointments = stateCount("arrived") + stateCount("completed") + stateCount("in-progress") + stateCount("in_progress") + stateCount("in progress");
   const cancelledAppointments = stateCount("cancelled");
   const noShows = stateCount("no_show") + stateCount("no show");
   const pendingAppointments = Math.max(0, activeAppointmentRows.length - completedAppointments - cancelledAppointments - noShows);

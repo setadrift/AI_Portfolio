@@ -49,6 +49,17 @@ test("TTG refresh de-duplicates overlapping historical report rows", () => {
   assert.equal(payload.monthly.grossRevenue, 175);
 });
 
+test("appointment completion includes Jane in-progress states like AdminFlow", () => {
+  const appointments = {
+    ...files[0],
+    text: files[0].text.replace(",arrived,false,", ",in-progress,false,"),
+  };
+  const payload = buildRefreshPayload([appointments, files[1], files[3], files[4]]);
+  assert.equal(payload.analytics?.appointments.total, 1);
+  assert.equal(payload.analytics?.appointments.completed, 1);
+  assert.equal(payload.analytics?.appointments.pending, 0);
+});
+
 test("TTG refresh accepts the four AdminFlow core reports without supplemental or bank files", () => {
   const payload = buildRefreshPayload([files[0], files[1], files[3], files[4]]);
   assert.equal(payload.refreshType, "jane");
