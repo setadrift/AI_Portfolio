@@ -423,6 +423,47 @@ export async function createSupabaseMarketingCampaign(input: {
   if (error) throw new Error(`TTG campaign write failed: ${error.message}`);
 }
 
+export async function updateSupabaseMarketingCampaign(input: {
+  id: string;
+  name: string;
+  channel: string;
+  startDate: string;
+  endDate: string;
+  spend: number;
+  updatedBy: string;
+}) {
+  const { data, error } = await db()
+    .from("marketing_campaigns")
+    .update({
+      name: input.name,
+      channel: input.channel,
+      start_date: input.startDate,
+      end_date: input.endDate,
+      spend: input.spend,
+      source: `manual:${input.updatedBy}`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .is("archived_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(`TTG campaign update failed: ${error.message}`);
+  if (!data) throw new Error("That campaign is no longer available.");
+}
+
+export async function archiveSupabaseMarketingCampaign(id: string) {
+  const now = new Date().toISOString();
+  const { data, error } = await db()
+    .from("marketing_campaigns")
+    .update({ archived_at: now, updated_at: now })
+    .eq("id", id)
+    .is("archived_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(`TTG campaign archive failed: ${error.message}`);
+  if (!data) throw new Error("That campaign is no longer available.");
+}
+
 export async function createSupabaseCustomDashboard(input: {
   name: string;
   description: string;
@@ -468,6 +509,116 @@ export async function addSupabaseCustomWidget(input: {
     configuration: { created_by: input.createdBy },
   });
   if (error) throw new Error(`TTG custom widget write failed: ${error.message}`);
+}
+
+async function touchCustomDashboard(dashboardId: string) {
+  const { error } = await db()
+    .from("custom_dashboards")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", dashboardId)
+    .is("deleted_at", null);
+  if (error) throw new Error(`TTG dashboard update failed: ${error.message}`);
+}
+
+export async function updateSupabaseCustomWidget(input: {
+  widgetId: string;
+  dashboardId: string;
+  widgetType: string;
+  title: string;
+  metricKey?: string;
+  updatedBy: string;
+}) {
+  const client = db();
+  const { data: existing, error: readError } = await client
+    .from("custom_widgets")
+    .select("id, configuration")
+    .eq("id", input.widgetId)
+    .eq("dashboard_id", input.dashboardId)
+    .maybeSingle();
+  if (readError) throw new Error(`TTG custom widget read failed: ${readError.message}`);
+  if (!existing) throw new Error("That widget is no longer available.");
+  const configuration = existing.configuration && typeof existing.configuration === "object"
+    ? existing.configuration as Record<string, unknown>
+    : {};
+  const { data: widget, error } = await client
+    .from("custom_widgets")
+    .update({
+      widget_type: input.widgetType,
+      title: input.title,
+      metric_key: input.metricKey ?? null,
+      configuration: { ...configuration, updated_by: input.updatedBy },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.widgetId)
+    .eq("dashboard_id", input.dashboardId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(`TTG custom widget update failed: ${error.message}`);
+  if (!widget) throw new Error("That widget is no longer available.");
+  await touchCustomDashboard(input.dashboardId);
+}
+
+export async function deleteSupabaseCustomWidget(widgetId: string, dashboardId: string) {
+  const { data: widget, error } = await db()
+    .from("custom_widgets")
+    .delete()
+    .eq("id", widgetId)
+    .eq("dashboard_id", dashboardId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(`TTG custom widget delete failed: ${error.message}`);
+  if (!widget) throw new Error("That widget is no longer available.");
+  await touchCustomDashboard(dashboardId);
+}
+
+export async function moveSupabaseCustomWidget(input: {
+  widgetId: string;
+  dashboardId: string;
+  direction: -1 | 1;
+}) {
+  const client = db();
+  const { data: widget, error: widgetError } = await client
+    .from("custom_widgets")
+    .select("id, position")
+    .eq("id", input.widgetId)
+    .eq("dashboard_id", input.dashboardId)
+    .maybeSingle();
+  if (widgetError) throw new Error(`TTG custom widget read failed: ${widgetError.message}`);
+  if (!widget) throw new Error("That widget is no longer available.");
+  const destination = Number(widget.position) + input.direction;
+  if (destination < 0) return;
+  const { data: adjacent, error: adjacentError } = await client
+    .from("custom_widgets")
+    .select("id, position")
+    .eq("dashboard_id", input.dashboardId)
+    .eq("position", destination)
+    .maybeSingle();
+  if (adjacentError) throw new Error(`TTG custom widget order read failed: ${adjacentError.message}`);
+  if (!adjacent) return;
+  const temporaryPosition = 1_000_000_000 + Number(widget.position);
+  const { error: temporaryError } = await client
+    .from("custom_widgets")
+    .update({ position: temporaryPosition })
+    .eq("id", widget.id);
+  if (temporaryError) throw new Error(`TTG custom widget reorder failed: ${temporaryError.message}`);
+  const { error: adjacentMoveError } = await client
+    .from("custom_widgets")
+    .update({ position: Number(widget.position) })
+    .eq("id", adjacent.id);
+  if (adjacentMoveError) {
+    await client.from("custom_widgets").update({ position: Number(widget.position) }).eq("id", widget.id);
+    throw new Error(`TTG custom widget reorder failed: ${adjacentMoveError.message}`);
+  }
+  const { error: finalMoveError } = await client
+    .from("custom_widgets")
+    .update({ position: destination, updated_at: new Date().toISOString() })
+    .eq("id", widget.id);
+  if (finalMoveError) {
+    await client.from("custom_widgets").update({ position: destination }).eq("id", adjacent.id);
+    await client.from("custom_widgets").update({ position: Number(widget.position) }).eq("id", widget.id);
+    throw new Error(`TTG custom widget reorder failed: ${finalMoveError.message}`);
+  }
+  await touchCustomDashboard(input.dashboardId);
 }
 
 export function ttgReportingClient() {
