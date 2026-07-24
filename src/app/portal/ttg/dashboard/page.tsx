@@ -72,16 +72,21 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
   const topExpense = [...data.expenses].sort((a, b) => b.amount - a.amount)[0];
   const refreshedAt = formatDataThrough(data.source.refreshedAt.slice(0, 10));
   const commissionRate = operatingMonth.grossRevenue ? data.summary.contractorCommissions / operatingMonth.grossRevenue : 0;
+  const monthlyCeoTarget = 150_000 / 12;
+  const teamGrossProfit = data.summary.revenueWithoutOwner - data.summary.contractorCommissions;
+  const teamCoverageTarget = operatingMonth.operatingExpenses + monthlyCeoTarget;
+  const teamCoverageGap = teamGrossProfit - teamCoverageTarget;
+  const teamCoverageProgress = teamCoverageTarget > 0 ? Math.max(0, Math.min(1, teamGrossProfit / teamCoverageTarget)) : 0;
   const adminHeadings: Record<string, { eyebrow: string; title: string; intro: string }> = {
-    overview: { eyebrow: "Analytics", title: "Overview", intro: "The current operating picture across revenue, appointments, patients, and the team." },
+    overview: { eyebrow: "Analytics", title: "Overview", intro: "The current owner-level picture across practice economics, client growth, team health, and marketing." },
     financial: { eyebrow: "Analytics", title: "Financial", intro: "Sales, collections, services, receivables, and cash flow from the available reporting sources." },
     appointments: { eyebrow: "Analytics", title: "Appointments", intro: "Volume, attendance, missed-visit impact, booking sources, and scheduling patterns." },
-    team: { eyebrow: "Analytics", title: "Team performance", intro: "Practitioner revenue, workload, attendance, compensation, and patient mix." },
-    retention: { eyebrow: "Analytics", title: "Patient retention", intro: "Patient activity and 30, 60, and 90-day return behaviour when sufficient history is available." },
-    funnel: { eyebrow: "Analytics", title: "Patient funnel", intro: "Consultations, first visits, ongoing care, and practitioner-level conversion flow." },
-    insights: { eyebrow: "Intelligence", title: "Insights", intro: "Period-aware operating signals, with truthful empty states when the selected range is not mature enough." },
-    marketing: { eyebrow: "Intelligence", title: "Marketing", intro: "Campaign spend, acquisition volume, CAC, and return metrics using manually maintained campaign inputs." },
-    custom: { eyebrow: "Workspace", title: "Custom dashboards", intro: "Gabby’s saved KPI layouts alongside the standard analytics views." },
+    team: { eyebrow: "Analytics", title: "Team performance", intro: "Practitioner revenue, workload, attendance, compensation, and client mix." },
+    retention: { eyebrow: "Analytics", title: "Client retention", intro: "Client activity and 30, 60, and 90-day return behaviour when sufficient history is available." },
+    funnel: { eyebrow: "Analytics", title: "Client funnel", intro: "Consultations, first visits, ongoing care, and practitioner-level conversion flow." },
+    insights: { eyebrow: "Intelligence", title: "Owner insights", intro: "Automatic, period-aware operating signals with honest empty states when the selected range is not mature enough." },
+    marketing: { eyebrow: "Intelligence", title: "Marketing", intro: "Jane acquisition volume now; CAC and ROAS when the separately scoped Google Ads connection is enabled." },
+    custom: { eyebrow: "Workspace", title: "Saved views", intro: "Optional focused KPI layouts alongside the standard analytics pages." },
     imports: { eyebrow: "Data", title: "Data imports", intro: "Coverage, validation, refresh history, and the guided Jane and bank workflow." },
     data: { eyebrow: "Data", title: "My data", intro: "A transparent, read-only view of the privacy-safe reporting records that power this dashboard." },
   };
@@ -115,14 +120,14 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
           <Link className={activeView === "financial" ? "is-active" : ""} href={href("financial")}>Financial</Link>
           <Link className={activeView === "appointments" ? "is-active" : ""} href={href("appointments")}>Appointments</Link>
           <Link className={activeView === "team" ? "is-active" : ""} href={href("team")}>Team performance</Link>
-          <Link className={activeView === "retention" ? "is-active" : ""} href={href("retention")}>Patient retention</Link>
-          <Link className={activeView === "funnel" ? "is-active" : ""} href={href("funnel")}>Patient funnel</Link>
+          <Link className={activeView === "retention" ? "is-active" : ""} href={href("retention")}>Client retention</Link>
+          <Link className={activeView === "funnel" ? "is-active" : ""} href={href("funnel")}>Client funnel</Link>
           <small>Intelligence</small>
-          <Link className={activeView === "insights" ? "is-active" : ""} href={href("insights")}>Insights</Link>
+          <Link className={activeView === "insights" ? "is-active" : ""} href={href("insights")}>Owner insights</Link>
           <Link className={activeView === "marketing" ? "is-active" : ""} href={href("marketing")}>Marketing</Link>
           <small>Workspace</small>
-          <Link className={activeView === "custom" ? "is-active" : ""} href={href("custom")}>Custom dashboards</Link>
-          <Link className={["practice", "capacity", "controls", "index"].includes(activeView) ? "is-active" : ""} href={href("practice")}>Gabby’s dashboard</Link>
+          <Link className={activeView === "custom" ? "is-active" : ""} href={href("custom")}>Saved views</Link>
+          <Link className={["practice", "capacity", "controls", "index"].includes(activeView) ? "is-active" : ""} href={href("practice")}>Clinic Owner dashboard</Link>
           <Link className={activeView === "imports" ? "is-active" : ""} href={href("imports")}>Data imports</Link>
           <Link className={activeView === "data" ? "is-active" : ""} href={href("data")}>My data</Link>
         </nav>
@@ -147,20 +152,26 @@ export default async function TtgDashboardPage({ searchParams }: { searchParams:
 
         {["overview", "financial", "appointments", "team", "retention", "funnel", "insights", "marketing", "custom", "imports", "data"].includes(activeView) && <AdminFlowView data={data} dataPage={pagedData} view={activeView} tab={tab} range={range} />}
 
-        {["practice", "capacity", "controls", "index"].includes(activeView) && <nav className="ttg-af-tabs" aria-label="Gabby's dashboard sections"><Link className={activeView === "practice" ? "is-active" : ""} href={href("practice")}>Practice</Link><Link className={activeView === "capacity" ? "is-active" : ""} href={href("capacity")}>Capacity</Link><Link className={activeView === "controls" ? "is-active" : ""} href={href("controls")}>Controls</Link><Link className={activeView === "index" ? "is-active" : ""} href={href("index")}>Data index</Link></nav>}
+        {["practice", "capacity", "controls", "index"].includes(activeView) && <nav className="ttg-af-tabs" aria-label="Clinic Owner dashboard sections"><Link className={activeView === "practice" ? "is-active" : ""} href={href("practice")}>Practice</Link><Link className={activeView === "capacity" ? "is-active" : ""} href={href("capacity")}>Capacity</Link><Link className={activeView === "controls" ? "is-active" : ""} href={href("controls")}>Controls</Link><Link className={activeView === "index" ? "is-active" : ""} href={href("index")}>Data index</Link></nav>}
 
         {activeView === "practice" && <>
           <div className="ttg-hero-metrics">
             <Metric label="Gross revenue" value={money(current.grossRevenue)} detail={copy.hasComparablePrior ? `vs ${money(prior.grossRevenue)} in ${priorName} · ${currentChange >= 0 ? "+" : ""}${pct(currentChange)}` : current.status === "Partial" ? `MTD through ${formatDataThrough(current.dataThrough)} · no full-month comparison` : "First complete reporting period"} tone={current.status === "Partial" ? "default" : currentChange >= 0 ? "positive" : "warning"} />
-            <Metric label="Estimated operating profit" value={money(current.operatingProfit)} detail={copy.hasComparablePrior ? `${pct(current.profitMargin)} margin · ${current.operatingProfit >= prior.operatingProfit ? "up" : "down"} ${money(Math.abs(current.operatingProfit - prior.operatingProfit))} from ${priorName}` : current.status === "Partial" ? "Directional until the month closes and source dates align" : `${pct(current.profitMargin)} estimated margin`} tone={current.status === "Partial" ? "warning" : current.operatingProfit >= prior.operatingProfit ? "positive" : "warning"} />
+            <Metric label="Net profit" value={money(current.operatingProfit)} detail={copy.hasComparablePrior ? `${pct(current.profitMargin)} margin · ${current.operatingProfit >= prior.operatingProfit ? "up" : "down"} ${money(Math.abs(current.operatingProfit - prior.operatingProfit))} from ${priorName}` : current.status === "Partial" ? "Revenue less contractor compensation and classified overhead" : `${pct(current.profitMargin)} margin`} tone={current.status === "Partial" ? "warning" : current.operatingProfit >= prior.operatingProfit ? "positive" : "warning"} />
             <Metric label="Net cash flow" value={`${current.netCashFlow >= 0 ? "+" : ""}${money(current.netCashFlow)}`} detail={copy.hasComparablePrior ? `${current.netCashFlow >= prior.netCashFlow ? "improved" : "declined"} from ${money(prior.netCashFlow)} in ${priorName}` : current.status === "Partial" ? "External cash movement through the bank cutoff" : "First complete reporting period"} tone={current.status === "Partial" ? "warning" : current.netCashFlow >= 0 ? "positive" : "warning"} />
           </div>
           <section className="ttg-owner-review" aria-labelledby="owner-review-title">
             <div className="ttg-owner-review-heading"><div><div className="ttg-eyebrow">Weekly owner review</div><h2 id="owner-review-title">What needs attention now</h2></div><p>Generated from source freshness, close controls, classification gaps, and scheduled capacity.</p></div>
             <div className="ttg-owner-actions">{ownerActions.map((action) => <div className={`ttg-owner-action is-${action.tone}`} key={action.title}><span>{action.tone === "critical" ? "Blocker" : action.tone === "attention" ? "Review" : action.tone === "opportunity" ? "Opportunity" : "Clear"}</span><div><strong>{action.title}</strong><p>{action.detail}</p></div></div>)}</div>
           </section>
+          <section className="ttg-owner-milestone" aria-labelledby="owner-milestone-title">
+            <div><div className="ttg-eyebrow">Strategic milestone</div><h2 id="owner-milestone-title">Make owner clinical work optional upside.</h2><p>Track whether non-owner therapist gross profit covers monthly overhead plus a market-rate CEO salary of {money(monthlyCeoTarget, 0)} per month ({money(150_000, 0)} annually).</p></div>
+            <div className="ttg-owner-milestone-metrics"><div><span>Non-owner therapist gross profit</span><strong>{money(teamGrossProfit)}</strong></div><div><span>Overhead + CEO salary target</span><strong>{money(teamCoverageTarget)}</strong></div><div><span>Monthly gap</span><strong className={teamCoverageGap >= 0 ? "is-positive" : "is-warning"}>{teamCoverageGap >= 0 ? "+" : ""}{money(teamCoverageGap)}</strong></div></div>
+            <div className="ttg-owner-milestone-progress" aria-label={`${Math.round(teamCoverageProgress * 100)}% of monthly coverage target`}><span style={{ width: `${teamCoverageProgress * 100}%` }} /></div>
+            <small>Preliminary until the untouched RBC exports are classified and internal transfers are fully reconciled. Owner clinical revenue is excluded.</small>
+          </section>
           <div className="ttg-dashboard-grid">
-            <Panel eyebrow="Financial movement" title={current.status === "Partial" ? "Complete-month performance remains the comparison anchor." : current.operatingProfit >= prior.operatingProfit ? "Estimated profit improved versus the prior complete month." : "Estimated profit declined versus the prior complete month."} note="Complete months only · CAD · estimated profit uses collected revenue less classified operating expenses"><RevenueProfitChart months={data.months} /></Panel>
+            <Panel eyebrow="Financial movement" title={current.status === "Partial" ? "Complete-month performance remains the comparison anchor." : current.operatingProfit >= prior.operatingProfit ? "Net profit improved versus the prior complete month." : "Net profit declined versus the prior complete month."} note="Complete months only · CAD · net profit uses Jane sales less non-owner therapist compensation and classified bank overhead"><RevenueProfitChart months={data.months} /></Panel>
             <Panel eyebrow="Cash movement" title={current.status === "Partial" ? "Month-to-date cash remains directional until the sources align." : current.netCashFlow >= 0 ? "The latest complete month generated positive cash flow." : "The latest complete month used cash."} note={`External cash only · ${copy.partialNote}`}><CashFlowChart months={data.months} /></Panel>
           </div>
           <Panel eyebrow="Current reporting-period operating pulse" title={operatingMonth.collectionRate >= 0.95 ? data.summary.weightedUtilization < 0.75 ? "Collections are strong, with clinical capacity still open." : "Collections are strong and capacity is tightening." : "Collections and clinical capacity both merit attention."} note={`Clinical and therapist detail currently reflects ${operatingMonth.period}`} wide>

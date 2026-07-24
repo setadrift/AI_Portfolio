@@ -10,7 +10,7 @@ function payload(refreshType: "jane" | "full"): RefreshPayload {
   return {
     refreshId: "refresh-1", refreshType, periodKey: "2026-07", periodLabel: "July 2026 MTD", periodStart: "2026-07-01", periodEnd: "2026-07-21", periodStatus: "Partial",
     analyticsRows: [], cohortRows: [], fileSummaries: [], sourceCoverage: [], coverageCalendar: [], issues: [], bankRows: 0, bankCoverage: "Bank data unchanged",
-    monthly: { grossRevenue: 70_000, collectedRevenue: 65_000, operatingExpenses: 0, operatingProfit: 0, cashInflows: 0, cashOutflows: 0, netCashFlow: 0, uncategorizedExpenses: 0, payoutReconciliation: 0 },
+    monthly: { grossRevenue: 70_000, collectedRevenue: 65_000, contractorCompensation: 0, grossProfit: 70_000, operatingExpenses: 0, operatingProfit: 0, cashInflows: 0, cashOutflows: 0, netCashFlow: 0, uncategorizedExpenses: 0, payoutReconciliation: 0 },
     therapists: [], expenses: [], payouts: [], reconciliation: [], checks: [],
   };
 }

@@ -42,11 +42,11 @@ test("TTG narrative changes when the underlying result changes", () => {
   const changed = structuredClone(ttgDashboardFixture);
   const june = changed.months.find((month) => month.period === changed.reportingPeriod)!;
   june.grossRevenue = 80_000;
-  june.operatingProfit = -2_000;
+  june.operatingProfit = -40_000;
   june.netCashFlow = -5_000;
   const copy = getDashboardCopy(changed);
   assert.equal(copy.practice.title, "June performance at a glance.");
-  assert.match(copy.practice.intro, /-\$2K/);
+  assert.match(copy.practice.intro, /-\$40K/);
 });
 
 test("partial periods are labelled as directional instead of compared with a full month", () => {
@@ -82,8 +82,8 @@ test("owner review prioritizes source alignment, classification, and open capaci
 
 test("TTG source index covers Gabby's complete request", () => {
   const metrics = gabbyMetricCoverage.flatMap((group) => group.items);
-  assert.equal(metrics.length, 53);
-  assert.equal(new Set(metrics.map((item) => item.metric)).size, 53);
+  assert.equal(metrics.length, 54);
+  assert.equal(new Set(metrics.map((item) => item.metric)).size, 54);
   assert.equal(dashboardVisualIndex.length, 10);
   assert.equal(metrics.find((item) => item.metric === "Current Cash Position")?.status, "not-available");
   assert.equal(metrics.find((item) => item.metric === "Gross Revenue")?.status, "shown");

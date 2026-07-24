@@ -15,8 +15,8 @@ export function RevenueProfitChart({ months }: { months: MonthlyMetric[] }) {
   const complete = months.filter((month) => month.status === "Complete").slice(-6);
   const max = Math.max(...complete.map((month) => month.grossRevenue), 1);
   return (
-    <div className="ttg-chart" role="img" aria-label={complete.map((m) => `${m.period}: ${currency(m.grossRevenue, false)} gross revenue and ${currency(m.operatingProfit, false)} estimated operating profit`).join(". ")}>
-      <div className="ttg-chart-legend"><span className="ttg-key ttg-key-revenue" />Gross revenue <span className="ttg-key ttg-key-profit" />Estimated profit</div>
+    <div className="ttg-chart" role="img" aria-label={complete.map((m) => `${m.period}: ${currency(m.grossRevenue, false)} gross revenue and ${currency(m.operatingProfit, false)} net profit`).join(". ")}>
+      <div className="ttg-chart-legend"><span className="ttg-key ttg-key-revenue" />Gross revenue <span className="ttg-key ttg-key-profit" />Net profit</div>
       <div className="ttg-column-chart">
         {complete.map((month) => (
           <div className="ttg-column-group" key={month.period}>

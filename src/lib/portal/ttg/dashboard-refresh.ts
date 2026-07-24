@@ -199,6 +199,8 @@ export type RefreshPayload = {
   monthly: {
     grossRevenue: number;
     collectedRevenue: number;
+    contractorCompensation: number;
+    grossProfit: number;
     operatingExpenses: number;
     operatingProfit: number;
     cashInflows: number;
@@ -436,7 +438,10 @@ const latestCompleteTorontoDate = () => {
 
 function expenseCategory(description: string, account: BankKind) {
   const value = description.toUpperCase();
-  if (account === "contractor") return { category: "Therapist / contractor compensation", operating: true };
+  // Jane Compensation is the accounting source for therapist cost. The
+  // contractor bank account remains part of cash flow and reconciliation, but
+  // treating the same payouts as operating expense would count them twice.
+  if (account === "contractor") return { category: "Therapist / contractor compensation", operating: false };
   const rules: Array<[RegExp, string, boolean]> = [
     [/WAGEPOINT/, "Employee payroll", true],
     [/COMM RENT|TRANSWORLD/, "Rent & occupancy", true],
@@ -458,7 +463,7 @@ function expenseCategory(description: string, account: BankKind) {
 
 function safePayerCategory(value: string) {
   const normalized = value.toLowerCase();
-  if (/patient|private|self/.test(normalized)) return "Patient / private pay";
+  if (/patient|client|private|self/.test(normalized)) return "Client / private pay";
   if (/insurance|eclaim/.test(normalized)) return "Insurance / eClaims";
   if (/wsib|workplace safety/.test(normalized)) return "WSIB";
   if (/clinic|third.party/.test(normalized)) return "Clinic / third party";
@@ -579,7 +584,7 @@ function buildAnalyticsRows(
     dimensions(date, update, [
       ["practitioner", row["Staff Member"] || "Unassigned"],
       ["service", row.Item || row["Income Category"] || "Other"],
-      ["payer", safePayerCategory(row.Payer || "Patient / private pay")],
+      ["payer", safePayerCategory(row.Payer || "Client / private pay")],
     ]);
   }
 
@@ -728,7 +733,7 @@ function buildPrivateFacts(
       invoiceKey: privateKey("invoice", invoice || basis),
       item: row.Item || row["Income Category"] || "Other",
       practitioner: row["Staff Member"] || "Unassigned",
-      payerCategory: safePayerCategory(row.Payer || "Patient / private pay"),
+      payerCategory: safePayerCategory(row.Payer || "Client / private pay"),
       status: row.Status || (money(row.Balance) > 0 ? "Outstanding" : "Paid"),
       subtotal: money(row.Subtotal || row.Total),
       total: money(row.Total),
@@ -1007,7 +1012,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     { check: `${periodKey} source date alignment`, actual: dateSerial(bankDataThrough), expected: dateSerial(safePeriod.end), tolerance: 0, status: bankDataThrough === safePeriod.end ? "PASS" : "WARNING", notes: "Bank transaction coverage compared with the shared Jane report cutoff." },
   ].map((check) => ({ ...check, difference: round(check.actual - check.expected), status: check.status as "PASS" | "WARNING" | "FAIL" })) : [];
   const checks = [...janeChecks, ...bankChecks];
-  if (refreshType === "full" && operatingExpenses && uncategorizedExpenses / operatingExpenses > 0.05) issues.push({ status: "WARNING", title: "Uncategorized expenses exceed 5%", detail: "Review the uncategorized amount before using estimated profit for a decision." });
+  if (refreshType === "full" && operatingExpenses && uncategorizedExpenses / operatingExpenses > 0.05) issues.push({ status: "WARNING", title: "Uncategorized expenses exceed 5%", detail: "Review the uncategorized amount before using net profit for a decision." });
   if (refreshType === "full" && matched.length < payouts.length) issues.push({ status: "WARNING", title: `${payouts.length - matched.length} payouts are not yet matched`, detail: "This is expected for in-transit deposits; upload later bank activity on the next refresh." });
   if (refreshType === "full" && bankDataThrough !== safePeriod.end) issues.push({ status: "WARNING", title: "Jane and bank cutoffs differ", detail: `Jane runs through ${safePeriod.end}; the latest supplied bank transaction is ${bankDataThrough}.` });
   const end = new Date(`${safePeriod.end}T12:00:00Z`);
@@ -1041,7 +1046,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     service.revenue += money(row.Total);
     if (row["Invoice #"]) service.invoices.add(row["Invoice #"]);
     services.set(serviceName, service);
-    const payerName = safePayerCategory(row.Payer || "Patient / private pay");
+    const payerName = safePayerCategory(row.Payer || "Client / private pay");
     const payer = payers.get(payerName) ?? { invoiced: 0, collected: 0, outstanding: 0 };
     payer.invoiced += money(row.Total); payer.collected += money(row.Collected); payer.outstanding += money(row.Balance);
     payers.set(payerName, payer);
@@ -1099,6 +1104,13 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
   };
   const { analyticsRows, cohortRows } = buildAnalyticsRows(allAppointmentRows, allSalesRows, allCompensationRows, allPaymentRows, safePeriod.end);
   const privateFacts = buildPrivateFacts(allAppointmentRows, allCompensationRows, allSalesRows, allPaymentRows, safePeriod.end);
+  const contractorCompensation = round(
+    therapists
+      .filter((therapist) => !therapist.owner)
+      .reduce((total, therapist) => total + therapist.compensation, 0),
+  );
+  const grossProfit = round(grossRevenue - contractorCompensation);
+  const operatingProfit = round(grossProfit - operatingExpenses);
   return {
     refreshId: randomUUID(),
     refreshType,
@@ -1117,7 +1129,7 @@ export function buildRefreshPayload(files: UploadedFile[]): RefreshPayload {
     issues,
     bankRows: bank.length,
     bankCoverage: bankDates.length ? `${bankDates[0]} to ${bankDates.at(-1)}` : "Bank data unchanged",
-    monthly: { grossRevenue, collectedRevenue, operatingExpenses, operatingProfit: round(collectedRevenue - operatingExpenses), cashInflows, cashOutflows, netCashFlow: round(cashInflows - cashOutflows), uncategorizedExpenses, payoutReconciliation: payouts.length ? matched.length / payouts.length : 0 },
+    monthly: { grossRevenue, collectedRevenue, contractorCompensation, grossProfit, operatingExpenses, operatingProfit, cashInflows, cashOutflows, netCashFlow: round(cashInflows - cashOutflows), uncategorizedExpenses, payoutReconciliation: payouts.length ? matched.length / payouts.length : 0 },
     therapists,
     expenses,
     payouts,
