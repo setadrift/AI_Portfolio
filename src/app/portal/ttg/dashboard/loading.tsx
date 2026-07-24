@@ -1,4 +1,4 @@
-const navItems = ["Overview", "Financial", "Appointments", "Team", "Retention", "Patient funnel"];
+const navItems = ["Overview", "Financial", "Appointments", "Team", "Client retention", "Client funnel"];
 
 export default function TtgDashboardLoading() {
   return (

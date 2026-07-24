@@ -22,7 +22,10 @@ test("TTG refresh aggregates the proven Jane and bank schemas without retaining 
   assert.equal(payload.refreshType, "full");
   assert.equal(payload.periodLabel, "July 2026 MTD");
   assert.equal(payload.monthly.grossRevenue, 175);
+  assert.equal(payload.monthly.contractorCompensation, 0);
+  assert.equal(payload.monthly.grossProfit, 175);
   assert.equal(payload.monthly.operatingExpenses, 10);
+  assert.equal(payload.monthly.operatingProfit, 165);
   assert.equal(payload.therapists[0].compensation, 105);
   assert.equal(payload.therapists[0].bookings, 1);
   assert.equal(payload.analytics?.appointments.total, 1);
@@ -40,6 +43,18 @@ test("TTG refresh aggregates the proven Jane and bank schemas without retaining 
   assert.equal(payload.privateFacts?.appointments.length, 1);
   assert.match(payload.privateFacts?.appointments[0].patientKey ?? "", /^[a-f0-9]{64}$/);
   assert.doesNotMatch(JSON.stringify(payload), /Secret Patient|secret-guid|\b123\b/);
+});
+
+test("TTG accounting uses Jane compensation once and excludes contractor-bank payouts from overhead", () => {
+  const contractor = {
+    ...files[7],
+    text: `${bankHeader}Savings,456,7/4/2026,,,Therapist payout,-105,\n`,
+  };
+  const payload = buildRefreshPayload([...files.slice(0, 7), contractor, ...files.slice(8)]);
+
+  assert.equal(payload.monthly.operatingExpenses, 10);
+  assert.equal(payload.monthly.cashOutflows, 115);
+  assert.equal(payload.expenses.some((row) => row.category === "Therapist / contractor compensation"), false);
 });
 
 test("TTG upload removes direct client identifiers before creating the database payload", () => {

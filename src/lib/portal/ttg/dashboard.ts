@@ -18,6 +18,8 @@ export type MonthlyMetric = {
   dataThrough: string;
   grossRevenue: number;
   collectedRevenue: number;
+  contractorCompensation: number;
+  grossProfit: number;
   collectionRate: number;
   outstandingBalance: number;
   operatingExpenses: number;
@@ -85,6 +87,12 @@ export type AppointmentJourneyFact = {
   firstVisit: boolean;
 };
 
+export type ClientValueFact = {
+  date: string;
+  patientKey: string;
+  revenue: number;
+};
+
 export type QualityStatus = "PASS" | "WARNING" | "FAIL";
 
 export type DashboardSource = {
@@ -121,6 +129,7 @@ export type TtgDashboardData = {
   analyticsRows: AnalyticsDailyRow[];
   cohortRows: RetentionCohortRow[];
   appointmentJourneyFacts: AppointmentJourneyFact[];
+  clientValueFacts: ClientValueFact[];
   marketingCampaigns?: MarketingCampaign[];
   marketingNewClients?: Array<{ date: string; channel: string; clients: number }>;
   customDashboards?: CustomDashboard[];
@@ -369,6 +378,8 @@ async function fetchLiveDashboard(): Promise<TtgDashboardData> {
       dataThrough: required(row["Data Through"], "Data Through"),
       grossRevenue,
       collectedRevenue,
+      contractorCompensation: 0,
+      grossProfit: grossRevenue,
       collectionRate: row["Collection Rate"] ? numeric(row["Collection Rate"], "Collection Rate") : collectedRevenue / grossRevenue,
       outstandingBalance: row["Outstanding Balance"] ? numeric(row["Outstanding Balance"], "Outstanding Balance") : grossRevenue - collectedRevenue,
       operatingExpenses: numeric(row["Operating Expenses"], "Operating Expenses"),

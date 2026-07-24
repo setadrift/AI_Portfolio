@@ -39,9 +39,9 @@ export const ttgDashboardFixture: TtgDashboardData = {
   reportingPeriod: "June 2026",
   clinicalPeriod: "June 2026",
   months: [
-    { period: "May 2026", status: "Complete", dataThrough: "2026-05-31", grossRevenue: 85345.9, collectedRevenue: 74652.16, collectionRate: 0.874701, outstandingBalance: 213.85, operatingExpenses: 72602.36, operatingProfit: 2049.8, profitMargin: 0.027458, netCashFlow: -7681.81, marketingSpend: 4224.89, marketingRatio: 0.049503, uncategorizedExpenses: 2838.93 },
-    { period: "June 2026", status: "Complete", dataThrough: "2026-06-30", grossRevenue: 86931.4, collectedRevenue: 83210.39, collectionRate: 0.957196, outstandingBalance: 350, operatingExpenses: 72027.62, operatingProfit: 11182.77, profitMargin: 0.134392, netCashFlow: 13222.19, marketingSpend: 4562.8, marketingRatio: 0.052487, uncategorizedExpenses: 753.8 },
-    { period: "July 2026 MTD", status: "Partial", dataThrough: "2026-07-17", grossRevenue: 55817, collectedRevenue: 51654.59, collectionRate: 0.925428, outstandingBalance: 4162.41, operatingExpenses: 69329.01, operatingProfit: -17674.42, profitMargin: -0.342166, netCashFlow: -26061.68, marketingSpend: 2193.53, marketingRatio: 0.039299, uncategorizedExpenses: 2160.11 },
+    { period: "May 2026", status: "Complete", dataThrough: "2026-05-31", grossRevenue: 85345.9, collectedRevenue: 74652.16, contractorCompensation: 45500, grossProfit: 39845.9, collectionRate: 0.874701, outstandingBalance: 213.85, operatingExpenses: 72602.36, operatingProfit: -32756.46, profitMargin: -0.383812, netCashFlow: -7681.81, marketingSpend: 4224.89, marketingRatio: 0.049503, uncategorizedExpenses: 2838.93 },
+    { period: "June 2026", status: "Complete", dataThrough: "2026-06-30", grossRevenue: 86931.4, collectedRevenue: 83210.39, contractorCompensation: 46430.93, grossProfit: 40500.47, collectionRate: 0.957196, outstandingBalance: 350, operatingExpenses: 72027.62, operatingProfit: -31527.15, profitMargin: -0.362664, netCashFlow: 13222.19, marketingSpend: 4562.8, marketingRatio: 0.052487, uncategorizedExpenses: 753.8 },
+    { period: "July 2026 MTD", status: "Partial", dataThrough: "2026-07-17", grossRevenue: 55817, collectedRevenue: 51654.59, contractorCompensation: 30000, grossProfit: 25817, collectionRate: 0.925428, outstandingBalance: 4162.41, operatingExpenses: 69329.01, operatingProfit: -43512.01, profitMargin: -0.779555, netCashFlow: -26061.68, marketingSpend: 2193.53, marketingRatio: 0.039299, uncategorizedExpenses: 2160.11 },
   ],
   therapists: [
     therapist("Gabriella Evans", true, 13725, 13500, 68, 60, 0.88, 60, 14),
@@ -91,6 +91,7 @@ export const ttgDashboardFixture: TtgDashboardData = {
   analyticsRows: [],
   cohortRows: [],
   appointmentJourneyFacts: [],
+  clientValueFacts: [],
   summary: {
     activeTherapists: 20,
     weightedUtilization: 0.3546552,

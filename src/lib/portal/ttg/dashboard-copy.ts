@@ -38,24 +38,24 @@ function practiceCopy(current: MonthlyMetric, prior: MonthlyMetric) {
   if (revenueChange !== null && revenueChange > 0 && profitChange > 0 && cashImproved) {
     return {
       title: `${period} closed with stronger operating momentum.`,
-      intro: `Revenue grew ${pct(revenueChange)}, estimated profit increased ${money(profitChange)}, and net cash flow improved to ${money(current.netCashFlow)}.`,
+      intro: `Revenue grew ${pct(revenueChange)}, net profit increased ${money(profitChange)}, and net cash flow improved to ${money(current.netCashFlow)}.`,
     };
   }
   if (profitChange > 0 && cashImproved) {
     return {
       title: `${period} produced a stronger operating result.`,
-      intro: `Estimated profit increased ${money(profitChange)} and net cash flow improved to ${money(current.netCashFlow)} while revenue moved ${revenueChange === null ? "from a zero base" : pct(revenueChange)}.`,
+      intro: `Net profit increased ${money(profitChange)} and net cash flow improved to ${money(current.netCashFlow)} while revenue moved ${revenueChange === null ? "from a zero base" : pct(revenueChange)}.`,
     };
   }
   if (current.operatingProfit > 0 && current.netCashFlow > 0) {
     return {
       title: `${period} remained profitable and cash-positive.`,
-      intro: `Estimated operating profit was ${money(current.operatingProfit)} at a ${pct(current.profitMargin)} margin, with ${money(current.netCashFlow)} in net cash flow.`,
+      intro: `Net profit was ${money(current.operatingProfit)} at a ${pct(current.profitMargin)} margin, with ${money(current.netCashFlow)} in net cash flow.`,
     };
   }
   return {
     title: `${period} performance at a glance.`,
-    intro: `Revenue was ${money(current.grossRevenue)}, estimated operating profit was ${money(current.operatingProfit)}, and net cash flow was ${money(current.netCashFlow)}.`,
+    intro: `Revenue was ${money(current.grossRevenue)}, net profit was ${money(current.operatingProfit)}, and net cash flow was ${money(current.netCashFlow)}.`,
   };
 }
 
@@ -185,7 +185,7 @@ export function getOwnerActions(data: TtgDashboardData, now = new Date()): Owner
     actions.push({
       tone: "attention",
       title: `Classify ${money(current.uncategorizedExpenses)} of expenses`,
-      detail: "Resolve uncategorized bank transactions before treating estimated profit as final.",
+      detail: "Resolve uncategorized bank transactions before treating net profit as final.",
     });
   }
 
@@ -224,14 +224,15 @@ export const gabbyMetricCoverage: Array<{ group: string; items: MetricCoverageIt
     items: [
       { metric: "Gross Revenue", status: "shown", source: "Monthly Metrics · Gross Revenue", use: "Hero metric and monthly revenue chart" },
       { metric: "Revenue Growth %", status: "shown", source: "Monthly Metrics · Gross Revenue", use: "Current complete month versus prior complete month" },
-      { metric: "Net Profit", status: "partial", source: "Monthly Metrics · Estimated Operating Profit", use: "Shown as estimated operating profit; taxes and owner distributions are not included" },
-      { metric: "Profit Margin %", status: "shown", source: "Monthly Metrics · Estimated Profit Margin", use: "Shown with estimated operating profit" },
+      { metric: "Gross Profit", status: "shown", source: "Jane Sales less non-owner Jane Compensation", use: "Overview and Clinic Owner Dashboard" },
+      { metric: "Net Profit", status: "partial", source: "Gross Profit less classified bank operating expenses", use: "Shown when an aligned monthly bank package exists; taxes and owner distributions are excluded" },
+      { metric: "Profit Margin %", status: "partial", source: "Net Profit / Jane Sales", use: "Shown when an aligned monthly bank package exists" },
       { metric: "Operating Expenses", status: "shown", source: "Monthly Metrics + Expense Categories", use: "Controls view total and category composition" },
       { metric: "Current Cash Position", status: "not-available", source: "Bank balance or balance snapshot required", use: "Transaction CSVs do not provide a reliable current balance" },
       { metric: "Monthly Net Cash Flow", status: "shown", source: "Monthly Metrics · Net Cash Flow", use: "Hero metric and period chart" },
       { metric: "New Client Inquiries", status: "not-available", source: "CRM or Jane inquiry export required", use: "Not present in current reporting tables" },
-      { metric: "New Clients Started", status: "not-available", source: "Jane client/appointment export required", use: "Not present in current reporting tables" },
-      { metric: "Consult-to-Booked Conversion Rate %", status: "not-available", source: "CRM + Jane consultation outcomes required", use: "Not present in current reporting tables" },
+      { metric: "New Clients Started", status: "shown", source: "Jane Appointments · first qualifying therapy visit", use: "Overview and Marketing" },
+      { metric: "Consult-to-Booked Conversion Rate %", status: "shown", source: "Privacy-safe Jane appointment journey facts", use: "Overview and Client Funnel; no client identities are stored" },
       { metric: "Client Acquisition Cost (CAC)", status: "not-available", source: "Marketing spend + attributed new clients required", use: "Attribution denominator is not available" },
       { metric: "Marketing Spend", status: "shown", source: "Monthly Metrics or Expense Categories · Advertising & Marketing", use: "Operating pulse" },
       { metric: "Return on Ad Spend (ROAS)", status: "not-available", source: "Google Ads + attributed revenue required", use: "Ad-attributed revenue is not available" },
@@ -239,7 +240,7 @@ export const gabbyMetricCoverage: Array<{ group: string; items: MetricCoverageIt
       { metric: "Therapist Utilization %", status: "shown", source: "Therapist Monthly · Booked Hours / Scheduled Hours", use: "Weighted total and practitioner capacity chart" },
       { metric: "Revenue Per Therapist", status: "shown", source: "Gross Revenue / Active Therapists", use: "Capacity hero metric" },
       { metric: "Therapist Retention Rate", status: "not-available", source: "Longitudinal therapist roster required", use: "No start/end dates in current tables" },
-      { metric: "Average Sessions Per Client", status: "not-available", source: "Client-level Jane appointment history required", use: "Client-level denominator is not available" },
+      { metric: "Average Sessions Per Client", status: "shown", source: "Privacy-safe Jane appointment journey facts", use: "Team Performance and practitioner retention detail" },
       { metric: "Top Referral Sources", status: "not-available", source: "Jane or CRM referral-source export required", use: "Not present in current reporting tables" },
       { metric: "Owner Revenue % of Total Revenue", status: "shown", source: "Therapist Monthly · Owner Flag + Gross Revenue", use: "Owner/team contribution strip" },
     ],
@@ -249,10 +250,10 @@ export const gabbyMetricCoverage: Array<{ group: string; items: MetricCoverageIt
     items: [
       { metric: "Contractor Commissions / Therapist Payouts", status: "shown", source: "Therapist Monthly + Checks", use: "Controls card and payout reconciliation" },
       { metric: "Expense Breakdown by Category", status: "shown", source: "Expense Categories · Category + Expense Amount", use: "Controls expense chart" },
-      { metric: "Average Client Revenue / Client Lifetime Value (LTV)", status: "not-available", source: "Client-level revenue history required", use: "Not present in current reporting tables" },
+      { metric: "Average Client Revenue / Client Lifetime Value (LTV)", status: "partial", source: "Privacy-safe hashed client journey + Jane transaction history", use: "Marketing shows observed revenue per selected new-client cohort; limited to imported history" },
       { metric: "Outstanding Client Balances", status: "shown", source: "Therapist Monthly · Invoiced less collected as of today", use: "Controls collection card" },
-      { metric: "No-Show Rate", status: "not-available", source: "Jane appointment-status export required", use: "Not present in current reporting tables" },
-      { metric: "Cancellation Rate", status: "not-available", source: "Jane appointment-status export required", use: "Not present in current reporting tables" },
+      { metric: "No-Show Rate", status: "shown", source: "Jane Appointments · status", use: "Appointments and Team Performance" },
+      { metric: "Cancellation Rate", status: "shown", source: "Jane Appointments · status", use: "Appointments and Team Performance" },
       { metric: "Lead-to-Client Conversion Rate %", status: "not-available", source: "CRM lead outcomes + Jane starts required", use: "Not present in current reporting tables" },
       { metric: "Cost Per Lead (CPL)", status: "not-available", source: "Marketing spend + attributed leads required", use: "Lead denominator is not available" },
       { metric: "Marketing Spend as % of Revenue", status: "shown", source: "Marketing Spend / Gross Revenue", use: "Operating pulse" },
@@ -261,13 +262,13 @@ export const gabbyMetricCoverage: Array<{ group: string; items: MetricCoverageIt
       { metric: "Active Clients", status: "not-available", source: "Jane client-status export required", use: "Not present in current reporting tables" },
       { metric: "New Clients Added", status: "not-available", source: "Jane client-status export required", use: "Not present in current reporting tables" },
       { metric: "Discharged Clients", status: "not-available", source: "Jane discharge/status export required", use: "Not present in current reporting tables" },
-      { metric: "Client Retention Rate", status: "not-available", source: "Longitudinal client appointment history required", use: "Not present in current reporting tables" },
+      { metric: "Client Retention Rate", status: "shown", source: "Privacy-safe Jane appointment cohorts", use: "Client Retention at 30, 60, and 90 days" },
       { metric: "Client Drop-Off Rate", status: "not-available", source: "Longitudinal client appointment history required", use: "Not present in current reporting tables" },
       { metric: "Average Length of Client Engagement", status: "not-available", source: "Client start/end history required", use: "Not present in current reporting tables" },
       { metric: "Available Clinical Capacity", status: "shown", source: "Therapist Monthly · Scheduled Hours less Booked Hours", use: "Capacity hero metric and practitioner chart" },
       { metric: "Booked Clinical Capacity", status: "shown", source: "Therapist Monthly · Booked Hours", use: "Capacity hero metric and practitioner chart" },
       { metric: "Completed Sessions Per Therapist", status: "partial", source: "Therapist Monthly · Booked Appointments", use: "Current source contains bookings, not completed-session status" },
-      { metric: "Average Sessions Per Therapist Per Week", status: "partial", source: "Therapist Monthly · Appointments / Week", use: "Available as booked appointments per week, not confirmed completed sessions" },
+      { metric: "Average Sessions Per Therapist Per Week", status: "shown", source: "Privacy-safe completed Jane therapy sessions", use: "Overview excludes the owner; Team Performance shows practitioner detail" },
       { metric: "Revenue Contribution by Therapist", status: "shown", source: "Therapist Monthly · Gross Revenue", use: "Ranked practitioner chart" },
       { metric: "Contractor Commission Percentage", status: "shown", source: "Therapist Monthly · Contractor Commission / Gross Revenue", use: "Controls card context" },
       { metric: "Revenue Generated Without Owner Clinical Hours", status: "shown", source: "Gross Revenue less owner-flagged therapist revenue", use: "Practice pulse and owner/team strip" },

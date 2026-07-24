@@ -106,6 +106,10 @@ function Panel({ title, note, action, children }: { title: string; note?: string
   return <section className="ttg-af-panel"><div className="ttg-af-panel-heading"><div><h2>{title}</h2>{note && <p>{note}</p>}</div>{action}</div>{children}</section>;
 }
 
+function OverviewGroup({ eyebrow, title, note, children }: { eyebrow: string; title: string; note: string; children: React.ReactNode }) {
+  return <section className="ttg-overview-group"><div className="ttg-overview-group-heading"><div><span>{eyebrow}</span><h2>{title}</h2></div><p>{note}</p></div>{children}</section>;
+}
+
 function EmptyHistory() {
   return <div className="ttg-af-empty"><strong>Historical appointment coverage is needed</strong><p>This view appears after the historical Appointments files are published. No current-month values are substituted for retention history.</p><Link href="/portal/ttg/refresh">Open data imports</Link></div>;
 }
@@ -247,20 +251,73 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   const selectedClinicCohorts30 = selectedCohorts30.filter((row) => row.entity === "clinic");
   const selectedClinicCohorts60 = selectedCohorts60.filter((row) => row.entity === "clinic");
   const selectedClinicCohorts90 = selectedCohorts90.filter((row) => row.entity === "clinic");
-  const mature90 = selectedClinicCohorts90.reduce((total, row) => total + row.eligible90, 0);
   const historyAvailable = data.cohortRows.length > 0;
   const journey = patientJourneyMetrics(data.appointmentJourneyFacts ?? [], range);
   const appointmentsHref = queryFor(range, { view: "data", tab: "Appointments" });
   const salesHref = queryFor(range, { view: "data", tab: "Sales" });
+  const ownerNames = new Set(data.therapists.filter((therapist) => therapist.owner).map((therapist) => therapist.name.toLowerCase().trim()));
+  const isOwner = (name: string) => ownerNames.has(name.toLowerCase().trim()) || name.toLowerCase().includes("gabriella evans");
+  const practitionerGroups = groupRows(rows, "practitioner");
+  const ownerRevenue = [...practitionerGroups]
+    .filter(([name]) => isOwner(name))
+    .reduce((total, [, values]) => total + sum(values, "invoiced"), 0);
+  const nonOwnerCompensation = [...practitionerGroups]
+    .filter(([name]) => !isOwner(name))
+    .reduce((total, [, values]) => total + sum(values, "commission"), 0);
+  const nonOwnerRevenue = Math.max(0, invoiced - ownerRevenue);
+  const grossProfit = invoiced - nonOwnerCompensation;
+  const selectedMonth = range.start.slice(0, 7) === range.end.slice(0, 7)
+    ? data.months.find((month) => month.period.startsWith(range.start.slice(0, 7)))
+      ?? data.months.find((month) => {
+        const parsed = new Date(month.period.replace(/\bMTD\b/i, "").trim());
+        return !Number.isNaN(parsed.getTime())
+          && `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}` === range.start.slice(0, 7);
+      })
+    : undefined;
+  const hasBankPeriod = Boolean(selectedMonth?.operatingExpenses);
+  const netProfit = hasBankPeriod ? grossProfit - (selectedMonth?.operatingExpenses ?? 0) : 0;
+  const profitMargin = invoiced ? netProfit / invoiced : 0;
+  const newClients = sum(clinic, "newPatients");
+  const consultConversion = journey.consultClients ? journey.bookedTherapyClients / journey.consultClients : 0;
+  const activePractitioners = [...practitionerGroups].filter(([, values]) => sum(values, "appointments") || sum(values, "invoiced")).length;
+  const nonOwnerJourney = journey.practitioners.filter((practitioner) => !isOwner(practitioner.label) && practitioner.sessions > 0);
+  const rangeDays = Math.max(1, Math.floor((Date.parse(`${range.end}T12:00:00Z`) - Date.parse(`${range.start}T12:00:00Z`)) / 86_400_000) + 1);
+  const therapistSessionsPerWeek = nonOwnerJourney.length
+    ? nonOwnerJourney.reduce((total, practitioner) => total + practitioner.sessions, 0) / nonOwnerJourney.length / (rangeDays / 7)
+    : 0;
 
   if (view === "overview") {
     return <>
-      <Cards items={[
-        { label: "Total invoiced", value: rows.length ? cad.format(invoiced) : "Refresh needed", detail: range.label, unavailable: !rows.length, href: salesHref, help: { title: "Total Invoiced", description: "Total amount invoiced across all invoices in the period, including taxes. Matches the Total Invoiced line on the Jane Sales Report for the same date range.", calculation: "SUM(invoice total) across all invoice states WHERE purchase_date BETWEEN start_date AND end_date", benchmark: "Good: consistent growth month-over-month" } },
-        { label: "Appointments", value: rows.length ? integer.format(appointments) : "Refresh needed", detail: rows.length ? `${pct(completionRate)} completed` : "Publish the historical Jane package", unavailable: !rows.length, href: appointmentsHref, help: { title: "Total Appointments", description: "Number of appointments scheduled in the selected period, regardless of status.", calculation: "COUNT(clinic_appointments) WHERE date BETWEEN start_date AND end_date" } },
-        { label: "Patient retention", value: mature90 ? pct(weightedRate(selectedClinicCohorts90, "retained90", "eligible90")) : historyAvailable ? "Cohorts maturing" : "Needs history", detail: mature90 ? `Six mature cohorts ending ${cohortWindow90.end}` : historyAvailable ? "No mature 90-day cohort is available" : "Historical appointments required", unavailable: !mature90, href: queryFor(range, { view: "retention", tab: "overview" }), help: { title: "Patient Retention", description: "Percentage of new patients who return for follow-up appointments within a specified timeframe.", calculation: "COUNT(returned patients in cohort) / COUNT(total new patients in cohort) × 100", benchmark: "Good: 70%+ indicates good patient retention" } },
-        { label: "Avg. transaction value", value: completedTransactions ? cad.format(averageTransaction) : "Refresh needed", detail: completedTransactions ? `Across ${integer.format(completedTransactions)} completed transactions` : "Sales history required", unavailable: !completedTransactions, href: salesHref, help: { title: "Average Transaction Value", description: "Average revenue per completed transaction. This is per transaction, not per appointment.", calculation: "SUM(clinic_transactions.amount WHERE status = completed) / COUNT(completed transactions)" } },
-      ]} />
+      <OverviewGroup eyebrow="Financial" title="Practice economics" note="Jane defines revenue and therapist cost; bank files define overhead. Internal transfers are excluded.">
+        <Cards items={[
+          { label: "Total revenue", value: rows.length ? cad.format(invoiced) : "Refresh needed", detail: `Jane Sales · ${range.label}`, unavailable: !rows.length, href: salesHref },
+          { label: "Non-owner therapist revenue", value: rows.length ? cad.format(nonOwnerRevenue) : "Refresh needed", detail: "Total revenue less owner clinical revenue", unavailable: !rows.length, href: queryFor(range, { view: "team", tab: "revenue" }) },
+          { label: "Gross profit", value: rows.length ? cad.format(grossProfit) : "Refresh needed", detail: "Revenue less non-owner therapist compensation", unavailable: !rows.length },
+          { label: "Net profit", value: hasBankPeriod ? cad.format(netProfit) : "Needs bank data", detail: hasBankPeriod ? "Gross profit less operating expenses" : "No aligned monthly overhead package", unavailable: !hasBankPeriod, href: queryFor(range, { view: "practice" }) },
+          { label: "Profit margin", value: hasBankPeriod ? pct(profitMargin) : "Needs bank data", detail: hasBankPeriod ? "Net profit ÷ total revenue" : "Updates with an aligned bank month", unavailable: !hasBankPeriod },
+        ]} />
+      </OverviewGroup>
+      <OverviewGroup eyebrow="Client growth" title="New-client momentum" note="Consult conversion means a completed consult client later booked a non-consult therapy appointment.">
+        <Cards items={[
+          { label: "New clients started", value: rows.length ? integer.format(newClients) : "Refresh needed", detail: "First qualifying Jane therapy visits", unavailable: !rows.length, href: appointmentsHref },
+          { label: "Completed consult clients", value: integer.format(journey.consultClients), detail: `${integer.format(journey.completedConsultations)} completed consult appointments`, href: queryFor(range, { view: "funnel", tab: "overview" }) },
+          { label: "Consult-to-booking conversion", value: journey.consultClients ? pct(consultConversion) : "No consults", detail: `${integer.format(journey.bookedTherapyClients)} of ${integer.format(journey.consultClients)} booked therapy`, unavailable: !journey.consultClients, href: queryFor(range, { view: "funnel", tab: "by-practitioner" }) },
+        ]} />
+      </OverviewGroup>
+      <OverviewGroup eyebrow="Team health" title="Capacity and caseload" note={`Utilization uses the latest scheduled-hours package (${data.clinicalPeriod}); session pace follows the selected range.`}>
+        <Cards items={[
+          { label: "Active therapists", value: rows.length ? integer.format(activePractitioners) : "Refresh needed", detail: "Practitioners with appointments or revenue", unavailable: !rows.length, href: queryFor(range, { view: "team", tab: "overview" }) },
+          { label: "Average utilization", value: data.summary.weightedUtilization ? pct(data.summary.weightedUtilization) : "Needs hours report", detail: data.summary.weightedUtilization ? "Booked hours ÷ scheduled hours" : "Upload Hours Scheduled / Booked", unavailable: !data.summary.weightedUtilization, href: queryFor(range, { view: "capacity" }) },
+          { label: "Avg. sessions / therapist / week", value: nonOwnerJourney.length ? therapistSessionsPerWeek.toFixed(1) : "Needs history", detail: "Completed therapy sessions · owner excluded", unavailable: !nonOwnerJourney.length, href: queryFor(range, { view: "team", tab: "details" }) },
+        ]} />
+      </OverviewGroup>
+      <OverviewGroup eyebrow="Marketing performance" title="Acquisition visibility" note="Jane referral categories can update with the importer; Google Ads remains a separately scoped read-only connection.">
+        <Cards items={[
+          { label: "Physician referrals", value: "Needs source mapping", detail: "Jane referral category is not yet published", unavailable: true, href: queryFor(range, { view: "marketing", tab: "performance" }) },
+          { label: "Client acquisition cost", value: "Google Ads not connected", detail: "Spend ÷ qualified new clients", unavailable: true, href: queryFor(range, { view: "marketing", tab: "performance" }) },
+          { label: "Google Ads ROAS", value: "Google Ads not connected", detail: "Read-only Ads integration is outside phase-one scope", unavailable: true, href: queryFor(range, { view: "marketing", tab: "performance" }) },
+        ]} />
+      </OverviewGroup>
       <div className="ttg-af-grid">
         <Panel title="Clinic performance" note="Invoiced and collected revenue across the selected range" action={<Link href={queryFor(range, { view: "financial", tab: "trends" })}>View financial trends</Link>}>
           <InteractiveTrendChart currency data={trend} href={salesHref} series={[
@@ -283,7 +340,10 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   if (view === "financial") {
     const tabs = ["Overview", "Trends", "Services", "Collections", "Receivables", "Cash Flow"];
     const services = ranked(rows, "service", "invoiced");
-    const payers = ranked(rows, "payer", "invoiced");
+    const payers = ranked(rows, "payer", "invoiced").map((row) => ({
+      ...row,
+      label: row.label.replace(/^Patient\b/i, "Client"),
+    }));
     const methods = ranked(rows, "payment_method", "processed");
     const receivables = [
       { label: "0–30 days", value: 0 },
@@ -305,7 +365,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
         { label: "Avg. transaction", value: completedTransactions ? cad.format(averageTransaction) : "—", detail: `${integer.format(completedTransactions)} completed transactions`, href: salesHref },
       ]} /><div className="ttg-af-grid"><Panel title="Revenue movement" note="Daily invoiced and collected totals"><InteractiveTrendChart currency data={trend} href={salesHref} series={[{ key: "invoiced", label: "Invoiced", color: "#2f86ba" }, { key: "collected", label: "Collected", color: "#61b08b", type: "line" }]} /></Panel><Panel title="Collection health" note="Collected revenue divided by invoiced revenue"><strong className="ttg-af-big">{pct(collectionRate)}</strong><p>{cad.format(collected)} collected against {cad.format(invoiced)} invoiced.</p></Panel></div></>}
       {tab === "trends" && <Panel title="Financial trends" note="Hover for exact daily values"><InteractiveTrendChart currency data={trend} href={salesHref} series={[{ key: "invoiced", label: "Invoiced", color: "#2f86ba" }, { key: "collected", label: "Collected", color: "#61b08b", type: "line" }, { key: "processed", label: "Payments processed", color: "#e2a256", type: "line", dashed: true }]} /></Panel>}
-      {tab === "services" && <><Cards items={[{ label: "Services invoiced", value: cad.format(invoiced), detail: range.label }, { label: "Service lines", value: integer.format(services.length), detail: "Distinct Jane service labels" }, { label: "Top service", value: services[0]?.label ?? "—", detail: services[0] ? cad.format(services[0].value) : "No activity" }, { label: "Appointments", value: integer.format(appointments), detail: "Across all services" }]} /><Panel title="Revenue by service" note="Highest invoiced services first"><InteractiveBarChart currency data={services.slice(0, 12)} horizontal href={salesHref} /></Panel></>}
+      {tab === "services" && <><Cards items={[{ label: "Services invoiced", value: cad.format(invoiced), detail: range.label }, { label: "Service lines", value: integer.format(services.length), detail: "Distinct Jane service labels" }, { label: "Top service", value: services[0]?.label ?? "—", detail: services[0] ? cad.format(services[0].value) : "No activity" }, { label: "Appointments", value: integer.format(appointments), detail: "Across all services" }]} /><Panel title="Revenue by service" note="Every service is shown in full, highest invoiced first"><InteractiveBarChart currency data={services} horizontal href={salesHref} /></Panel></>}
       {tab === "collections" && <><Cards items={[{ label: "Payments processed", value: cad.format(processed), detail: range.label }, { label: "Transactions", value: integer.format(transactions), detail: "Payments & Refunds" }, { label: "Refunds", value: cad.format(refunds), detail: "Absolute refund value" }, { label: "Processing fees", value: cad.format(fees), detail: "Rows identified as fees" }]} /><div className="ttg-af-grid"><Panel title="Payment methods" note="Net processed value by Jane payment method"><InteractiveDonut currency data={methods.slice(0, 8)} href={queryFor(range, { view: "data", tab: "Collections" })} /></Panel><Panel title="Payer mix" note="Invoiced revenue by payer category"><InteractiveBarChart currency data={payers.slice(0, 8)} horizontal href={salesHref} /></Panel></div></>}
       {tab === "receivables" && <><Cards items={[{ label: "Total outstanding", value: cad.format(outstanding), detail: "Open balances on selected invoice dates" }, { label: "0–30 days", value: cad.format(receivables[0].value), detail: "Current balance by invoice age" }, { label: "31–90 days", value: cad.format(receivables[1].value + receivables[2].value), detail: "Current balance by invoice age" }, { label: "90+ days", value: cad.format(receivables[3].value), detail: "Current balance by invoice age" }]} /><Panel title="Receivables aging" note="Open balance grouped by the age of its Jane invoice date"><InteractiveBarChart currency data={receivables} href={salesHref} /></Panel></>}
       {tab === "cash-flow" && <><Cards items={[{ label: "Jane payments processed", value: cad.format(processed), detail: range.label }, { label: "Refunds", value: cad.format(refunds), detail: "Payments & Refunds" }, { label: "Fees", value: cad.format(fees), detail: "Payments & Refunds" }, { label: "Net processing activity", value: cad.format(processed), detail: "Jane only; excludes bank balances" }]} /><Panel title="Payment processing trend" note="This is Jane transaction activity, not corporate bank cash"><InteractiveLineChart currency data={trend} href={queryFor(range, { view: "data", tab: "Collections" })} series={[{ key: "processed", label: "Payments processed", color: "#2f86ba" }]} /></Panel></>}
@@ -326,7 +386,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     const hours = ranked(rows, "hour", "appointments").sort((a, b) => a.label.localeCompare(b.label)).map((row) => ({ ...row, label: `${row.label}:00` }));
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} />
       {tab === "overview" && <><Cards items={[{ label: "Appointments", value: integer.format(appointments), detail: range.label, help: { title: "Total Appointments", description: "Number of appointments scheduled in the selected period, regardless of status.", calculation: "COUNT(clinic_appointments) WHERE date BETWEEN start_date AND end_date" } }, { label: "Completed", value: integer.format(completed), detail: pct(completionRate), help: { title: "Completion Rate", description: "Percentage of appointments that were completed, including completed, arrived, and in-progress appointments.", calculation: "(Completed + Arrived + In-Progress) / Total × 100" } }, { label: "Cancelled", value: integer.format(cancelled), detail: appointments ? pct(cancelled / appointments) : "—" }, { label: "No shows", value: integer.format(noShows), detail: appointments ? pct(noShows / appointments) : "—" }]} /><Panel title="Appointment volume and outcomes" note="Hover for exact daily counts"><InteractiveStackedChart data={trend} href={appointmentsHref} series={[{ key: "completed", label: "Completed", color: "#55b88b" }, { key: "cancelled", label: "Cancelled", color: "#efaa59" }, { key: "noShows", label: "No show", color: "#df6d76" }]} /></Panel></>}
-      {tab === "revenue-impact" && <><Cards items={[{ label: "Missed visits", value: integer.format(missed), detail: "Cancelled + no-show" }, { label: "Estimated missed value", value: cad.format(estimatedMissedValue), detail: "Missed visits × average invoiced appointment" }, { label: "Later appointments", value: integer.format(recovered), detail: "Patients seen again after a missed visit" }, { label: "Recovery rate", value: missed ? pct(recovered / missed) : "—", detail: "Later appointment ÷ missed visits" }]} /><Panel title="Missed and recovered appointments" note="Recovery means a later completed appointment exists in the supplied history"><InteractiveBarChart data={[{ label: "Cancelled", value: cancelled }, { label: "No show", value: noShows }, { label: "Later appointment", value: recovered }]} href={appointmentsHref} /></Panel></>}
+      {tab === "revenue-impact" && <><Cards items={[{ label: "Missed visits", value: integer.format(missed), detail: "Cancelled + no-show" }, { label: "Estimated missed value", value: cad.format(estimatedMissedValue), detail: "Missed visits × average invoiced appointment" }, { label: "Later appointments", value: integer.format(recovered), detail: "Clients seen again after a missed visit" }, { label: "Recovery rate", value: missed ? pct(recovered / missed) : "—", detail: "Later appointment ÷ missed visits" }]} /><Panel title="Missed and recovered appointments" note="Recovery means a later completed appointment exists in the supplied history"><InteractiveBarChart data={[{ label: "Cancelled", value: cancelled }, { label: "No show", value: noShows }, { label: "Later appointment", value: recovered }]} href={appointmentsHref} /></Panel></>}
       {tab === "scheduling" && <div className="ttg-af-grid"><Panel title="Appointments by weekday" note="Selected date range"><InteractiveBarChart data={dayRows} href={appointmentsHref} /></Panel><Panel title="Appointments by start hour" note="Jane appointment start time"><InteractiveBarChart data={hours} href={appointmentsHref} /></Panel></div>}
     </>;
   }
@@ -385,7 +445,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   }
 
   if (view === "retention") {
-    const tabs = ["Overview", "Patient Activity", "By Practitioner", "By Service", "Cohorts"];
+    const tabs = ["Overview", "Client Activity", "By Practitioner", "By Service", "Cohorts"];
     const cohorts = cohortsIn(displayWindow);
     const clinicCohorts = cohorts.filter((row) => row.entity === "clinic");
     if (!historyAvailable) return <><Tabs active={tab} range={range} tabs={tabs} view={view} /><EmptyHistory /></>;
@@ -416,8 +476,8 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
       };
     });
     return <><Tabs active={tab} range={range} tabs={tabs} view={view} />
-      {(tab === "overview" || tab === "patient-activity") && <><Cards items={[{ label: "Cohort patients", value: integer.format(cohortSize), detail: `${displayWindow.start} to ${displayWindow.end}` }, { label: "30-day retention", value: pct(rate30), detail: `Six mature cohorts ending ${cohortWindow30.end}` }, { label: "60-day retention", value: pct(rate60), detail: `Six mature cohorts ending ${cohortWindow60.end}` }, { label: "90-day retention", value: pct(rate90), detail: `Six mature cohorts ending ${cohortWindow90.end}` }]} /><Panel title={tab === "patient-activity" ? "New and repeat patient activity" : "Retention by cohort month"} note="Rolling twelve-month cohort view; each headline rate uses its six fully mature cohorts">{tab === "patient-activity" ? <InteractiveStackedChart data={activity} href={appointmentsHref} series={[{ key: "cohort", label: "New cohort", color: "#2f86ba" }, { key: "repeat", label: "Repeat patients", color: "#61b08b" }]} /> : <InteractiveLineChart data={activity} href={appointmentsHref} series={[{ key: "retained30", label: "30 day", color: "#2f86ba" }, { key: "retained60", label: "60 day", color: "#61b08b" }, { key: "retained90", label: "90 day", color: "#e2a256" }]} />}</Panel></>}
-      {(tab === "by-practitioner" || tab === "by-service") && <><Cards items={[{ label: "Selected cohorts", value: integer.format(cohortSize), detail: range.label }, { label: "Repeat patients", value: integer.format(repeat), detail: "Two or more completed visits" }, { label: "90-day retention", value: pct(rate90), detail: "Clinic weighted rate" }, { label: "Breakdown rows", value: integer.format(breakdown.length), detail: dimension === "practitioner" ? "Practitioners" : "Services" }]} /><Panel title={`90-day retention by ${dimension}`} note="Only rows with mature eligible cohorts are shown"><InteractiveBarChart data={breakdown} horizontal href={appointmentsHref} /></Panel>
+      {(tab === "overview" || tab === "client-activity") && <><Cards items={[{ label: "Cohort clients", value: integer.format(cohortSize), detail: `${displayWindow.start} to ${displayWindow.end}` }, { label: "30-day retention", value: pct(rate30), detail: `Six mature cohorts ending ${cohortWindow30.end}` }, { label: "60-day retention", value: pct(rate60), detail: `Six mature cohorts ending ${cohortWindow60.end}` }, { label: "90-day retention", value: pct(rate90), detail: `Six mature cohorts ending ${cohortWindow90.end}` }]} /><Panel title={tab === "client-activity" ? "New and repeat client activity" : "Retention by cohort month"} note="Rolling twelve-month cohort view; each headline rate uses its six fully mature cohorts">{tab === "client-activity" ? <InteractiveStackedChart data={activity} href={appointmentsHref} series={[{ key: "cohort", label: "New cohort", color: "#2f86ba" }, { key: "repeat", label: "Repeat clients", color: "#61b08b" }]} /> : <InteractiveLineChart data={activity} href={appointmentsHref} series={[{ key: "retained30", label: "30 day", color: "#2f86ba" }, { key: "retained60", label: "60 day", color: "#61b08b" }, { key: "retained90", label: "90 day", color: "#e2a256" }]} />}</Panel></>}
+      {(tab === "by-practitioner" || tab === "by-service") && <><Cards items={[{ label: "Selected cohorts", value: integer.format(cohortSize), detail: range.label }, { label: "Repeat clients", value: integer.format(repeat), detail: "Two or more completed visits" }, { label: "90-day retention", value: pct(rate90), detail: "Clinic weighted rate" }, { label: "Breakdown rows", value: integer.format(breakdown.length), detail: dimension === "practitioner" ? "Practitioners" : "Services" }]} /><Panel title={`90-day retention by ${dimension}`} note="Only rows with mature eligible cohorts are shown"><InteractiveBarChart data={breakdown} horizontal href={appointmentsHref} /></Panel>
       {tab === "by-practitioner" && <Panel title="Practitioner retention and session depth" note="Retention uses mature cohorts; session depth follows the selected date range"><DataTable rows={retentionByPractitioner} columns={[
         { label: "Practitioner", value: (row) => String(row.label) },
         { label: "90-day retention", value: (row) => `${Number(row.value).toFixed(1)}%` },
@@ -427,9 +487,9 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
         { label: "Avg. sessions / client", value: (row) => Number(row.clients) ? Number(row.averageSessions).toFixed(1) : "—" },
         { label: "Repeat-client rate", value: (row) => Number(row.clients) ? pct(Number(row.repeatRate)) : "—" },
       ]} /></Panel>}</>}
-      {tab === "cohorts" && <Panel title="Retention cohorts" note="Privacy-safe monthly aggregates; no patient identities are stored"><DataTable rows={activity} columns={[
+      {tab === "cohorts" && <Panel title="Retention cohorts" note="Privacy-safe monthly aggregates; no client identities are stored"><DataTable rows={activity} columns={[
         { label: "Cohort", value: (row) => String(row.label) },
-        { label: "Patients", value: (row) => integer.format(Number(row.cohort)) },
+        { label: "Clients", value: (row) => integer.format(Number(row.cohort)) },
         { label: "Repeat", value: (row) => integer.format(Number(row.repeat)) },
         { label: "30 days", value: (row) => `${Number(row.retained30).toFixed(1)}%` },
         { label: "60 days", value: (row) => `${Number(row.retained60).toFixed(1)}%` },
@@ -469,15 +529,15 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
   if (view === "insights") {
     const enoughDays = Math.max(0, Math.round((Date.parse(`${range.end}T12:00:00Z`) - Date.parse(`${range.start}T12:00:00Z`)) / 86_400_000)) >= 27;
     if (!rows.length || !enoughDays) {
-      return <div className="ttg-af-empty"><strong>Not Enough Data for This Period</strong><p>Choose a longer date range after the historical imports mature. The dashboard will not substitute a different period or invent an insight.</p></div>;
+      return <><div className="ttg-af-purpose"><strong>What this page is for</strong><p>Owner insights automatically surface material operating signals from the selected range. No setup is required.</p></div><div className="ttg-af-empty"><strong>Not enough data for this period</strong><p>Choose a longer date range after the historical imports mature. The dashboard will not substitute a different period or invent an insight.</p></div></>;
     }
     const signals = [
       { label: "Collection health", value: pct(collectionRate), detail: collectionRate >= 0.95 ? "Collections are keeping pace with invoicing." : "Outstanding balances merit review." },
       { label: "Appointment completion", value: pct(completionRate), detail: `${integer.format(cancelled + noShows)} missed appointments in the selected range.` },
       { label: "Revenue per appointment", value: appointments ? cad.format(invoiced / appointments) : "—", detail: "Invoiced revenue divided by total appointments." },
-      { label: "30-day retention", value: selectedClinicCohorts30.some((row) => row.eligible30) ? pct(weightedRate(selectedClinicCohorts30, "retained30", "eligible30")) : "Cohorts maturing", detail: "Only patients in the six fully mature cohorts enter the denominator." },
+      { label: "30-day retention", value: selectedClinicCohorts30.some((row) => row.eligible30) ? pct(weightedRate(selectedClinicCohorts30, "retained30", "eligible30")) : "Cohorts maturing", detail: "Only clients in the six fully mature cohorts enter the denominator." },
     ];
-    return <><Cards items={signals} /><Panel title="Operating intelligence" note="Derived from the selected period and its mature historical cohorts"><div className="ttg-quality-list">{signals.map((signal) => <div className="ttg-quality-row" key={signal.label}><span className="is-pass">Signal</span><div><strong>{signal.label}: {signal.value}</strong><p>{signal.detail}</p></div></div>)}</div></Panel></>;
+    return <><div className="ttg-af-purpose"><strong>What this page is for</strong><p>Owner insights automatically flag collection, attendance, revenue, and retention signals from the selected range. No setup is required.</p></div><Cards items={signals} /><Panel title="Operating intelligence" note="Derived from the selected period and its mature historical cohorts"><div className="ttg-quality-list">{signals.map((signal) => <div className="ttg-quality-row" key={signal.label}><span className="is-pass">Signal</span><div><strong>{signal.label}: {signal.value}</strong><p>{signal.detail}</p></div></div>)}</div></Panel></>;
   }
 
   if (view === "marketing") {
@@ -491,6 +551,14 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     const acquisitionRevenue = invoiced;
     const cac = newPatients ? marketingSpend / newPatients : 0;
     const roas = marketingSpend ? acquisitionRevenue / marketingSpend : 0;
+    const selectedClientKeys = new Set((data.appointmentJourneyFacts ?? [])
+      .filter((fact) => fact.firstVisit && !fact.consultation && rangeContains(fact.date, range))
+      .map((fact) => fact.patientKey));
+    const selectedClientRevenue = (data.clientValueFacts ?? [])
+      .filter((fact) => selectedClientKeys.has(fact.patientKey))
+      .reduce((total, fact) => total + fact.revenue, 0);
+    const observedLtv = selectedClientKeys.size ? selectedClientRevenue / selectedClientKeys.size : 0;
+    const cacLtvRatio = cac && observedLtv ? observedLtv / cac : 0;
     const marketingTrend = daily(rows, ["newPatients", "invoiced"]).map((row) => ({ ...row, spend: 0 }));
     const sourceRows = [...new Map(selectedNewClientRows.map((row) => [row.channel, selectedNewClientRows.filter((candidate) => candidate.channel === row.channel)]))].map(([label, values]) => ({
       label: label || "organic",
@@ -501,11 +569,13 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     const attributedPatients = sourceRows.reduce((total, row) => total + row.newPatients, 0);
     const confidence = newPatients ? Math.min(1, attributedPatients / newPatients) : 0;
     return <><Tabs active={marketingTab} range={range} tabs={tabs} view={view} />
-      {marketingTab === "performance" && <><div className="ttg-af-configuration-alert"><div><strong>Ad accounts are not connected</strong><p>Manual campaigns remain the source for spend; Jane booking sources provide acquisition volume.</p></div><AddCampaignButton /></div><Cards items={[
+      {marketingTab === "performance" && <><div className="ttg-af-configuration-alert"><div><strong>Google Ads is not connected</strong><p>The direct read-only Ads integration is a separately scoped add-on. Jane remains the source for new-client volume.</p></div><AddCampaignButton /></div><Cards items={[
         { label: "Total Spend", value: cad.format(marketingSpend), detail: marketingSpend ? range.label : "No spend in the selected range", unavailable: !marketingSpend },
         { label: "New Clients", value: integer.format(newPatients), detail: "Unique clients with a first qualifying appointment" },
         { label: "New Client CAC", value: cad.format(cac), detail: "Spend ÷ new clients", unavailable: !marketingSpend },
         { label: "Gross ROAS", value: marketingSpend ? `${roas.toFixed(2)}×` : "--", detail: "Invoiced revenue ÷ spend", unavailable: !marketingSpend },
+        { label: "Observed client LTV", value: selectedClientKeys.size ? cad.format(observedLtv) : "Needs client cohort", detail: "Revenue observed in imported history ÷ selected new clients", unavailable: !selectedClientKeys.size },
+        { label: "LTV:CAC", value: cacLtvRatio ? `${cacLtvRatio.toFixed(1)}×` : "Needs Google Ads", detail: "Observed client LTV ÷ acquisition cost", unavailable: !cacLtvRatio },
       ]} /><div className="ttg-af-grid"><Panel title="Top Channels" note="Highest spend channels">{sourceRows.length ? <div className="ttg-af-channel-list">{sourceRows.slice(0, 5).map((source) => <div key={source.label}><strong>{source.label}</strong><span>{cad.format(source.spend)}</span><small>{integer.format(source.newPatients)} new clients · {source.spend ? `${(source.revenue / source.spend).toFixed(2)}× ROAS` : "No ROAS"}</small></div>)}</div> : <p>No attributed channels in this period.</p>}</Panel><Panel title="Monthly Spend" note={marketingSpend ? range.label : "No spend data available for the selected period"}>{marketingSpend ? <InteractiveTrendChart currency data={marketingTrend} href={appointmentsHref} series={[{ key: "spend", label: "Spend", color: "#2f86ba" }]} /> : <p>No spend data available for the selected period.</p>}</Panel></div><Panel title="Channel Performance" note="Channel attribution is estimated from qualifying Jane appointments"><DataTable rows={sourceRows} columns={[
         { label: "Channel", value: (row) => String(row.label) },
         { label: "Spend", value: (row) => cad.format(Number(row.spend)) },
@@ -537,13 +607,13 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
     const dashboardId = tab.replace(/^(dashboard|edit)-/, "");
     const selectedDashboard = dashboards.find((dashboard) => dashboard.id === dashboardId);
     if (tab === "overview" || tab === "list") {
-      return <section className="ttg-af-workspace-list"><div className="ttg-af-workspace-heading"><div><h2>Custom Dashboards <span>{dashboards.length}/10</span></h2><p>Build and manage your own analytics views</p></div><div><Link href={queryFor(range, { view: "custom", tab: "trash" })}>View trash</Link><NewDashboardButton /></div></div>{dashboards.map((dashboard) => <article key={dashboard.id}><Link href={queryFor(range, { view: "custom", tab: `dashboard-${dashboard.id}` })}><h3>{dashboard.name}</h3>{dashboard.isDefault && <span>Default</span>}<p>{dashboard.description}</p><small>Updated {shortDate(dashboard.updatedAt.slice(0, 10))}</small></Link></article>)}</section>;
+      return <><div className="ttg-af-purpose"><strong>Optional saved views</strong><p>Use this only if you want a smaller recurring scorecard. The standard dashboard pages already update automatically.</p></div><section className="ttg-af-workspace-list"><div className="ttg-af-workspace-heading"><div><h2>Saved Views <span>{dashboards.length}/10</span></h2><p>Build and manage focused views from existing metrics</p></div><div><Link href={queryFor(range, { view: "custom", tab: "trash" })}>View trash</Link><NewDashboardButton /></div></div>{dashboards.map((dashboard) => <article key={dashboard.id}><Link href={queryFor(range, { view: "custom", tab: `dashboard-${dashboard.id}` })}><h3>{dashboard.name}</h3>{dashboard.isDefault && <span>Default</span>}<p>{dashboard.description}</p><small>Updated {shortDate(dashboard.updatedAt.slice(0, 10))}</small></Link></article>)}</section></>;
     }
     if (tab === "trash") {
-      return <><div className="ttg-af-workspace-heading"><div><h2>Deleted Dashboards</h2><p>Restore or permanently remove deleted dashboards.</p></div><Link href={queryFor(range, { view: "custom", tab: "list" })}>Back to dashboards</Link></div><div className="ttg-af-empty"><strong>Trash is empty</strong><p>No custom dashboards have been deleted.</p></div></>;
+      return <><div className="ttg-af-workspace-heading"><div><h2>Deleted Saved Views</h2><p>Restore or permanently remove deleted saved views.</p></div><Link href={queryFor(range, { view: "custom", tab: "list" })}>Back to saved views</Link></div><div className="ttg-af-empty"><strong>Trash is empty</strong><p>No saved views have been deleted.</p></div></>;
     }
     if (!selectedDashboard) {
-      return <div className="ttg-af-empty"><strong>Dashboard not found</strong><p>The saved dashboard may have been removed.</p><Link href={queryFor(range, { view: "custom", tab: "list" })}>Back to custom dashboards</Link></div>;
+      return <div className="ttg-af-empty"><strong>Saved view not found</strong><p>The saved view may have been removed.</p><Link href={queryFor(range, { view: "custom", tab: "list" })}>Back to saved views</Link></div>;
     }
     const commission = sum(clinic, "commission");
     const practitionerCount = groupRows(rows, "practitioner").size;
@@ -556,7 +626,7 @@ export function AdminFlowView({ data, dataPage, view, tab = "overview", range }:
       return "";
     };
     const editing = tab.startsWith("edit-");
-    return <section className="ttg-af-custom-dashboard"><div className="ttg-af-workspace-heading"><div><Link href={queryFor(range, { view: "custom", tab: "list" })}>Custom Dashboards</Link><h2>{selectedDashboard.name}</h2><p>{selectedDashboard.description}</p></div><div>{editing ? <><Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `dashboard-${selectedDashboard.id}` })}>Done Editing</Link><AddWidgetButton dashboardId={selectedDashboard.id} /></> : <Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `edit-${selectedDashboard.id}` })}>Edit Dashboard</Link>}</div></div><div aria-label="Dashboard widgets" className={`ttg-af-custom-widgets ${editing ? "is-editing" : ""}`}>{selectedDashboard.widgets.map((widget, index) => <article key={widget.id}><div>{editing && <span aria-label="Drag to reorder">⋮⋮</span>}<h3>{widget.title}</h3>{editing && <WidgetActions canMoveDown={index < selectedDashboard.widgets.length - 1} canMoveUp={index > 0} dashboardId={selectedDashboard.id} widget={widget} />}</div>{widget.metricKey ? <><small>{widget.title}</small><strong>{widgetValue(widget.metricKey)}</strong></> : <><p>No metric selected</p><small>Configure this widget to select a metric</small></>}</article>)}</div></section>;
+    return <section className="ttg-af-custom-dashboard"><div className="ttg-af-workspace-heading"><div><Link href={queryFor(range, { view: "custom", tab: "list" })}>Saved Views</Link><h2>{selectedDashboard.name}</h2><p>{selectedDashboard.description}</p></div><div>{editing ? <><Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `dashboard-${selectedDashboard.id}` })}>Done Editing</Link><AddWidgetButton dashboardId={selectedDashboard.id} /></> : <Link className="ttg-workspace-button" href={queryFor(range, { view: "custom", tab: `edit-${selectedDashboard.id}` })}>Edit Saved View</Link>}</div></div><div aria-label="Saved view widgets" className={`ttg-af-custom-widgets ${editing ? "is-editing" : ""}`}>{selectedDashboard.widgets.map((widget, index) => <article key={widget.id}><div>{editing && <span aria-label="Drag to reorder">⋮⋮</span>}<h3>{widget.title}</h3>{editing && <WidgetActions canMoveDown={index < selectedDashboard.widgets.length - 1} canMoveUp={index > 0} dashboardId={selectedDashboard.id} widget={widget} />}</div>{widget.metricKey ? <><small>{widget.title}</small><strong>{widgetValue(widget.metricKey)}</strong></> : <><p>No metric selected</p><small>Configure this widget to select a metric</small></>}</article>)}</div></section>;
   }
 
   if (view === "imports") {

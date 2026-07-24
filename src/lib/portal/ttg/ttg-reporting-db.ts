@@ -224,6 +224,8 @@ export async function publishStagedRefresh(
     const bankValue = (key: string, fallback: number) => payload.refreshType === "jane"
       ? Number(priorBank?.[key] ?? fallback)
       : fallback;
+    const operatingExpenses = bankValue("operating_expenses", payload.monthly.operatingExpenses);
+    const operatingProfit = grossRevenue - payload.monthly.contractorCompensation - operatingExpenses;
     await insertChunks("monthly_metrics", [{
       import_id: payload.refreshId,
       period_key: payload.periodKey,
@@ -233,9 +235,9 @@ export async function publishStagedRefresh(
       collected_revenue: collectedRevenue,
       collection_rate: grossRevenue ? collectedRevenue / grossRevenue : 0,
       outstanding_balance: Math.max(0, grossRevenue - collectedRevenue),
-      operating_expenses: bankValue("operating_expenses", 0),
-      operating_profit: bankValue("operating_profit", collectedRevenue),
-      profit_margin: bankValue("profit_margin", collectedRevenue ? 1 : 0),
+      operating_expenses: operatingExpenses,
+      operating_profit: operatingProfit,
+      profit_margin: grossRevenue ? operatingProfit / grossRevenue : 0,
       net_cash_flow: bankValue("net_cash_flow", 0),
       marketing_spend: bankValue("marketing_spend", 0),
       marketing_ratio: bankValue("marketing_ratio", 0),

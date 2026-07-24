@@ -285,6 +285,8 @@ function monthlyFromAnalytics(
   analyticsRows: AnalyticsDailyRow[],
   stored: Map<string, DbRow>,
   latestPeriod: string,
+  ownerNames: Set<string>,
+  contractorBankByPeriod: Map<string, number>,
 ) {
   const clinic = analyticsRows.filter((row) => row.entity === "clinic");
   const periods = new Map<string, AnalyticsDailyRow[]>();
@@ -296,9 +298,21 @@ function monthlyFromAnalytics(
     const aggregate = (key: keyof AnalyticsDailyRow) => rows.reduce((sum, row) => sum + number(row[key]), 0);
     const grossRevenue = aggregate("invoiced");
     const collectedRevenue = aggregate("collected");
+    const contractorCompensation = analyticsRows
+      .filter((row) => (
+        row.entity === "practitioner"
+        && row.date.startsWith(period)
+        && !ownerNames.has(row.name.toLowerCase().trim())
+        && !row.name.toLowerCase().includes("gabriella evans")
+      ))
+      .reduce((total, row) => total + row.commission, 0);
+    const grossProfit = grossRevenue - contractorCompensation;
     const backing = stored.get(period);
-    const operatingExpenses = number(backing?.operating_expenses);
-    const operatingProfit = backing ? number(backing.operating_profit) : collectedRevenue - operatingExpenses;
+    const operatingExpenses = Math.max(
+      0,
+      number(backing?.operating_expenses) - number(contractorBankByPeriod.get(period)),
+    );
+    const operatingProfit = grossProfit - operatingExpenses;
     const periodEnd = rows.map((row) => row.date).sort().at(-1) ?? `${period}-01`;
     return {
       period,
@@ -306,11 +320,13 @@ function monthlyFromAnalytics(
       dataThrough: periodEnd,
       grossRevenue,
       collectedRevenue,
+      contractorCompensation,
+      grossProfit,
       collectionRate: grossRevenue ? collectedRevenue / grossRevenue : 0,
       outstandingBalance: aggregate("outstanding"),
       operatingExpenses,
       operatingProfit,
-      profitMargin: collectedRevenue ? operatingProfit / collectedRevenue : 0,
+      profitMargin: grossRevenue ? operatingProfit / grossRevenue : 0,
       netCashFlow: number(backing?.net_cash_flow),
       marketingSpend: number(backing?.marketing_spend),
       marketingRatio: grossRevenue ? number(backing?.marketing_spend) / grossRevenue : 0,
@@ -337,6 +353,7 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     customWidgetDb,
     marketingNewClientDb,
     appointmentJourneyDb,
+    clientValueDb,
   ] = await Promise.all([
     allRows("analytics_daily_current", "date"),
     allRows("retention_cohorts_current", "cohort_month"),
@@ -358,6 +375,11 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
       "date",
       "date,practitioner,state,patient_key,consultation,first_visit",
     ),
+    allRows(
+      "transaction_facts_current",
+      "date",
+      "date,patient_key,revenue",
+    ),
   ]);
   const activeRuns = runsDb.filter((row) => !row.rolled_back_at);
   const latestRun = activeRuns.at(-1);
@@ -371,7 +393,17 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
   const cohortRows = cohortsDb.map(cohortRow);
   const latestPeriod = analyticsRows.map((row) => row.date.slice(0, 7)).sort().at(-1)!;
   const monthlyStored = new Map(monthlyDb.map((row) => [text(row.period_key), row]));
-  const months = monthlyFromAnalytics(analyticsRows, monthlyStored, latestPeriod);
+  const ownerNames = new Set(therapistsDb
+    .filter((row) => Boolean(row.owner))
+    .map((row) => text(row.name).toLowerCase().trim()));
+  const contractorBankByPeriod = new Map<string, number>();
+  expensesDb
+    .filter((row) => /therapist.*contractor|contractor.*compensation/i.test(text(row.category)))
+    .forEach((row) => {
+      const period = text(row.period_key);
+      contractorBankByPeriod.set(period, number(contractorBankByPeriod.get(period)) + number(row.amount));
+    });
+  const months = monthlyFromAnalytics(analyticsRows, monthlyStored, latestPeriod, ownerNames, contractorBankByPeriod);
   const completeMonths = months.filter((row) => row.status === "Complete");
   const reportingPeriod = (completeMonths.at(-1) ?? months.at(-1))!.period;
   const capacityPeriod = therapistsDb
@@ -402,7 +434,10 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
       appointmentsPerWeek: aggregate("appointments") / (30 / 7),
     };
   }).filter((row) => row.revenue || row.appointments).sort((left, right) => right.revenue - left.revenue);
-  const expenseRows = expensesDb.filter((row) => text(row.period_key) === reportingPeriod);
+  const expenseRows = expensesDb.filter((row) => (
+    text(row.period_key) === reportingPeriod
+    && !/therapist.*contractor|contractor.*compensation/i.test(text(row.category))
+  ));
   const expenseTotal = expenseRows.reduce((sum, row) => sum + number(row.amount), 0);
   const expenses: ExpenseMetric[] = expenseRows.map((row) => ({
     category: text(row.category),
@@ -496,6 +531,13 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
       consultation: Boolean(row.consultation),
       firstVisit: Boolean(row.first_visit),
     }));
+  const clientValueFacts = clientValueDb
+    .filter((row) => text(row.patient_key))
+    .map((row) => ({
+      date: text(row.date),
+      patientKey: text(row.patient_key),
+      revenue: number(row.revenue),
+    }));
 
   return {
     ...ttgDashboardFixture,
@@ -510,6 +552,7 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
     analyticsRows,
     cohortRows,
     appointmentJourneyFacts,
+    clientValueFacts,
     marketingCampaigns,
     marketingNewClients,
     customDashboards,
@@ -587,7 +630,9 @@ export async function fetchSupabaseDashboard(): Promise<TtgDashboardData> {
       revenuePerTherapist: therapists.length ? clinicalMonth.grossRevenue / therapists.length : 0,
       ownerRevenueShare: clinicalMonth.grossRevenue ? ownerRevenue / clinicalMonth.grossRevenue : 0,
       revenueWithoutOwner: clinicalMonth.grossRevenue - ownerRevenue,
-      contractorCommissions: practitionerRows.reduce((sum, row) => sum + row.commission, 0),
+      contractorCommissions: practitionerRows
+        .filter((row) => !ownerNames.has(row.name.toLowerCase().trim()) && !row.name.toLowerCase().includes("gabriella evans"))
+        .reduce((sum, row) => sum + row.commission, 0),
       bookedAppointments,
       appointmentsPerTherapistWeek: therapists.length ? bookedAppointments / therapists.length / (30 / 7) : 0,
       payoutReconciliation: payoutCheck?.expected ? payoutCheck.actual / payoutCheck.expected : 0,

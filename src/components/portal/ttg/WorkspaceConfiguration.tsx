@@ -280,7 +280,7 @@ const metricOptions = [
   { value: "total_commission", label: "Total Commission" },
   { value: "avg_revenue_per_practitioner", label: "Avg Revenue per Practitioner" },
   { value: "appointments", label: "Appointments" },
-  { value: "new_patients", label: "New Patients" },
+  { value: "new_patients", label: "New Clients" },
 ];
 
 export function AddWidgetButton({ dashboardId }: { dashboardId: string }) {
